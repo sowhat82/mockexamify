@@ -23,15 +23,24 @@ class AuthUtils:
         Returns: (success, user_data, error_message)
         """
         try:
-            # Check if we're in demo mode
+            # Check if we should use direct database authentication
             import config
-            if config.DEMO_MODE:
-                # Use direct database authentication in demo mode
+            
+            # Use direct database authentication for Streamlit Cloud or demo mode
+            # Only use API calls when running on localhost with backend server
+            use_direct_db = (
+                config.DEMO_MODE or 
+                not self.api_base_url.startswith('http://localhost') or
+                'streamlit.app' in self.api_base_url
+            )
+            
+            if use_direct_db:
+                # Use direct database authentication
                 from db import db
                 user = await db.authenticate_user(email, password)
                 if user:
                     user_data = {
-                        "token": f"demo_token_{user.id}",
+                        "token": f"db_token_{user.id}",
                         "user_id": user.id,
                         "email": user.email,
                         "role": user.role,
@@ -41,7 +50,7 @@ class AuthUtils:
                 else:
                     return False, None, "Invalid email or password"
             
-            # Production mode - use API
+            # Production mode with API - only for localhost development
             async with httpx.AsyncClient(follow_redirects=True) as client:
                 response = await client.post(
                     f"{self.api_base_url}/api/auth/login",
@@ -62,7 +71,23 @@ class AuthUtils:
         except httpx.TimeoutException:
             return False, None, "Request timed out. Please try again."
         except httpx.ConnectError:
-            return False, None, "Unable to connect to server. Please check your connection."
+            # Fallback to direct database auth if API connection fails
+            try:
+                from db import db
+                user = await db.authenticate_user(email, password)
+                if user:
+                    user_data = {
+                        "token": f"db_token_{user.id}",
+                        "user_id": user.id,
+                        "email": user.email,
+                        "role": user.role,
+                        "credits_balance": user.credits_balance
+                    }
+                    return True, user_data, None
+                else:
+                    return False, None, "Invalid email or password"
+            except Exception as db_error:
+                return False, None, "Unable to connect to authentication service"
         except Exception as e:
             logger.error(f"Sign in error: {e}")
             return False, None, f"An unexpected error occurred: {str(e)}"

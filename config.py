@@ -34,6 +34,10 @@ def get_secret(key: str, default: str = "") -> str:
 # Check if we're in demo mode
 DEMO_MODE = get_secret('DEMO_MODE', 'false').lower() == 'true'
 
+# Override demo mode if no secrets are available (force production mode on Streamlit Cloud)
+if not HAS_STREAMLIT or not hasattr(st, 'secrets'):
+    DEMO_MODE = False
+
 # Supabase Configuration
 if DEMO_MODE:
     SUPABASE_URL = "demo"

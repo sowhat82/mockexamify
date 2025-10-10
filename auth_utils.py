@@ -23,6 +23,25 @@ class AuthUtils:
         Returns: (success, user_data, error_message)
         """
         try:
+            # Check if we're in demo mode
+            import config
+            if config.DEMO_MODE:
+                # Use direct database authentication in demo mode
+                from db import db
+                user = await db.authenticate_user(email, password)
+                if user:
+                    user_data = {
+                        "token": f"demo_token_{user.id}",
+                        "user_id": user.id,
+                        "email": user.email,
+                        "role": user.role,
+                        "credits_balance": user.credits_balance
+                    }
+                    return True, user_data, None
+                else:
+                    return False, None, "Invalid email or password"
+            
+            # Production mode - use API
             async with httpx.AsyncClient(follow_redirects=True) as client:
                 response = await client.post(
                     f"{self.api_base_url}/api/auth/login",
@@ -54,6 +73,13 @@ class AuthUtils:
         Returns: (success, user_data, error_message)
         """
         try:
+            # Check if we're in demo mode
+            import config
+            if config.DEMO_MODE:
+                # In demo mode, just return success (don't actually create)
+                return False, None, "Registration disabled in demo mode. Use existing demo accounts."
+            
+            # Production mode - use API
             async with httpx.AsyncClient(follow_redirects=True) as client:
                 response = await client.post(
                     f"{self.api_base_url}/api/auth/register",

@@ -131,8 +131,16 @@ def show_mock_card(mock: Dict[str, Any], container, user_credits: int):
                     st.rerun()
 
 async def load_mock_exams() -> List[Dict[str, Any]]:
-    """Load available mock exams from the API"""
+    """Load available mock exams from the API or database"""
     try:
+        # Check if we should use direct database access
+        if config.DEMO_MODE or not config.API_BASE_URL.startswith('http://localhost'):
+            # Use direct database access for Streamlit Cloud or demo mode
+            from db import db
+            mocks = await db.get_all_mocks(active_only=True)
+            return mocks
+        
+        # Use API for local development with running backend
         async with httpx.AsyncClient(follow_redirects=True) as client:
             # Add authentication header if available
             headers = {}
@@ -148,12 +156,18 @@ async def load_mock_exams() -> List[Dict[str, Any]]:
             if response.status_code == 200:
                 return response.json()
             else:
-                st.error(f"Failed to load mock exams: {response.status_code}")
-                return []
+                # Fallback to direct database access if API fails
+                from db import db
+                return await db.get_all_mocks(active_only=True)
                 
     except Exception as e:
-        st.error(f"Error connecting to server: {str(e)}")
-        return []
+        # Fallback to direct database access on any error
+        try:
+            from db import db
+            return await db.get_all_mocks(active_only=True)
+        except Exception as db_error:
+            st.error(f"Error loading mock exams: {str(e)}")
+            return []
 
 def show_past_attempts():
     """Show user's past exam attempts"""
@@ -200,6 +214,17 @@ def show_past_attempts():
 async def load_past_attempts() -> List[Dict[str, Any]]:
     """Load user's past exam attempts"""
     try:
+        # Check if we should use direct database access
+        if config.DEMO_MODE or not config.API_BASE_URL.startswith('http://localhost'):
+            # Use direct database access for Streamlit Cloud or demo mode
+            from db import db
+            user_id = st.session_state.current_user.get("id")
+            if user_id:
+                attempts = await db.get_user_attempts(user_id)
+                return attempts
+            return []
+        
+        # Use API for local development with running backend
         async with httpx.AsyncClient(follow_redirects=True) as client:
             headers = {}
             if "user_token" in st.session_state:
@@ -214,7 +239,20 @@ async def load_past_attempts() -> List[Dict[str, Any]]:
             if response.status_code == 200:
                 return response.json()
             else:
+                # Fallback to direct database access if API fails
+                from db import db
+                user_id = st.session_state.current_user.get("id")
+                if user_id:
+                    return await db.get_user_attempts(user_id)
                 return []
                 
     except Exception as e:
-        return []
+        # Fallback to direct database access on any error
+        try:
+            from db import db
+            user_id = st.session_state.current_user.get("id")
+            if user_id:
+                return await db.get_user_attempts(user_id)
+            return []
+        except Exception as db_error:
+            return []

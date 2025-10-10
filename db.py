@@ -85,6 +85,50 @@ class DatabaseManager:
             from supabase import create_client, Client
             self.client = create_client(config.SUPABASE_URL, config.SUPABASE_KEY)
     
+    # Demo mode methods
+    async def _demo_authenticate_user(self, email: str, password: str) -> Optional[User]:
+        """Demo mode user authentication"""
+        if email in DEMO_USERS:
+            user_data = DEMO_USERS[email]
+            if bcrypt.checkpw(password.encode('utf-8'), user_data['password_hash'].encode('utf-8')):
+                return User(
+                    id=user_data['id'],
+                    email=user_data['email'],
+                    credits_balance=user_data['credits_balance'],
+                    role=user_data['role'],
+                    created_at=user_data['created_at']
+                )
+        return None
+    
+    async def _demo_create_user(self, email: str, password: str, role: str = "user") -> Optional[User]:
+        """Demo mode user creation"""
+        if email in DEMO_USERS:
+            raise ValueError("User with this email already exists")
+        
+        # Hash password
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        # Create demo user
+        user_id = f"demo-user-{len(DEMO_USERS) + 1:03d}"
+        user_data = {
+            "id": user_id,
+            "email": email,
+            "password_hash": password_hash,
+            "credits_balance": 0,
+            "role": role,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        DEMO_USERS[email] = user_data
+        
+        return User(
+            id=user_data['id'],
+            email=user_data['email'],
+            credits_balance=user_data['credits_balance'],
+            role=user_data['role'],
+            created_at=user_data['created_at']
+        )
+    
     async def initialize_tables(self):
         """Initialize database tables if they don't exist"""
         if self.demo_mode:

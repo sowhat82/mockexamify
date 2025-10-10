@@ -4,19 +4,43 @@ Configuration management for MockExamify
 import os
 from dotenv import load_dotenv
 
+# Try to import streamlit for secrets access
+try:
+    import streamlit as st
+    HAS_STREAMLIT = True
+except ImportError:
+    HAS_STREAMLIT = False
+
 # Load environment variables from .env file
 load_dotenv()
 
+def get_secret(key: str, default: str = "") -> str:
+    """Get secret from environment variables or Streamlit secrets"""
+    # First try environment variables
+    value = os.getenv(key)
+    if value:
+        return value
+    
+    # Then try Streamlit secrets if available
+    if HAS_STREAMLIT:
+        try:
+            if hasattr(st, 'secrets') and key in st.secrets:
+                return st.secrets[key]
+        except:
+            pass
+    
+    return default
+
 # Check if we're in demo mode
-DEMO_MODE = os.getenv('DEMO_MODE', 'false').lower() == 'true'
+DEMO_MODE = get_secret('DEMO_MODE', 'false').lower() == 'true'
 
 # Supabase Configuration
 if DEMO_MODE:
     SUPABASE_URL = "demo"
     SUPABASE_KEY = "demo"
 else:
-    SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-    SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+    SUPABASE_URL = get_secret("SUPABASE_URL")
+    SUPABASE_KEY = get_secret("SUPABASE_KEY")
 
 # Stripe Configuration
 if DEMO_MODE:
@@ -24,23 +48,27 @@ if DEMO_MODE:
     STRIPE_PUBLISHABLE_KEY = "pk_test_demo"
     STRIPE_WEBHOOK_SECRET = "whsec_demo"
 else:
-    STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
-    STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
-    STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    STRIPE_SECRET_KEY = get_secret("STRIPE_SECRET_KEY")
+    STRIPE_PUBLISHABLE_KEY = get_secret("STRIPE_PUBLISHABLE_KEY")
+    STRIPE_WEBHOOK_SECRET = get_secret("STRIPE_WEBHOOK_SECRET")
 
 # OpenRouter Configuration
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_API_KEY = get_secret("OPENROUTER_API_KEY")
 
 # Application Configuration
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-this")
-ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
-API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
+SECRET_KEY = get_secret("SECRET_KEY", "your-secret-key-change-this")
+ENVIRONMENT = get_secret("ENVIRONMENT", "development")
+API_BASE_URL = get_secret("API_BASE_URL", "http://localhost:8000")
+
+# Admin credentials
+ADMIN_EMAIL = get_secret("ADMIN_EMAIL", "admin@mockexamify.com")
+ADMIN_PASSWORD = get_secret("ADMIN_PASSWORD", "admin123")
 
 # Email Configuration
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER", "")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_HOST = get_secret("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(get_secret("SMTP_PORT", "587"))
+SMTP_USER = get_secret("SMTP_USER")
+SMTP_PASSWORD = get_secret("SMTP_PASSWORD")
 
 # Credit Pack Configurations
 CREDIT_PACKS = {

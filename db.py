@@ -21,8 +21,16 @@ else:
 
 # Demo data for testing
 DEMO_USERS = {
-    "admin@demo.com": {
+    "admin@mockexamify.com": {
         "id": "demo-admin-001",
+        "email": "admin@mockexamify.com",
+        "password_hash": bcrypt.hashpw("admin123".encode('utf-8'), bcrypt.gensalt()).decode('utf-8'),
+        "credits_balance": 100,
+        "role": "admin",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    },
+    "admin@demo.com": {
+        "id": "demo-admin-002",
         "email": "admin@demo.com",
         "password_hash": bcrypt.hashpw("admin123".encode('utf-8'), bcrypt.gensalt()).decode('utf-8'),
         "credits_balance": 100,

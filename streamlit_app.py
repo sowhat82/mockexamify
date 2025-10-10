@@ -6,10 +6,23 @@ import streamlit as st
 import config
 from auth_utils import AuthUtils, validate_email, validate_password, run_async
 
-# Import pages
-from pages.dashboard import show_dashboard, show_past_attempts
+# Import enhanced pages
+from pages.dashboard import show_dashboard, handle_dashboard_modals
 from pages.exam import show_exam
 from pages.purchase_credits import show_purchase_credits, handle_payment_callback
+from pages.past_attempts import show_past_attempts, handle_modals
+from pages.contact_support import show_contact_support
+
+# Import admin pages
+try:
+    from pages.admin_upload import show_admin_upload
+    from pages.admin_manage import show_admin_manage
+except ImportError:
+    # Fallback if admin pages aren't available yet
+    def show_admin_upload():
+        st.info("Admin upload functionality coming soon!")
+    def show_admin_manage():
+        st.info("Admin management functionality coming soon!")
 
 # Configure Streamlit page
 st.set_page_config(
@@ -303,7 +316,7 @@ def show_authenticated_app(auth: AuthUtils):
             st.rerun()
         
         if st.button("💬 Contact Support", use_container_width=True):
-            st.session_state.page = "contact"
+            st.session_state.page = "contact_support"
             st.rerun()
         
         # Admin menu
@@ -330,19 +343,21 @@ def show_authenticated_app(auth: AuthUtils):
             st.session_state.page = "login"
             st.rerun()
     
-    # Main content area
+    # Main content area with enhanced routing
     page = st.session_state.get("page", "dashboard")
     
     if page == "dashboard":
         show_dashboard()
+        handle_dashboard_modals()
     elif page == "exam":
         show_exam()
     elif page == "purchase_credits":
         show_purchase_credits()
     elif page == "past_attempts":
         show_past_attempts()
-    elif page == "contact":
-        show_contact_page()
+        handle_modals()
+    elif page == "contact_support":
+        show_contact_support()
     elif page == "admin_upload":
         show_admin_upload()
     elif page == "admin_manage":
@@ -351,59 +366,12 @@ def show_authenticated_app(auth: AuthUtils):
         show_admin_tickets()
     else:
         show_dashboard()
-
-def show_contact_page():
-    """Show contact/support form"""
-    st.markdown("# 💬 Contact Support")
-    
-    with st.form("contact_form"):
-        subject = st.selectbox(
-            "Subject",
-            ["General Question", "Technical Issue", "Billing Question", "Feature Request", "Other"]
-        )
-        
-        message = st.text_area(
-            "Message",
-            placeholder="Please describe your question or issue in detail...",
-            height=150
-        )
-        
-        submitted = st.form_submit_button("📤 Send Message", type="primary")
-        
-        if submitted:
-            if not message.strip():
-                st.error("Please enter a message")
-            else:
-                # Here you would send the message to your support system
-                st.success("Message sent successfully! We'll get back to you within 24 hours.")
-                st.balloons()
-    
-    if st.button("🏠 Back to Dashboard"):
-        st.session_state.page = "dashboard"
-        st.rerun()
-
-def show_admin_upload():
-    """Placeholder for admin upload page"""
-    st.markdown("# 📤 Upload Mock Exam")
-    st.info("Admin upload functionality coming soon!")
-    
-    if st.button("🏠 Back to Dashboard"):
-        st.session_state.page = "dashboard"
-        st.rerun()
-
-def show_admin_manage():
-    """Placeholder for admin manage page"""
-    st.markdown("# 📝 Manage Mock Exams")
-    st.info("Admin management functionality coming soon!")
-    
-    if st.button("🏠 Back to Dashboard"):
-        st.session_state.page = "dashboard"
-        st.rerun()
+        handle_dashboard_modals()
 
 def show_admin_tickets():
-    """Placeholder for admin tickets page"""
-    st.markdown("# 🎫 Support Tickets")
-    st.info("Support ticket management coming soon!")
+    """Show admin tickets management"""
+    st.markdown("# 🎫 Support Tickets Management")
+    st.info("Support ticket management functionality coming soon!")
     
     if st.button("🏠 Back to Dashboard"):
         st.session_state.page = "dashboard"

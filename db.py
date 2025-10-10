@@ -157,9 +157,7 @@ class DatabaseManager:
     async def create_user(self, email: str, password: str) -> Optional[User]:
         """Create a new user"""
         if self.demo_mode:
-            # In demo mode, don't create new users
-            logger.info(f"Demo mode - cannot create user {email}")
-            return None
+            return await self._demo_create_user(email, password)
             
         try:
             # Hash password
@@ -168,7 +166,7 @@ class DatabaseManager:
             result = self.client.table('users').insert({
                 'email': email,
                 'password_hash': hashed_password.decode('utf-8'),
-                'credits_balance': 0,
+                'credits_balance': 5,  # Give new users 5 free credits
                 'role': 'user',
                 'created_at': datetime.now(timezone.utc).isoformat()
             }).execute()
@@ -184,6 +182,36 @@ class DatabaseManager:
                 )
         except Exception as e:
             logger.error(f"Error creating user: {e}")
+            return None
+
+    async def get_user_by_email(self, email: str) -> Optional[User]:
+        """Get user by email address"""
+        if self.demo_mode:
+            if email in DEMO_USERS:
+                user_data = DEMO_USERS[email]
+                return User(
+                    id=user_data['id'],
+                    email=user_data['email'],
+                    credits_balance=user_data['credits_balance'],
+                    role=user_data['role'],
+                    created_at=user_data['created_at']
+                )
+            return None
+            
+        try:
+            result = self.client.table('users').select('*').eq('email', email).execute()
+            
+            if result.data:
+                user_data = result.data[0]
+                return User(
+                    id=user_data['id'],
+                    email=user_data['email'],
+                    credits_balance=user_data['credits_balance'],
+                    role=user_data['role'],
+                    created_at=user_data['created_at']
+                )
+        except Exception as e:
+            logger.error(f"Error getting user by email: {e}")
             return None
     
     async def authenticate_user(self, email: str, password: str) -> Optional[User]:

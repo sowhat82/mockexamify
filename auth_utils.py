@@ -98,13 +98,40 @@ class AuthUtils:
         Returns: (success, user_data, error_message)
         """
         try:
-            # Check if we're in demo mode
+            # Check if we should use direct database authentication
             import config
-            if config.DEMO_MODE:
-                # In demo mode, just return success (don't actually create)
-                return False, None, "Registration disabled in demo mode. Use existing demo accounts."
             
-            # Production mode - use API
+            # Use direct database authentication for Streamlit Cloud or demo mode
+            use_direct_db = (
+                config.DEMO_MODE or 
+                not self.api_base_url.startswith('http://localhost') or
+                'streamlit.app' in self.api_base_url
+            )
+            
+            if use_direct_db:
+                # Use direct database user creation
+                from db import db
+                
+                # Check if user already exists
+                existing_user = await db.get_user_by_email(email)
+                if existing_user:
+                    return False, None, "An account with this email already exists"
+                
+                # Create new user
+                user = await db.create_user(email, password)
+                if user:
+                    user_data = {
+                        "token": f"db_token_{user.id}",
+                        "user_id": user.id,
+                        "email": user.email,
+                        "role": user.role,
+                        "credits_balance": user.credits_balance
+                    }
+                    return True, user_data, None
+                else:
+                    return False, None, "Failed to create account. Please try again."
+            
+            # Production mode with API - only for localhost development
             async with httpx.AsyncClient(follow_redirects=True) as client:
                 response = await client.post(
                     f"{self.api_base_url}/api/auth/register",
@@ -130,7 +157,30 @@ class AuthUtils:
         except httpx.TimeoutException:
             return False, None, "Request timed out. Please try again."
         except httpx.ConnectError:
-            return False, None, "Unable to connect to server. Please check your connection."
+            # Fallback to direct database creation if API connection fails
+            try:
+                from db import db
+                
+                # Check if user already exists
+                existing_user = await db.get_user_by_email(email)
+                if existing_user:
+                    return False, None, "An account with this email already exists"
+                
+                # Create new user
+                user = await db.create_user(email, password)
+                if user:
+                    user_data = {
+                        "token": f"db_token_{user.id}",
+                        "user_id": user.id,
+                        "email": user.email,
+                        "role": user.role,
+                        "credits_balance": user.credits_balance
+                    }
+                    return True, user_data, None
+                else:
+                    return False, None, "Failed to create account. Please try again."
+            except Exception as db_error:
+                return False, None, "Unable to connect to registration service"
         except Exception as e:
             logger.error(f"Sign up error: {e}")
             return False, None, f"An unexpected error occurred: {str(e)}"

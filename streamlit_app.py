@@ -253,11 +253,22 @@ def show_register_form(auth: AuthUtils):
             with st.spinner("Creating your account..."):
                 success, user_data, error_msg = run_async(auth.sign_up(email, password))
                 
-                if success:
-                    st.success("Account created successfully! You can now log in.")
+                if success and user_data:
+                    # Automatically log the user in after successful registration
+                    st.session_state.authenticated = True
+                    st.session_state.user_token = user_data.get("token")
+                    st.session_state.current_user = {
+                        "id": user_data.get("user_id"),
+                        "email": email,
+                        "role": user_data.get("role", "user"),
+                        "credits_balance": user_data.get("credits_balance", 5)
+                    }
                     st.session_state.last_email = email
+                    st.session_state.page = "dashboard"
+                    
+                    st.success("Account created successfully! Welcome to MockExamify!")
                     st.balloons()
-                    # Switch to login tab would be ideal here
+                    st.rerun()
                 else:
                     st.error(error_msg or "Registration failed. Please try again.")
 

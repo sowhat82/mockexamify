@@ -5,12 +5,37 @@ Comprehensive user dashboard with statistics, quick actions, and exam management
 import streamlit as st
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
-from auth_utils import AuthUtils, run_async
-import config
+
+try:
+    from auth_utils import AuthUtils, run_async
+    import config
+    AUTH_AVAILABLE = True
+except ImportError as e:
+    st.error(f"Configuration error: {e}")
+    AUTH_AVAILABLE = False
+    # Provide fallback
+    class AuthUtils:
+        def __init__(self, *args, **kwargs):
+            pass
+        def is_authenticated(self):
+            return False
+        def get_current_user(self):
+            return None
+    def run_async(func):
+        return None
 
 def show_dashboard():
     """Display the enhanced main dashboard"""
-    auth = AuthUtils(config.API_BASE_URL)
+    if not AUTH_AVAILABLE:
+        st.error("Dashboard configuration error. Please check your environment setup.")
+        st.info("This might be due to missing configuration files or dependencies.")
+        return
+    
+    try:
+        auth = AuthUtils(config.API_BASE_URL)
+    except Exception as e:
+        st.error(f"Authentication system error: {e}")
+        return
     
     if not auth.is_authenticated():
         st.error("Please log in to access the dashboard")

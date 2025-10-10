@@ -7,11 +7,41 @@ import config
 from auth_utils import AuthUtils, validate_email, validate_password, run_async
 
 # Import enhanced pages
-from pages.dashboard import show_dashboard, handle_dashboard_modals
-from pages.exam import show_exam
-from pages.purchase_credits import show_purchase_credits, handle_payment_callback
-from pages.past_attempts import show_past_attempts, handle_modals
-from pages.contact_support import show_contact_support
+try:
+    from pages.dashboard import show_dashboard, handle_dashboard_modals
+except ImportError:
+    def show_dashboard():
+        st.error("Dashboard functionality temporarily unavailable")
+    def handle_dashboard_modals():
+        pass
+
+try:
+    from pages.exam import show_exam
+except ImportError:
+    def show_exam():
+        st.error("Exam functionality temporarily unavailable")
+
+try:
+    from pages.purchase_credits import show_purchase_credits, handle_payment_callback
+except ImportError:
+    def show_purchase_credits():
+        st.error("Purchase functionality temporarily unavailable")
+    def handle_payment_callback():
+        pass
+
+try:
+    from pages.past_attempts import show_past_attempts, handle_modals
+except ImportError:
+    def show_past_attempts():
+        st.error("Past attempts functionality temporarily unavailable")
+    def handle_modals():
+        pass
+
+try:
+    from pages.contact_support import show_contact_support
+except ImportError:
+    def show_contact_support():
+        st.error("Contact support functionality temporarily unavailable")
 
 # Import admin pages
 try:

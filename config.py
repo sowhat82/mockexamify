@@ -11,8 +11,13 @@ try:
 except ImportError:
     HAS_STREAMLIT = False
 
-# Load environment variables from .env file
-load_dotenv()
+# Try to load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # dotenv not available, skip loading .env file
+    pass
 
 def get_secret(key: str, default: str = "") -> str:
     """Get secret from environment variables or Streamlit secrets"""
@@ -115,3 +120,18 @@ def validate_config():
         raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
     
     return True
+
+# Fallback configuration for Streamlit Cloud
+try:
+    validate_config()
+except Exception as e:
+    # If validation fails on Streamlit Cloud, enable demo mode
+    if HAS_STREAMLIT:
+        DEMO_MODE = True
+        SUPABASE_URL = "demo"
+        SUPABASE_KEY = "demo"
+        STRIPE_SECRET_KEY = "demo"
+        STRIPE_PUBLISHABLE_KEY = "demo"
+        OPENROUTER_API_KEY = "demo"
+        SECRET_KEY = "demo-secret-key"
+        API_BASE_URL = "http://localhost:8000"

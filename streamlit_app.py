@@ -243,6 +243,95 @@ st.markdown("""
     border: 1px solid #e2e8f0;
 }
 
+/* Input field styling */
+.stTextInput > div > div > input {
+    background-color: #f7fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    color: #2d3748;
+    font-size: 16px;
+}
+
+.stTextInput > div > div > input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 1px #667eea;
+}
+
+.stTextArea > div > div > textarea {
+    background-color: #f7fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    color: #2d3748;
+    font-size: 16px;
+}
+
+.stTextArea > div > div > textarea:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 1px #667eea;
+}
+
+/* Select box styling */
+.stSelectbox > div > div > div {
+    background-color: #f7fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    color: #2d3748;
+}
+
+/* Label styling */
+.stTextInput > label,
+.stTextArea > label,
+.stSelectbox > label,
+.stFileUploader > label {
+    color: #2d3748 !important;
+    font-weight: 600 !important;
+    font-size: 16px !important;
+    margin-bottom: 0.5rem !important;
+}
+
+/* Form labels */
+.stForm label {
+    color: #2d3748 !important;
+    font-weight: 600 !important;
+}
+
+/* Tab content styling */
+.stTabs > div > div > div > div {
+    background: white;
+    border-radius: 15px;
+    padding: 2rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* File uploader styling */
+.stFileUploader > div {
+    background-color: #f7fafc;
+    border: 2px dashed #cbd5e0;
+    border-radius: 8px;
+    color: #4a5568;
+}
+
+/* Checkbox styling improvements */
+.stCheckbox > label {
+    color: #2d3748 !important;
+    font-weight: 500 !important;
+}
+
+/* Expander styling */
+.streamlit-expanderHeader {
+    background-color: #f7fafc;
+    border-radius: 8px;
+    color: #2d3748;
+    font-weight: 600;
+}
+
+.streamlit-expanderContent {
+    background-color: white;
+    color: #4a5568;
+    border: 1px solid #e2e8f0;
+    border-radius: 0 0 8px 8px;
+}
+
 /* Button styling */
 .stButton > button {
     border-radius: 12px;

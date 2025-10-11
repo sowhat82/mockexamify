@@ -259,8 +259,36 @@ def show_available_exams(user: Dict[str, Any]):
     except Exception as e:
         st.error(f"Error loading mock exams: {str(e)}")
 
-def show_enhanced_mock_card(mock: Dict[str, Any], container, user: Dict[str, Any]):
+def mock_to_dict(mock) -> Dict[str, Any]:
+    """Convert Mock object to dictionary for backward compatibility"""
+    if hasattr(mock, 'to_dict'):
+        return mock.to_dict()
+    elif hasattr(mock, '__dict__'):
+        # Handle Pydantic models
+        return {
+            'id': getattr(mock, 'id', ''),
+            'title': getattr(mock, 'title', 'Untitled Mock'),
+            'description': getattr(mock, 'description', 'No description'),
+            'questions': getattr(mock, 'questions', []),
+            'questions_json': getattr(mock, 'questions', []),
+            'price_credits': getattr(mock, 'price_credits', 1),
+            'explanation_enabled': getattr(mock, 'explanation_enabled', True),
+            'time_limit_minutes': getattr(mock, 'time_limit_minutes', 60),
+            'category': getattr(mock, 'category', 'General'),
+            'difficulty': getattr(mock, 'difficulty', 'medium'),
+            'is_active': getattr(mock, 'is_active', True),
+            'created_at': getattr(mock, 'created_at', None),
+        }
+    else:
+        # Already a dictionary
+        return mock
+
+
+def show_enhanced_mock_card(mock_obj: Any, container, user: Dict[str, Any]):
     """Display an enhanced mock exam card"""
+    # Convert Mock object to dictionary
+    mock = mock_to_dict(mock_obj)
+    
     with container:
         user_credits = user.get('credits_balance', 0)
         price = mock.get('price_credits', 1)
@@ -512,10 +540,12 @@ def show_no_exams_message():
         st.session_state.page = "contact_support"
         st.rerun()
 
-def apply_exam_filters(mocks: List[Dict[str, Any]], search_term: str, 
+def apply_exam_filters(mocks: List[Any], search_term: str, 
                       difficulty_filter: str, price_filter: str) -> List[Dict[str, Any]]:
     """Apply filters to exam list"""
-    filtered = mocks.copy()
+    # Convert all mocks to dictionaries first
+    mock_dicts = [mock_to_dict(mock) for mock in mocks]
+    filtered = mock_dicts.copy()
     
     # Search filter
     if search_term:
@@ -523,7 +553,8 @@ def apply_exam_filters(mocks: List[Dict[str, Any]], search_term: str,
             mock for mock in filtered
             if search_term.lower() in mock.get('title', '').lower() or
                search_term.lower() in mock.get('description', '').lower() or
-               search_term.lower() in mock.get('topic', '').lower()
+               search_term.lower() in mock.get('topic', '').lower() or
+               search_term.lower() in mock.get('category', '').lower()
         ]
     
     # Difficulty filter

@@ -1,198 +1,315 @@
 """
-Stripe payment integration for MockExamify
+Stripe Payment Integration for MockExamify
+Handles credit purchasing with secure payment processing
 """
 import stripe
+import streamlit as st
 import logging
-from typing import Optional, Dict, Any
-from models import StripeCheckoutRequest, User
-import config
+from typing import Optional, Dict, Any, Tuple
+import uuid
+from datetime import datetime
 
-# Configure Stripe
-stripe.api_key = config.STRIPE_SECRET_KEY
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-class StripeManager:
-    """Handles Stripe payment operations"""
+class StripeUtils:
+    """Stripe payment processing utility"""
     
-    def __init__(self):
-        self.webhook_secret = config.STRIPE_WEBHOOK_SECRET
+    def __init__(self, api_key: str, webhook_secret: str = None):
+        """Initialize Stripe with API key"""
+        stripe.api_key = api_key
+        self.webhook_secret = webhook_secret
+        
+        # Credit packages with prices in cents
+        self.credit_packages = {
+            "starter": {
+                "credits": 10,
+                "price": 999,  # $9.99
+                "price_id": "price_starter_10_credits",
+                "name": "Starter Pack",
+                "description": "10 credits - Perfect for trying out our platform"
+            },
+            "popular": {
+                "credits": 25,
+                "price": 1999,  # $19.99
+                "price_id": "price_popular_25_credits", 
+                "name": "Popular Pack",
+                "description": "25 credits - Great value for regular users"
+            },
+            "premium": {
+                "credits": 50,
+                "price": 3499,  # $34.99
+                "price_id": "price_premium_50_credits",
+                "name": "Premium Pack",
+                "description": "50 credits - Best value for power users"
+            },
+            "unlimited": {
+                "credits": 100,
+                "price": 5999,  # $59.99
+                "price_id": "price_unlimited_100_credits",
+                "name": "Unlimited Pack",
+                "description": "100 credits - Maximum value for exam prep"
+            }
+        }
     
-    async def create_checkout_session(self, user: User, pack_id: str, success_url: str, cancel_url: str) -> Optional[str]:
-        """Create a Stripe checkout session for credit purchase"""
+    def get_credit_packages(self) -> Dict[str, Any]:
+        """Get available credit packages"""
+        return self.credit_packages
+    
+    def create_checkout_session(
+        self, 
+        package_key: str, 
+        user_id: str, 
+        user_email: str,
+        success_url: str,
+        cancel_url: str
+    ) -> Tuple[bool, Optional[str], Optional[str]]:
+        """
+        Create Stripe checkout session
+        Returns: (success, session_url, error_message)
+        """
         try:
-            if pack_id not in config.CREDIT_PACKS:
-                logger.error(f"Invalid pack_id: {pack_id}")
-                return None
+            if package_key not in self.credit_packages:
+                return False, None, "Invalid credit package selected"
             
-            pack_info = config.CREDIT_PACKS[pack_id]
+            package = self.credit_packages[package_key]
             
+            # Create checkout session
             session = stripe.checkout.Session.create(
                 payment_method_types=['card'],
-                line_items=[{
-                    'price_data': {
-                        'currency': 'usd',
-                        'product_data': {
-                            'name': pack_info['name'],
-                            'description': f"{pack_info['credits']} exam credits"
+                line_items=[
+                    {
+                        'price_data': {
+                            'currency': 'usd',
+                            'product_data': {
+                                'name': package['name'],
+                                'description': package['description'],
+                                'images': ['https://mockexamify.com/logo.png'],  # Add your logo URL
+                            },
+                            'unit_amount': package['price'],
                         },
-                        'unit_amount': pack_info['price'],  # Amount in cents
+                        'quantity': 1,
                     },
-                    'quantity': 1,
-                }],
+                ],
                 mode='payment',
-                success_url=success_url,
+                success_url=success_url + '?session_id={CHECKOUT_SESSION_ID}',
                 cancel_url=cancel_url,
+                customer_email=user_email,
                 metadata={
-                    'user_id': user.id,
-                    'pack_id': pack_id,
-                    'credits': pack_info['credits'],
-                    'action': 'buy_credits'
+                    'user_id': user_id,
+                    'package_key': package_key,
+                    'credits': str(package['credits']),
+                    'app_name': 'MockExamify'
                 },
-                customer_email=user.email,
+                expires_at=int((datetime.now().timestamp() + 30 * 60))  # 30 minutes expiry
             )
             
-            logger.info(f"Created checkout session {session.id} for user {user.id}")
-            return session.url
+            return True, session.url, None
             
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error creating session: {e}")
+            return False, None, f"Payment error: {str(e)}"
         except Exception as e:
-            logger.error(f"Error creating checkout session: {e}")
-            return None
+            logger.error(f"Unexpected error creating checkout session: {e}")
+            return False, None, "Payment system temporarily unavailable"
     
-    async def create_explanation_unlock_session(self, user: User, attempt_id: str, success_url: str, cancel_url: str) -> Optional[str]:
-        """Create a Stripe checkout session for unlocking explanations"""
+    def verify_session(self, session_id: str) -> Tuple[bool, Optional[Dict], Optional[str]]:
+        """
+        Verify completed checkout session
+        Returns: (success, session_data, error_message)
+        """
         try:
-            # Fixed price for explanation unlock (e.g., $2.99)
-            explanation_price = 299  # $2.99 in cents
+            session = stripe.checkout.Session.retrieve(session_id)
             
-            session = stripe.checkout.Session.create(
-                payment_method_types=['card'],
-                line_items=[{
-                    'price_data': {
-                        'currency': 'usd',
-                        'product_data': {
-                            'name': 'Unlock Explanations',
-                            'description': 'Detailed explanations for your exam attempt'
-                        },
-                        'unit_amount': explanation_price,
-                    },
-                    'quantity': 1,
-                }],
-                mode='payment',
-                success_url=success_url,
-                cancel_url=cancel_url,
-                metadata={
-                    'user_id': user.id,
-                    'attempt_id': attempt_id,
-                    'action': 'unlock_explanations'
-                },
-                customer_email=user.email,
-            )
-            
-            logger.info(f"Created explanation unlock session {session.id} for user {user.id}")
-            return session.url
-            
-        except Exception as e:
-            logger.error(f"Error creating explanation unlock session: {e}")
-            return None
-    
-    def verify_webhook_signature(self, payload: bytes, signature: str) -> bool:
-        """Verify Stripe webhook signature"""
-        try:
-            stripe.Webhook.construct_event(
-                payload, signature, self.webhook_secret
-            )
-            return True
-        except ValueError:
-            logger.error("Invalid payload")
-            return False
-        except stripe.error.SignatureVerificationError:
-            logger.error("Invalid signature")
-            return False
-    
-    async def handle_checkout_completed(self, session: Dict[str, Any]) -> bool:
-        """Handle successful checkout completion"""
-        try:
-            metadata = session.get('metadata', {})
-            action = metadata.get('action')
-            
-            if action == 'buy_credits':
-                return await self._handle_credit_purchase(metadata)
-            elif action == 'unlock_explanations':
-                return await self._handle_explanation_unlock(metadata)
+            if session.payment_status == 'paid':
+                return True, {
+                    'session_id': session.id,
+                    'user_id': session.metadata.get('user_id'),
+                    'package_key': session.metadata.get('package_key'),
+                    'credits': int(session.metadata.get('credits', 0)),
+                    'amount_paid': session.amount_total,
+                    'customer_email': session.customer_details.email if session.customer_details else None
+                }, None
             else:
-                logger.error(f"Unknown action: {action}")
-                return False
+                return False, None, f"Payment not completed. Status: {session.payment_status}"
                 
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error verifying session: {e}")
+            return False, None, f"Payment verification error: {str(e)}"
         except Exception as e:
-            logger.error(f"Error handling checkout completion: {e}")
-            return False
+            logger.error(f"Unexpected error verifying session: {e}")
+            return False, None, "Payment verification failed"
     
-    async def _handle_credit_purchase(self, metadata: Dict[str, Any]) -> bool:
-        """Handle credit purchase completion"""
+    def handle_webhook(self, payload: str, sig_header: str) -> Tuple[bool, Optional[Dict], Optional[str]]:
+        """
+        Handle Stripe webhook events
+        Returns: (success, event_data, error_message)
+        """
+        if not self.webhook_secret:
+            return False, None, "Webhook secret not configured"
+        
         try:
-            from db import db  # Import here to avoid circular imports
+            event = stripe.Webhook.construct_event(
+                payload, sig_header, self.webhook_secret
+            )
             
-            user_id = metadata.get('user_id')
-            credits = int(metadata.get('credits', 0))
+            # Handle the event
+            if event['type'] == 'checkout.session.completed':
+                session = event['data']['object']
+                
+                if session.payment_status == 'paid':
+                    return True, {
+                        'type': 'payment_completed',
+                        'session_id': session.id,
+                        'user_id': session.metadata.get('user_id'),
+                        'package_key': session.metadata.get('package_key'),
+                        'credits': int(session.metadata.get('credits', 0)),
+                        'amount_paid': session.amount_total,
+                        'customer_email': session.customer_details.email if session.customer_details else None
+                    }, None
             
-            if not user_id or credits <= 0:
-                logger.error("Invalid metadata for credit purchase")
-                return False
+            elif event['type'] == 'payment_intent.payment_failed':
+                payment_intent = event['data']['object']
+                return True, {
+                    'type': 'payment_failed',
+                    'payment_intent_id': payment_intent.id,
+                    'error': payment_intent.last_payment_error.message if payment_intent.last_payment_error else 'Payment failed'
+                }, None
+            
+            else:
+                # Unhandled event type
+                return True, {'type': 'unhandled', 'event_type': event['type']}, None
+                
+        except stripe.error.SignatureVerificationError as e:
+            logger.error(f"Webhook signature verification failed: {e}")
+            return False, None, "Invalid webhook signature"
+        except Exception as e:
+            logger.error(f"Webhook handling error: {e}")
+            return False, None, f"Webhook processing failed: {str(e)}"
+    
+    async def process_successful_payment(self, session_data: Dict) -> Tuple[bool, Optional[str]]:
+        """
+        Process successful payment and award credits
+        Returns: (success, error_message)
+        """
+        try:
+            from db import db
+            
+            user_id = session_data.get('user_id')
+            credits_to_add = session_data.get('credits', 0)
+            session_id = session_data.get('session_id')
+            amount_paid = session_data.get('amount_paid', 0)
+            
+            if not user_id or not credits_to_add:
+                return False, "Invalid payment data"
+            
+            # Check if payment already processed
+            existing_payment = await db.get_payment_by_session_id(session_id)
+            if existing_payment and existing_payment.status == 'completed':
+                return True, None  # Already processed
+            
+            # Record payment in database
+            payment_record = await db.create_payment(
+                user_id=user_id,
+                stripe_session_id=session_id,
+                amount=amount_paid / 100,  # Convert cents to dollars
+                credits_purchased=credits_to_add,
+                status='completed'
+            )
+            
+            if not payment_record:
+                return False, "Failed to record payment"
             
             # Add credits to user account
-            success = await db.update_user_credits(user_id, credits)
+            success = await db.add_credits_to_user(user_id, credits_to_add)
             
             if success:
-                logger.info(f"Added {credits} credits to user {user_id}")
-                return True
+                logger.info(f"Successfully added {credits_to_add} credits to user {user_id}")
+                return True, None
             else:
-                logger.error(f"Failed to add credits to user {user_id}")
-                return False
+                return False, "Failed to add credits to user account"
                 
         except Exception as e:
-            logger.error(f"Error handling credit purchase: {e}")
-            return False
+            logger.error(f"Error processing successful payment: {e}")
+            return False, f"Payment processing error: {str(e)}"
     
-    async def _handle_explanation_unlock(self, metadata: Dict[str, Any]) -> bool:
-        """Handle explanation unlock completion"""
-        try:
-            from db import db  # Import here to avoid circular imports
-            
-            user_id = metadata.get('user_id')
-            attempt_id = metadata.get('attempt_id')
-            
-            if not user_id or not attempt_id:
-                logger.error("Invalid metadata for explanation unlock")
-                return False
-            
-            # Update attempt to mark explanations as unlocked
-            result = db.client.table('attempts').update({
-                'explanation_unlocked': True
-            }).eq('id', attempt_id).eq('user_id', user_id).execute()
-            
-            if result.data:
-                logger.info(f"Unlocked explanations for attempt {attempt_id}")
-                return True
-            else:
-                logger.error(f"Failed to unlock explanations for attempt {attempt_id}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Error handling explanation unlock: {e}")
-            return False
+    def get_package_by_key(self, package_key: str) -> Optional[Dict]:
+        """Get package details by key"""
+        return self.credit_packages.get(package_key)
     
-    def get_pack_info(self, pack_id: str) -> Optional[Dict[str, Any]]:
-        """Get credit pack information"""
-        return config.CREDIT_PACKS.get(pack_id)
+    def format_price(self, price_cents: int) -> str:
+        """Format price in cents to dollar string"""
+        return f"${price_cents / 100:.2f}"
     
-    def get_all_packs(self) -> Dict[str, Dict[str, Any]]:
-        """Get all available credit packs"""
-        return config.CREDIT_PACKS
+    def calculate_value_savings(self, package_key: str) -> Optional[str]:
+        """Calculate savings compared to base price"""
+        if package_key not in self.credit_packages:
+            return None
+        
+        package = self.credit_packages[package_key]
+        base_price_per_credit = self.credit_packages['starter']['price'] / self.credit_packages['starter']['credits']
+        actual_price_per_credit = package['price'] / package['credits']
+        
+        if actual_price_per_credit < base_price_per_credit:
+            savings_percent = ((base_price_per_credit - actual_price_per_credit) / base_price_per_credit) * 100
+            return f"Save {savings_percent:.0f}%"
+        
+        return None
 
+# Utility functions for Streamlit integration
+def init_stripe_utils() -> Optional[StripeUtils]:
+    """Initialize Stripe utils with config"""
+    try:
+        import config
+        
+        stripe_key = getattr(config, 'STRIPE_SECRET_KEY', None)
+        webhook_secret = getattr(config, 'STRIPE_WEBHOOK_SECRET', None)
+        
+        if not stripe_key:
+            st.warning("Stripe not configured. Payment functionality unavailable.")
+            return None
+        
+        return StripeUtils(stripe_key, webhook_secret)
+        
+    except Exception as e:
+        st.error(f"Failed to initialize payments: {e}")
+        return None
 
-# Global Stripe manager instance
-stripe_manager = StripeManager()
+def create_payment_button(
+    stripe_utils: StripeUtils, 
+    package_key: str, 
+    user_id: str, 
+    user_email: str,
+    base_url: str = "https://mockexamify.streamlit.app"
+) -> bool:
+    """
+    Create payment button for a credit package
+    Returns True if checkout session was created successfully
+    """
+    if not stripe_utils:
+        st.error("Payment system not available")
+        return False
+    
+    package = stripe_utils.get_package_by_key(package_key)
+    if not package:
+        st.error("Invalid package selected")
+        return False
+    
+    # Create checkout session
+    success_url = f"{base_url}/?payment=success"
+    cancel_url = f"{base_url}/?payment=cancelled"
+    
+    success, session_url, error = stripe_utils.create_checkout_session(
+        package_key=package_key,
+        user_id=user_id,
+        user_email=user_email,
+        success_url=success_url,
+        cancel_url=cancel_url
+    )
+    
+    if success and session_url:
+        # Redirect to Stripe checkout
+        st.markdown(f'<script>window.open("{session_url}", "_self");</script>', unsafe_allow_html=True)
+        return True
+    else:
+        st.error(f"Payment error: {error}")
+        return False

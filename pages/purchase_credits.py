@@ -3,10 +3,10 @@ Enhanced Purchase Credits page for MockExamify
 Comprehensive Stripe integration for credit purchases
 """
 import streamlit as st
-from typing import Dict, Any
-from auth_utils import AuthUtils, run_async
-from stripe_utils import stripe_manager
+from typing import Dict, Any, Optional
 import config
+from auth_utils import AuthUtils, run_async
+from stripe_utils import init_stripe_utils, create_payment_button
 
 def show_purchase_credits():
     """Display the enhanced credit purchase page"""
@@ -21,8 +21,8 @@ def show_purchase_credits():
         st.error("User data not found")
         st.stop()
     
-    # Handle payment callbacks first
-    handle_payment_callback()
+    # Initialize Stripe utils
+    stripe_utils = init_stripe_utils()
     
     # Header with enhanced styling
     st.markdown("# 💳 Purchase Credits")
@@ -43,23 +43,26 @@ def show_purchase_credits():
         </div>
         """, unsafe_allow_html=True)
     
-    # Credit packages from config
+    if not stripe_utils:
+        st.warning("Payment system temporarily unavailable. Please try again later.")
+        return
+    
+    # Display credit packages
     st.markdown("## 📦 Choose Your Credit Package")
     st.markdown("*All packages include instant credit delivery and never expire*")
     
-    # Get packages from Stripe manager/config
-    packages = stripe_manager.get_all_packs()
+    packages = stripe_utils.get_credit_packages()
     
-    if not packages:
-        st.error("No credit packages available")
-        return
+    # Display packages in a 2x2 grid
+    col1, col2 = st.columns(2)
+    package_keys = list(packages.keys())
     
-    # Display packages in columns
-    cols = st.columns(len(packages))
-    
-    for i, (pack_id, pack_info) in enumerate(packages.items()):
-        with cols[i % len(cols)]:
-            display_package_card(pack_id, pack_info, user)
+    for i, package_key in enumerate(package_keys):
+        package = packages[package_key]
+        
+        # Alternate between columns
+        with col1 if i % 2 == 0 else col2:
+            display_package_card(stripe_utils, package_key, package, user)
     
     # Value proposition section
     st.markdown("---")
@@ -98,237 +101,196 @@ def show_purchase_credits():
     col1, col2 = st.columns(2)
     
     with col1:
-        st.info("""
-        **💳 Accepted Payment Methods:**
-        - All major credit cards (Visa, MasterCard, American Express)
-        - Debit cards
-        - Digital wallets (Apple Pay, Google Pay)
+        st.markdown("""
+        **Accepted Payment Methods:**
+        - 💳 All major credit cards (Visa, MasterCard, Amex)
+        - 🏦 Bank transfers (ACH)
+        - 📱 Digital wallets (Apple Pay, Google Pay)
+        - 🌍 International cards welcome
         """)
     
     with col2:
-        st.success("""
-        **🛡️ Security Features:**
-        - 256-bit SSL encryption
-        - PCI DSS compliant
-        - Fraud protection included
-        - No card details stored
-        """)
-    
-    # FAQ section
-    with st.expander("❓ Frequently Asked Questions"):
         st.markdown("""
-        **Q: How long do credits last?**
-        A: Credits never expire! Use them whenever you're ready to take exams.
-        
-        **Q: Can I get a refund?**
-        A: We offer full refunds within 30 days of purchase if you haven't used any credits.
-        
-        **Q: Are there any hidden fees?**
-        A: No hidden fees! The price you see is exactly what you pay.
-        
-        **Q: Can I share credits with others?**
-        A: Credits are tied to your account and cannot be transferred to other users.
-        
-        **Q: What happens if I have technical issues?**
-        A: Contact our support team and we'll resolve any issues promptly.
-        
-        **Q: Do you offer bulk discounts?**
-        A: Yes! Larger credit packages offer better value per credit.
+        **Security & Trust:**
+        - 🔐 256-bit SSL encryption
+        - 🛡️ PCI DSS Level 1 compliance
+        - 🚫 We never store your card details
+        - 💼 Backed by Stripe's fraud protection
         """)
     
-    # Contact support
+    # FAQ Section
     st.markdown("---")
-    st.markdown("### 📞 Need Help?")
-    if st.button("💬 Contact Support", use_container_width=True):
-        st.session_state.page = "contact_support"
-        st.rerun()
+    st.markdown("## ❓ Frequently Asked Questions")
     
-    # Back button
-    if st.button("🏠 Back to Dashboard", type="secondary"):
-        st.session_state.page = "dashboard"
-        st.rerun()
+    with st.expander("How quickly will I receive my credits?"):
+        st.markdown("Credits are added to your account immediately after successful payment confirmation.")
+    
+    with st.expander("Do credits expire?"):
+        st.markdown("No! Your credits never expire. Use them whenever you're ready to take exams.")
+    
+    with st.expander("Can I get a refund?"):
+        st.markdown("Unused credits can be refunded within 30 days of purchase. Contact support for assistance.")
+    
+    with st.expander("Is my payment information secure?"):
+        st.markdown("Yes! We use Stripe for payment processing, which uses bank-level security. We never store your payment details.")
+    
+    with st.expander("What happens if a payment fails?"):
+        st.markdown("If a payment fails, you'll be notified immediately and no credits will be deducted. You can try again with a different payment method.")
 
-def display_package_card(pack_id: str, pack_info: Dict[str, Any], user: Dict[str, Any]):
-    """Display an enhanced package card"""
-    credits = pack_info['credits']
-    price_cents = pack_info['price']
-    price_dollars = price_cents / 100
-    name = pack_info['name']
+def display_package_card(stripe_utils, package_key: str, package: Dict[str, Any], user: Dict[str, Any]):
+    """Display a credit package card with purchase button"""
     
-    # Determine if this is the popular package
-    is_popular = pack_info.get('popular', False)
+    # Determine card style based on package
+    if package_key == "popular":
+        border_color = "#ff7f0e"
+        badge = "🔥 MOST POPULAR"
+        badge_color = "#ff7f0e"
+    elif package_key == "premium":
+        border_color = "#d62728" 
+        badge = "💎 BEST VALUE"
+        badge_color = "#d62728"
+    else:
+        border_color = "#1f77b4"
+        badge = ""
+        badge_color = "#1f77b4"
     
-    # Calculate value metrics
-    price_per_credit = price_dollars / credits
+    # Calculate value savings
+    savings = stripe_utils.calculate_value_savings(package_key)
     
-    # Enhanced card styling
-    card_style = f"""
-    <div style="
-        border: {'3px solid #ff6b6b' if is_popular else '2px solid #e1e5e9'};
-        border-radius: 1rem; 
-        padding: 1.5rem; 
-        margin-bottom: 1rem;
-        background: {'linear-gradient(135deg, #fff5f5 0%, #fff 100%)' if is_popular else 'white'};
-        box-shadow: 0 8px 25px rgba(0,0,0,{'0.15' if is_popular else '0.1'});
-        transform: {'scale(1.02)' if is_popular else 'scale(1)'};
-        transition: all 0.3s ease;
-        position: relative;
-    ">
-    """
-    
-    if is_popular:
-        card_style += """
-        <div style="
-            position: absolute;
-            top: -10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #ff6b6b;
-            color: white;
-            padding: 0.3rem 1rem;
-            border-radius: 1rem;
-            font-size: 0.8rem;
-            font-weight: bold;
-        ">
-            🌟 MOST POPULAR
-        </div>
-        """
-    
-    card_style += f"""
-        <div style="text-align: center;">
-            <h3 style="margin-top: {'1rem' if is_popular else '0'}; color: #2c3e50; font-size: 1.3rem;">
-                {name}
-            </h3>
-            <div style="font-size: 3rem; font-weight: bold; color: #3498db; margin: 1rem 0;">
-                {credits}
+    # Create the card
+    with st.container():
+        # Add badge if applicable
+        if badge:
+            st.markdown(f"""
+            <div style="text-align: center; margin-bottom: -10px;">
+                <span style="background: {badge_color}; color: white; padding: 0.3rem 1rem; 
+                           border-radius: 1rem; font-size: 0.8rem; font-weight: bold;">
+                    {badge}
+                </span>
             </div>
-            <div style="font-size: 0.9rem; color: #7f8c8d; margin-bottom: 0.5rem;">
-                Credits
+            """, unsafe_allow_html=True)
+        
+        # Main card content
+        st.markdown(f"""
+        <div style="border: 3px solid {border_color}; border-radius: 1rem; padding: 1.5rem; 
+                    margin-bottom: 1rem; background: white; text-align: center;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+            <h3 style="color: {border_color}; margin-top: 0;">{package['name']}</h3>
+            <div style="font-size: 2.5rem; font-weight: bold; color: #333; margin: 1rem 0;">
+                {package['credits']} Credits
             </div>
-            <div style="font-size: 2rem; font-weight: bold; color: #27ae60; margin: 1rem 0;">
-                ${price_dollars:.2f}
+            <div style="font-size: 2rem; color: {border_color}; font-weight: bold; margin-bottom: 0.5rem;">
+                {stripe_utils.format_price(package['price'])}
             </div>
-            <div style="font-size: 0.9rem; color: #95a5a6; margin-bottom: 1.5rem;">
-                ${price_per_credit:.2f} per credit
+            <div style="color: #666; margin-bottom: 1rem;">
+                {stripe_utils.format_price(package['price'] // package['credits'])} per credit
             </div>
-        </div>
-    </div>
-    """
-    
-    st.markdown(card_style, unsafe_allow_html=True)
-    
-    # Purchase button
-    button_type = "primary" if is_popular else "secondary"
-    if st.button(
-        f"💳 Purchase {name}", 
-        key=f"purchase_{pack_id}",
-        use_container_width=True,
-        type=button_type
-    ):
-        initiate_stripe_checkout(pack_id, pack_info, user)
-
-def initiate_stripe_checkout(pack_id: str, pack_info: Dict[str, Any], user: Dict[str, Any]):
-    """Initiate Stripe checkout process"""
-    try:
-        with st.spinner("Creating secure checkout session..."):
-            # Create success and cancel URLs
-            base_url = st.session_state.get('base_url', 'http://localhost:8501')
-            success_url = f"{base_url}?payment=success&pack_id={pack_id}"
-            cancel_url = f"{base_url}?payment=cancel"
+            <div style="color: #666; font-size: 0.9rem; margin-bottom: 1rem;">
+                {package['description']}
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Add savings badge if applicable
+        if savings:
+            st.markdown(f"""
+            <div style="background: #28a745; color: white; padding: 0.5rem; border-radius: 0.5rem; 
+                       margin-bottom: 1rem; font-weight: bold;">
+                {savings}
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        # Purchase button
+        button_key = f"purchase_{package_key}"
+        if st.button(
+            f"🛒 Purchase {package['name']}", 
+            key=button_key,
+            use_container_width=True,
+            type="primary" if package_key == "popular" else "secondary"
+        ):
+            # Create checkout session
+            base_url = "https://mockexamify.streamlit.app"  # Update with your actual URL
             
-            # Create checkout session using Stripe manager
-            checkout_url = run_async(stripe_manager.create_checkout_session(
-                user=user,
-                pack_id=pack_id,
-                success_url=success_url,
-                cancel_url=cancel_url
-            ))
+            success = create_payment_button(
+                stripe_utils=stripe_utils,
+                package_key=package_key,
+                user_id=user['id'],
+                user_email=user['email'],
+                base_url=base_url
+            )
             
-            if checkout_url:
-                st.success("✅ Checkout session created!")
-                st.info("🔄 Redirecting to secure payment page...")
-                
-                # Create redirect button
-                st.markdown(f"""
-                <div style="text-align: center; margin: 2rem 0;">
-                    <a href="{checkout_url}" target="_blank" style="
-                        background: linear-gradient(45deg, #667eea, #764ba2);
-                        color: white;
-                        padding: 1rem 2rem;
-                        border-radius: 0.5rem;
-                        text-decoration: none;
-                        font-weight: bold;
-                        display: inline-block;
-                        transition: all 0.3s ease;
-                    ">
-                        🚀 Complete Payment Securely
-                    </a>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                st.markdown("*A new tab will open with Stripe's secure checkout*")
+            if success:
+                st.success("Redirecting to secure payment...")
             else:
-                st.error("❌ Failed to create checkout session. Please try again.")
-    
-    except Exception as e:
-        st.error(f"❌ Error initiating payment: {str(e)}")
+                st.error("Failed to initiate payment. Please try again.")
 
 def handle_payment_callback():
     """Handle payment success/failure callbacks"""
-    # Get URL parameters
     query_params = st.query_params
     
     if "payment" in query_params:
-        status = query_params["payment"]
+        payment_status = query_params["payment"]
         
-        if status == "success":
-            pack_id = query_params.get("pack_id", "")
+        if payment_status == "success":
+            # Handle successful payment
+            session_id = query_params.get("session_id")
             
-            st.success("🎉 Payment Successful!")
-            st.balloons()
-            
-            # Show success details
-            if pack_id:
-                pack_info = stripe_manager.get_pack_info(pack_id)
-                if pack_info:
-                    st.markdown(f"""
-                    ### ✅ Credits Added Successfully!
+            if session_id:
+                stripe_utils = init_stripe_utils()
+                if stripe_utils:
+                    # Verify the session and process payment
+                    success, session_data, error = stripe_utils.verify_session(session_id)
                     
-                    **Package:** {pack_info['name']}  
-                    **Credits Added:** {pack_info['credits']}  
-                    **Amount Paid:** ${pack_info['price']/100:.2f}
-                    
-                    Your credits have been added to your account and are ready to use!
-                    """)
-            
-            # Refresh user data
-            try:
-                auth = AuthUtils(config.API_BASE_URL)
-                refreshed_user = auth.get_current_user()
-                if refreshed_user:
-                    st.session_state.current_user = refreshed_user
-                    st.success(f"✅ Updated balance: {refreshed_user.get('credits_balance', 0)} credits")
-            except:
-                st.info("Please refresh the page to see your updated balance.")
-            
-            # Clear query params and provide navigation
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("🏠 Go to Dashboard", use_container_width=True, type="primary"):
-                    st.query_params.clear()
-                    st.session_state.page = "dashboard"
-                    st.rerun()
-            
-            with col2:
-                if st.button("📝 Take an Exam", use_container_width=True):
-                    st.query_params.clear()
-                    st.session_state.page = "dashboard"
-                    st.rerun()
+                    if success and session_data:
+                        # Process the payment (add credits to user)
+                        payment_success, payment_error = run_async(
+                            stripe_utils.process_successful_payment(session_data)
+                        )
+                        
+                        if payment_success:
+                            st.success("🎉 Payment successful! Your credits have been added to your account.")
+                            st.balloons()
+                            
+                            # Show payment details
+                            with st.expander("Payment Details", expanded=True):
+                                st.write(f"**Credits Purchased:** {session_data['credits']}")
+                                st.write(f"**Amount Paid:** ${session_data['amount_paid'] / 100:.2f}")
+                                st.write(f"**Transaction ID:** {session_id[:20]}...")
+                            
+                            if st.button("Continue to Dashboard"):
+                                st.session_state.page = "dashboard"
+                                st.rerun()
+                        else:
+                            st.error(f"Payment verification failed: {payment_error}")
+                    else:
+                        st.error(f"Payment verification failed: {error}")
+                else:
+                    st.error("Payment system unavailable")
+            else:
+                st.error("Invalid payment session")
         
-        elif status == "cancel":
-            st.warning("⚠️ Payment Cancelled")
-            st.info("Your payment was cancelled. No charges were made to your account.")
+        elif payment_status == "cancelled":
+            st.warning("Payment was cancelled. You can try again anytime.")
             
-            if st.button("🔄 Try Again", use_container_width=True):
+            if st.button("Try Again"):
+                # Clear query params and reload
                 st.query_params.clear()
                 st.rerun()
+        
+        else:
+            st.error("Unknown payment status")
+
+# Additional utility functions
+def get_recommended_package(current_credits: int) -> str:
+    """Get recommended package based on current credits"""
+    if current_credits < 5:
+        return "popular"  # Need more credits
+    elif current_credits < 15:
+        return "starter"   # Just need a top-up
+    else:
+        return "premium"   # Go big for value
+
+def calculate_credit_value(credits: int) -> str:
+    """Calculate approximate exam value of credits"""
+    return f"~{credits} exam attempts"

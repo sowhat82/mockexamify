@@ -431,32 +431,80 @@ class DatabaseManager:
             return None
     
     # Attempt Management
-    async def create_attempt(self, user_id: str, mock_id: str, user_answers: List[int]) -> Optional[AttemptResponse]:
-        """Create a new attempt"""
+    async def create_attempt(
+        self, 
+        user_id: str, 
+        mock_id: str, 
+        user_answers: Dict[int, int], 
+        score: float = None,
+        correct_answers: int = None,
+        total_questions: int = None,
+        time_taken: int = None,
+        detailed_results: List[Dict] = None,
+        status: str = 'completed'
+    ) -> Optional[AttemptResponse]:
+        """Create a new attempt with enhanced parameters"""
         try:
-            # Get mock to calculate score
-            mock = await self.get_mock_by_id(mock_id)
-            if not mock:
-                return None
+            if self.demo_mode:
+                # Demo mode - add to demo attempts
+                attempt_id = f"demo-attempt-{len(DEMO_ATTEMPTS)}"
+                attempt_data = {
+                    'id': attempt_id,
+                    'user_id': user_id,
+                    'mock_id': mock_id,
+                    'user_answers': user_answers,
+                    'score': score or 0,
+                    'correct_answers': correct_answers or 0,
+                    'total_questions': total_questions or 0,
+                    'time_taken': time_taken,
+                    'detailed_results': detailed_results,
+                    'status': status,
+                    'timestamp': datetime.now(timezone.utc).isoformat()
+                }
+                DEMO_ATTEMPTS.append(attempt_data)
+                
+                return AttemptResponse(
+                    id=attempt_id,
+                    user_id=user_id,
+                    mock_id=mock_id,
+                    user_answers=user_answers,
+                    score=score or 0,
+                    total_questions=total_questions or 0,
+                    correct_answers=correct_answers or 0,
+                    explanation_unlocked=False,
+                    timestamp=attempt_data['timestamp']
+                )
             
-            correct_answers = 0
-            total_questions = len(mock.questions)
-            
-            for i, answer in enumerate(user_answers):
-                if i < len(mock.questions) and answer == mock.questions[i]['correct_index']:
-                    correct_answers += 1
-            
-            score = (correct_answers / total_questions) * 100 if total_questions > 0 else 0
+            # Get mock to calculate score if not provided
+            if score is None or correct_answers is None or total_questions is None:
+                mock = await self.get_mock_by_id(mock_id)
+                if not mock:
+                    return None
+                
+                if total_questions is None:
+                    total_questions = len(mock.questions)
+                
+                if correct_answers is None:
+                    correct_answers = 0
+                    for q_index, user_answer in user_answers.items():
+                        if q_index < len(mock.questions) and user_answer == mock.questions[q_index]['correct_index']:
+                            correct_answers += 1
+                
+                if score is None:
+                    score = (correct_answers / total_questions) * 100 if total_questions > 0 else 0
             
             result = self.client.table('attempts').insert({
                 'user_id': user_id,
                 'mock_id': mock_id,
-                'user_answers_json': json.dumps(user_answers),
+                'user_answers': json.dumps(user_answers),
                 'score': score,
                 'correct_answers': correct_answers,
                 'total_questions': total_questions,
+                'time_taken': time_taken,
+                'detailed_results': json.dumps(detailed_results) if detailed_results else None,
+                'status': status,
                 'explanation_unlocked': False,
-                'timestamp': datetime.now(timezone.utc).isoformat()
+                'created_at': datetime.now(timezone.utc).isoformat()
             }).execute()
             
             if result.data:
@@ -465,12 +513,12 @@ class DatabaseManager:
                     id=attempt_data['id'],
                     user_id=attempt_data['user_id'],
                     mock_id=attempt_data['mock_id'],
-                    user_answers=json.loads(attempt_data['user_answers_json']),
+                    user_answers=json.loads(attempt_data['user_answers']),
                     score=attempt_data['score'],
                     total_questions=attempt_data['total_questions'],
                     correct_answers=attempt_data['correct_answers'],
                     explanation_unlocked=attempt_data['explanation_unlocked'],
-                    timestamp=attempt_data['timestamp']
+                    timestamp=attempt_data['created_at']
                 )
         except Exception as e:
             logger.error(f"Error creating attempt: {e}")
@@ -547,6 +595,255 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error creating ticket: {e}")
             return None
+    
+    # Payment Methods
+    async def create_payment(self, user_id: str, stripe_session_id: str, amount: float, 
+                           credits_purchased: int, status: str = 'pending') -> Optional[Dict]:
+        """Create a payment record"""
+        try:
+            if self.demo_mode:
+                # Demo mode - just return a mock payment
+                return {
+                    'id': f"demo-payment-{len(DEMO_ATTEMPTS)}",
+                    'user_id': user_id,
+                    'stripe_session_id': stripe_session_id,
+                    'amount': amount,
+                    'credits_purchased': credits_purchased,
+                    'status': status,
+                    'created_at': datetime.now(timezone.utc).isoformat()
+                }
+            
+            result = self.client.table('payments').insert({
+                'user_id': user_id,
+                'stripe_session_id': stripe_session_id,
+                'amount': amount,
+                'credits_purchased': credits_purchased,
+                'status': status,
+                'created_at': datetime.now(timezone.utc).isoformat()
+            }).execute()
+            
+            return result.data[0] if result.data else None
+        except Exception as e:
+            logger.error(f"Error creating payment: {e}")
+            return None
+    
+    async def get_payment_by_session_id(self, session_id: str) -> Optional[Dict]:
+        """Get payment by Stripe session ID"""
+        try:
+            if self.demo_mode:
+                # Demo mode - return None (no existing payments)
+                return None
+            
+            result = self.client.table('payments').select('*').eq('stripe_session_id', session_id).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            logger.error(f"Error getting payment by session ID: {e}")
+            return None
+    
+    async def update_payment_status(self, session_id: str, status: str) -> bool:
+        """Update payment status"""
+        try:
+            if self.demo_mode:
+                return True  # Demo mode - always succeed
+            
+            result = self.client.table('payments').update({
+                'status': status,
+                'completed_at': datetime.now(timezone.utc).isoformat() if status == 'completed' else None
+            }).eq('stripe_session_id', session_id).execute()
+            
+            return len(result.data) > 0
+        except Exception as e:
+            logger.error(f"Error updating payment status: {e}")
+            return False
+    
+    async def add_credits_to_user(self, user_id: str, credits_to_add: int) -> bool:
+        """Add credits to user account"""
+        try:
+            if self.demo_mode:
+                # Update demo user data
+                for email, user_data in DEMO_USERS.items():
+                    if user_data['id'] == user_id:
+                        user_data['credits_balance'] += credits_to_add
+                        return True
+                return False
+            
+            # Get current user credits
+            result = self.client.table('users').select('credits_balance').eq('id', user_id).execute()
+            
+            if not result.data:
+                return False
+            
+            current_credits = result.data[0]['credits_balance']
+            new_balance = current_credits + credits_to_add
+            
+            # Update user credits
+            update_result = self.client.table('users').update({
+                'credits_balance': new_balance
+            }).eq('id', user_id).execute()
+            
+            return len(update_result.data) > 0
+        except Exception as e:
+            logger.error(f"Error adding credits to user: {e}")
+            return False
+    
+    async def deduct_credits_from_user(self, user_id: str, credits_to_deduct: int) -> bool:
+        """Deduct credits from user account"""
+        try:
+            if self.demo_mode:
+                # Update demo user data
+                for email, user_data in DEMO_USERS.items():
+                    if user_data['id'] == user_id:
+                        if user_data['credits_balance'] >= credits_to_deduct:
+                            user_data['credits_balance'] -= credits_to_deduct
+                            return True
+                        return False
+                return False
+            
+            # Get current user credits
+            result = self.client.table('users').select('credits_balance').eq('id', user_id).execute()
+            
+            if not result.data:
+                return False
+            
+            current_credits = result.data[0]['credits_balance']
+            
+            if current_credits < credits_to_deduct:
+                return False  # Insufficient credits
+            
+            new_balance = current_credits - credits_to_deduct
+            
+            # Update user credits
+            update_result = self.client.table('users').update({
+                'credits_balance': new_balance
+            }).eq('id', user_id).execute()
+            
+            return len(update_result.data) > 0
+        except Exception as e:
+            logger.error(f"Error deducting credits from user: {e}")
+            return False
+    
+    # Admin Mock Management Methods
+    async def update_mock(self, mock_id: str, update_data: Dict[str, Any]) -> bool:
+        """Update a mock exam"""
+        try:
+            if self.demo_mode:
+                # Update demo mock if it exists
+                if mock_id in DEMO_MOCKS:
+                    DEMO_MOCKS[mock_id].update(update_data)
+                    return True
+                return False
+            
+            result = self.client.table('mocks').update(update_data).eq('id', mock_id).execute()
+            return len(result.data) > 0
+        except Exception as e:
+            logger.error(f"Error updating mock: {e}")
+            return False
+    
+    async def delete_mock(self, mock_id: str) -> bool:
+        """Delete a mock exam"""
+        try:
+            if self.demo_mode:
+                # Remove from demo mocks if it exists
+                if mock_id in DEMO_MOCKS:
+                    del DEMO_MOCKS[mock_id]
+                    return True
+                return False
+            
+            result = self.client.table('mocks').delete().eq('id', mock_id).execute()
+            return len(result.data) > 0
+        except Exception as e:
+            logger.error(f"Error deleting mock: {e}")
+            return False
+    
+    async def get_user_statistics(self) -> Dict[str, Any]:
+        """Get user statistics for admin dashboard"""
+        try:
+            if self.demo_mode:
+                return {
+                    'total_users': len(DEMO_USERS),
+                    'active_users': len([u for u in DEMO_USERS.values() if u['role'] == 'user']),
+                    'admin_users': len([u for u in DEMO_USERS.values() if u['role'] == 'admin']),
+                    'total_attempts': len(DEMO_ATTEMPTS),
+                    'total_mocks': len(DEMO_MOCKS)
+                }
+            
+            # Get user stats
+            users_result = self.client.table('users').select('role').execute()
+            attempts_result = self.client.table('attempts').select('id').execute()
+            mocks_result = self.client.table('mocks').select('id').execute()
+            
+            total_users = len(users_result.data)
+            admin_users = len([u for u in users_result.data if u['role'] == 'admin'])
+            active_users = total_users - admin_users
+            
+            return {
+                'total_users': total_users,
+                'active_users': active_users,
+                'admin_users': admin_users,
+                'total_attempts': len(attempts_result.data),
+                'total_mocks': len(mocks_result.data)
+            }
+        except Exception as e:
+            logger.error(f"Error getting user statistics: {e}")
+            return {
+                'total_users': 0,
+                'active_users': 0,
+                'admin_users': 0,
+                'total_attempts': 0,
+                'total_mocks': 0
+            }
+    
+    async def get_recent_attempts(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get recent exam attempts for admin dashboard"""
+        try:
+            if self.demo_mode:
+                return DEMO_ATTEMPTS[-limit:] if DEMO_ATTEMPTS else []
+            
+            result = self.client.table('attempts').select(
+                'id, user_id, mock_id, score, created_at'
+            ).order('created_at', desc=True).limit(limit).execute()
+            
+            return result.data
+        except Exception as e:
+            logger.error(f"Error getting recent attempts: {e}")
+            return []
+    
+    async def get_mock_performance_stats(self, mock_id: str) -> Dict[str, Any]:
+        """Get performance statistics for a specific mock"""
+        try:
+            if self.demo_mode:
+                # Return demo stats
+                mock_attempts = [a for a in DEMO_ATTEMPTS if a.get('mock_id') == mock_id]
+                if not mock_attempts:
+                    return {'attempts': 0, 'avg_score': 0, 'pass_rate': 0}
+                
+                scores = [a.get('score', 0) for a in mock_attempts]
+                avg_score = sum(scores) / len(scores)
+                pass_rate = len([s for s in scores if s >= 70]) / len(scores) * 100
+                
+                return {
+                    'attempts': len(mock_attempts),
+                    'avg_score': avg_score,
+                    'pass_rate': pass_rate
+                }
+            
+            result = self.client.table('attempts').select('score').eq('mock_id', mock_id).execute()
+            
+            if not result.data:
+                return {'attempts': 0, 'avg_score': 0, 'pass_rate': 0}
+            
+            scores = [attempt['score'] for attempt in result.data]
+            avg_score = sum(scores) / len(scores)
+            pass_rate = len([s for s in scores if s >= 70]) / len(scores) * 100
+            
+            return {
+                'attempts': len(scores),
+                'avg_score': avg_score,
+                'pass_rate': pass_rate
+            }
+        except Exception as e:
+            logger.error(f"Error getting mock performance stats: {e}")
+            return {'attempts': 0, 'avg_score': 0, 'pass_rate': 0}
 
 
 # Global database instance

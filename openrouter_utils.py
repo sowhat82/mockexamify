@@ -1,93 +1,152 @@
 """
 Enhanced OpenRouter API utilities for MockExamify
-Comprehensive AI-powered content generation and explanations
+Comprehensive AI-powered content generation and explanations with caching
 """
 import httpx
 import json
 import asyncio
 from typing import List, Dict, Any, Optional
 import logging
+import hashlib
+from datetime import datetime, timedelta
 import config
 
 logger = logging.getLogger(__name__)
 
+# Simple in-memory cache for explanations
+_explanation_cache = {}
+_cache_expiry = {}
+CACHE_DURATION_HOURS = 24
+
 class OpenRouterManager:
-    """Enhanced manager for OpenRouter API interactions"""
+    """Enhanced manager for OpenRouter API interactions with caching"""
     
     def __init__(self):
         self.api_key = config.OPENROUTER_API_KEY
         self.base_url = "https://openrouter.ai/api/v1"
         self.model = "anthropic/claude-3-haiku"
+        self.fallback_model = "openai/gpt-3.5-turbo"
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
             "HTTP-Referer": "https://mockexamify.streamlit.app",
             "X-Title": "MockExamify"
         }
+        self.rate_limit_delay = 1.0  # seconds between requests
+        self.max_retries = 3
     
     async def generate_explanation(self, question: str, choices: List[str], correct_index: int, 
                                  scenario: str = "", explanation_seed: str = "") -> str:
-        """Generate detailed explanation for a single question"""
+        """Generate detailed explanation for a single question with caching"""
         try:
+            # Create cache key
+            cache_key = self._create_cache_key(question, choices, correct_index, scenario, explanation_seed)
+            
+            # Check cache first
+            cached_explanation = self._get_cached_explanation(cache_key)
+            if cached_explanation:
+                logger.info("Using cached explanation")
+                return cached_explanation
+            
+            # Generate new explanation
             prompt = self._create_explanation_prompt(
                 question, choices, correct_index, scenario, explanation_seed
             )
             
-            explanation = await self._generate_text(prompt)
+            explanation = await self._generate_text_with_retry(prompt)
+            
+            # Cache the result
+            self._cache_explanation(cache_key, explanation)
+            
             return explanation
             
         except Exception as e:
             logger.error(f"Error generating explanation: {e}")
-            return "Explanation temporarily unavailable. Please try again later."
+            return self._get_fallback_explanation(question, choices, correct_index)
     
     async def generate_batch_explanations(self, questions: List[Dict[str, Any]], 
                                         user_answers: List[int]) -> List[str]:
-        """Generate explanations for multiple questions in batch"""
+        """Generate explanations for multiple questions in batch with improved error handling"""
         explanations = []
         
         # Process in smaller batches to avoid rate limits
-        batch_size = 3
-        for i in range(0, len(questions), batch_size):
+        batch_size = 2  # Reduced batch size for better reliability
+        total_batches = (len(questions) + batch_size - 1) // batch_size
+        
+        for batch_num, i in enumerate(range(0, len(questions), batch_size)):
             batch = questions[i:i + batch_size]
             batch_answers = user_answers[i:i + batch_size]
             
-            batch_explanations = await asyncio.gather(
-                *[
-                    self.generate_explanation(
+            logger.info(f"Processing explanation batch {batch_num + 1}/{total_batches}")
+            
+            try:
+                batch_explanations = await asyncio.gather(
+                    *[
+                        self.generate_explanation(
+                            q['question'],
+                            q.get('choices', []),
+                            q.get('correct_index', 0),
+                            q.get('scenario', ''),
+                            q.get('explanation_seed', '')
+                        )
+                        for q in batch
+                    ],
+                    return_exceptions=True
+                )
+                
+                # Handle exceptions in batch results
+                for j, exp in enumerate(batch_explanations):
+                    if isinstance(exp, Exception):
+                        logger.error(f"Error generating explanation for question {i + j}: {exp}")
+                        question = batch[j]
+                        fallback = self._get_fallback_explanation(
+                            question['question'],
+                            question.get('choices', []),
+                            question.get('correct_index', 0)
+                        )
+                        explanations.append(fallback)
+                    else:
+                        explanations.append(exp)
+                
+                # Add delay between batches to respect rate limits
+                if i + batch_size < len(questions):
+                    await asyncio.sleep(self.rate_limit_delay)
+                    
+            except Exception as e:
+                logger.error(f"Error processing batch {batch_num}: {e}")
+                # Add fallback explanations for the entire batch
+                for q in batch:
+                    fallback = self._get_fallback_explanation(
                         q['question'],
                         q.get('choices', []),
-                        q.get('correct_index', 0),
-                        q.get('scenario', ''),
-                        q.get('explanation_seed', '')
+                        q.get('correct_index', 0)
                     )
-                    for q in batch
-                ],
-                return_exceptions=True
-            )
-            
-            # Handle exceptions in batch results
-            for exp in batch_explanations:
-                if isinstance(exp, Exception):
-                    explanations.append("Explanation temporarily unavailable.")
-                else:
-                    explanations.append(exp)
-            
-            # Add delay between batches to respect rate limits
-            if i + batch_size < len(questions):
-                await asyncio.sleep(1)
+                    explanations.append(fallback)
         
         return explanations
     
     async def generate_mock_exam(self, topic: str, difficulty: str, num_questions: int = 10,
                                include_scenarios: bool = False) -> Dict[str, Any]:
-        """Generate a complete mock exam with metadata"""
+        """Generate a complete mock exam with metadata and improved error handling"""
         try:
             prompt = self._create_mock_generation_prompt(
                 topic, difficulty, num_questions, include_scenarios
             )
             
-            response = await self._generate_text(prompt, max_tokens=4000)
+            response = await self._generate_text_with_retry(prompt, max_tokens=4000)
             questions = self._parse_mock_questions(response)
+            
+            # Validate questions
+            valid_questions = []
+            for i, question in enumerate(questions):
+                if self._validate_question_format(question):
+                    valid_questions.append(self._clean_question(question))
+                else:
+                    logger.warning(f"Generated question {i+1} failed validation, skipping")
+            
+            if not valid_questions:
+                logger.error("No valid questions generated")
+                return {}
             
             # Create mock exam metadata
             mock_data = {
@@ -95,12 +154,14 @@ class OpenRouterManager:
                 "description": f"AI-generated {difficulty} level practice exam covering {topic}",
                 "topic": topic,
                 "difficulty": difficulty,
-                "time_limit_minutes": min(num_questions * 2, 120),  # 2 min per question, max 2 hours
-                "questions_json": questions,
-                "total_questions": len(questions),
+                "time_limit_minutes": min(len(valid_questions) * 2, 120),  # 2 min per question, max 2 hours
+                "questions_json": valid_questions,
+                "total_questions": len(valid_questions),
                 "ai_generated": True,
                 "explanation_enabled": True,
-                "price_credits": max(1, len(questions) // 5)  # 1 credit per 5 questions
+                "price_credits": max(1, len(valid_questions) // 5),  # 1 credit per 5 questions
+                "category": "AI Generated",
+                "is_active": True
             }
             
             return mock_data
@@ -113,7 +174,7 @@ class OpenRouterManager:
         """Enhance an existing question with better explanations and metadata"""
         try:
             prompt = self._create_enhancement_prompt(question)
-            response = await self._generate_text(prompt)
+            response = await self._generate_text_with_retry(prompt)
             
             enhanced_data = self._parse_question_enhancement(response)
             
@@ -131,25 +192,36 @@ class OpenRouterManager:
         """Generate personalized study tips based on user performance"""
         try:
             prompt = self._create_study_tips_prompt(topic, user_performance)
-            tips = await self._generate_text(prompt)
+            tips = await self._generate_text_with_retry(prompt)
             return tips
             
         except Exception as e:
             logger.error(f"Error generating study tips: {e}")
-            return "Keep practicing and reviewing the material. Focus on areas where you scored lower."
+            # Return more helpful fallback
+            score = user_performance.get('score', 0)
+            if score >= 80:
+                return "Great work! Continue practicing to maintain your high performance. Focus on advanced concepts and edge cases."
+            elif score >= 60:
+                return "Good progress! Review areas where you scored lower and practice more questions in those topics."
+            else:
+                return "Keep studying and practicing. Focus on fundamental concepts and take more practice exams to improve."
     
     async def validate_question_quality(self, question: Dict[str, Any]) -> Dict[str, Any]:
         """Validate and rate the quality of a question"""
         try:
             prompt = self._create_validation_prompt(question)
-            response = await self._generate_text(prompt)
+            response = await self._generate_text_with_retry(prompt)
             
             validation_result = self._parse_validation_result(response)
             return validation_result
             
         except Exception as e:
             logger.error(f"Error validating question: {e}")
-            return {"score": 7, "feedback": "Unable to validate question quality"}
+            return {
+                "score": 7, 
+                "feedback": "Unable to validate question quality due to service unavailability",
+                "suggestions": ["Ensure question is clear and specific", "Verify all answer choices are plausible"]
+            }
     
     async def _generate_text(self, prompt: str, max_tokens: int = 2000, temperature: float = 0.7) -> str:
         """Generate text using OpenRouter API with enhanced error handling"""
@@ -194,6 +266,91 @@ class OpenRouterManager:
         except Exception as e:
             logger.error(f"Error calling OpenRouter API: {e}")
             return "Error: Unable to connect to AI service."
+    
+    async def _generate_text_with_retry(self, prompt: str, max_tokens: int = 2000, temperature: float = 0.7) -> str:
+        """Generate text with retry logic and fallback model"""
+        for attempt in range(self.max_retries):
+            try:
+                # Add rate limiting delay
+                if attempt > 0:
+                    await asyncio.sleep(self.rate_limit_delay * attempt)
+                
+                result = await self._generate_text(prompt, max_tokens, temperature)
+                
+                # Check if result indicates an error
+                if not result.startswith("Error:"):
+                    return result
+                
+                # Try fallback model on last attempt
+                if attempt == self.max_retries - 1:
+                    logger.info("Trying fallback model")
+                    old_model = self.model
+                    self.model = self.fallback_model
+                    try:
+                        result = await self._generate_text(prompt, max_tokens, temperature)
+                        return result
+                    finally:
+                        self.model = old_model
+                
+            except Exception as e:
+                logger.error(f"Attempt {attempt + 1} failed: {e}")
+                if attempt == self.max_retries - 1:
+                    raise
+                
+        return "Error: Unable to generate content after multiple attempts."
+    
+    def _create_cache_key(self, question: str, choices: List[str], correct_index: int, 
+                         scenario: str = "", explanation_seed: str = "") -> str:
+        """Create a unique cache key for the explanation"""
+        content = f"{question}|{','.join(choices)}|{correct_index}|{scenario}|{explanation_seed}"
+        return hashlib.md5(content.encode()).hexdigest()
+    
+    def _get_cached_explanation(self, cache_key: str) -> Optional[str]:
+        """Get explanation from cache if not expired"""
+        if cache_key in _explanation_cache:
+            expiry_time = _cache_expiry.get(cache_key)
+            if expiry_time and datetime.now() < expiry_time:
+                return _explanation_cache[cache_key]
+            else:
+                # Remove expired entry
+                _explanation_cache.pop(cache_key, None)
+                _cache_expiry.pop(cache_key, None)
+        return None
+    
+    def _cache_explanation(self, cache_key: str, explanation: str):
+        """Cache an explanation with expiry"""
+        _explanation_cache[cache_key] = explanation
+        _cache_expiry[cache_key] = datetime.now() + timedelta(hours=CACHE_DURATION_HOURS)
+        
+        # Cleanup old entries (simple strategy)
+        if len(_explanation_cache) > 1000:
+            self._cleanup_cache()
+    
+    def _cleanup_cache(self):
+        """Remove expired cache entries"""
+        now = datetime.now()
+        expired_keys = [
+            key for key, expiry in _cache_expiry.items()
+            if expiry <= now
+        ]
+        
+        for key in expired_keys:
+            _explanation_cache.pop(key, None)
+            _cache_expiry.pop(key, None)
+    
+    def _get_fallback_explanation(self, question: str, choices: List[str], correct_index: int) -> str:
+        """Generate a basic fallback explanation when AI is unavailable"""
+        if 0 <= correct_index < len(choices):
+            correct_choice = choices[correct_index]
+            return f"""
+**Correct Answer:** {chr(65 + correct_index)}. {correct_choice}
+
+This is the correct answer for this question. For a detailed explanation of why this answer is correct and why the other options are incorrect, please try again later when our AI explanation service is available.
+
+**Study Tip:** Review the relevant course material and practice similar questions to reinforce your understanding of this concept.
+"""
+        else:
+            return "Explanation temporarily unavailable. Please try again later."
     
     def _create_explanation_prompt(self, question: str, choices: List[str], correct_index: int,
                                  scenario: str = "", explanation_seed: str = "") -> str:

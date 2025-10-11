@@ -726,23 +726,7 @@ def show_authenticated_app(auth: AuthUtils):
     # Enhanced main content area with better routing
     page = st.session_state.get("page", "dashboard")
     
-    # Add page breadcrumb
-    page_titles = {
-        "dashboard": "🏠 Dashboard",
-        "exam": "📝 Mock Exam",
-        "purchase_credits": "💳 Purchase Credits",
-        "past_attempts": "📈 Past Attempts",
-        "contact_support": "💬 Contact Support",
-        "admin_dashboard": "📊 Admin Dashboard",
-        "admin_upload": "📤 Upload Mock",
-        "admin_manage": "📝 Manage Mocks",
-        "admin_tickets": "🎫 Support Tickets"
-    }
-    
-    current_title = page_titles.get(page, "🏠 Dashboard")
-    st.markdown(f"# {current_title}")
-    
-    # Route to appropriate page
+    # Route to appropriate page (each page handles its own header)
     if page == "dashboard":
         show_dashboard()
         handle_dashboard_modals()

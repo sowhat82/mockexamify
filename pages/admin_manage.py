@@ -242,22 +242,22 @@ if st.session_state.get('show_delete_confirm') and st.session_state.get('delete_
 
 async def load_all_mocks() -> List[Dict[str, Any]]:
     """Load all mock exams from database"""
-    from db import db
+    from db import db_manager as db
     return await db.get_all_mocks(active_only=False)
 
 async def load_mock_by_id(mock_id: str) -> Dict[str, Any]:
     """Load a specific mock by ID"""
-    from db import db
+    from db import db_manager as db
     return await db.get_mock_by_id(mock_id)
 
 async def update_mock(mock_id: str, update_data: Dict[str, Any]) -> bool:
     """Update a mock exam"""
-    from db import db
+    from db import db_manager as db
     return await db.update_mock(mock_id, update_data)
 
 async def delete_mock(mock_id: str) -> bool:
     """Delete a mock exam"""
-    from db import db
+    from db import db_manager as db
     return await db.delete_mock(mock_id)
 
 async def regenerate_explanations(mock_id: str) -> bool:

@@ -282,7 +282,7 @@ async def process_mock_upload(title: str, description: str, category: str,
             return False
         
         # Create mock exam in database
-        from db import db
+        from db import db_manager as db
         
         mock_data = {
             'title': title,

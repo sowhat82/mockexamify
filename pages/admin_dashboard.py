@@ -275,7 +275,7 @@ def show_user_management_modal():
 
 async def load_dashboard_stats() -> Dict[str, Any]:
     """Load dashboard statistics"""
-    from db import db
+    from db import db_manager as db
     
     try:
         stats = await db.get_user_statistics()
@@ -309,7 +309,7 @@ async def load_dashboard_stats() -> Dict[str, Any]:
 
 async def load_recent_attempts() -> List[Dict[str, Any]]:
     """Load recent exam attempts"""
-    from db import db
+    from db import db_manager as db
     
     try:
         return await db.get_recent_attempts(limit=10)

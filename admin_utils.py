@@ -6,7 +6,7 @@ import logging
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from models import User, Mock, AttemptResponse, Ticket, DashboardStats, QuestionSchema
-from db import db_manager as db
+from db import db
 from openrouter_utils import openrouter_manager
 
 # Configure logging

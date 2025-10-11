@@ -37,7 +37,7 @@ class AuthUtils:
             
             if use_direct_db:
                 # Use direct database authentication
-                from db import db_manager as db
+                from db import db
                 user = await db.authenticate_user(email, password)
                 if user:
                     user_data = {
@@ -74,7 +74,7 @@ class AuthUtils:
         except httpx.ConnectError:
             # Fallback to direct database auth if API connection fails
             try:
-                from db import db_manager as db
+                from db import db
                 user = await db.authenticate_user(email, password)
                 if user:
                     user_data = {
@@ -111,7 +111,7 @@ class AuthUtils:
             
             if use_direct_db:
                 # Use direct database user creation
-                from db import db_manager as db
+                from db import db
                 
                 # Check if user already exists
                 existing_user = await db.get_user_by_email(email)
@@ -160,7 +160,7 @@ class AuthUtils:
         except httpx.ConnectError:
             # Fallback to direct database creation if API connection fails
             try:
-                from db import db_manager as db
+                from db import db
                 
                 # Check if user already exists
                 existing_user = await db.get_user_by_email(email)

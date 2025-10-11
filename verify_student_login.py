@@ -73,9 +73,21 @@ async def test_auth_functionality():
         
         print("3. Testing database connection...")
         from db import db_manager
-        # Just test that db_manager is available
+        # Test that authenticate_user method exists and works
         if hasattr(db_manager, 'authenticate_user'):
             print("   ✅ Database authentication method available")
+            
+            # Test actual authentication
+            print("4. Testing actual authentication...")
+            user = await db_manager.authenticate_user("student@test.com", "student123")
+            if user:
+                print(f"   ✅ Authentication successful for {user.email}")
+            else:
+                print("   ❌ Authentication failed")
+                return False
+        else:
+            print("   ❌ authenticate_user method not found")
+            return False
         
         print("\n🎉 Authentication functionality tests passed!")
         return True

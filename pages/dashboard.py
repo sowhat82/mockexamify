@@ -595,7 +595,7 @@ def get_time_ago(date_obj: datetime) -> str:
 async def load_mock_exams() -> List[Dict[str, Any]]:
     """Load available mock exams with enhanced fallback"""
     try:
-        from db import db
+        from db import db_manager as db
         mocks = await db.get_all_mocks(active_only=True)
         return mocks
     except Exception as e:
@@ -605,7 +605,7 @@ async def load_mock_exams() -> List[Dict[str, Any]]:
 async def load_user_statistics(user_id: str) -> Dict[str, Any]:
     """Load comprehensive user statistics"""
     try:
-        from db import db
+        from db import db_manager as db
         return await db.get_user_statistics(user_id)
     except Exception as e:
         return {
@@ -619,7 +619,7 @@ async def load_user_statistics(user_id: str) -> Dict[str, Any]:
 async def load_recent_attempts(user_id: str, limit: int = 10) -> List[Dict[str, Any]]:
     """Load recent exam attempts"""
     try:
-        from db import db
+        from db import db_manager as db
         return await db.get_user_attempts(user_id, limit=limit)
     except Exception as e:
         return []
@@ -627,7 +627,7 @@ async def load_recent_attempts(user_id: str, limit: int = 10) -> List[Dict[str, 
 async def load_user_activities(user_id: str, limit: int = 20) -> List[Dict[str, Any]]:
     """Load recent user activities"""
     try:
-        from db import db
+        from db import db_manager as db
         return await db.get_user_activities(user_id, limit=limit)
     except Exception as e:
         return []

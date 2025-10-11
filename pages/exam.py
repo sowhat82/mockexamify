@@ -9,7 +9,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 import uuid
-from db import db
+from db import db_manager as db
 from auth_utils import AuthUtils, run_async
 from openrouter_utils import generate_explanation
 from pdf_utils import generate_exam_results_pdf

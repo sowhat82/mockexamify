@@ -11,13 +11,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 
-# Import production monitoring utilities
-try:
-    from production_utils import get_production_metrics, health_checker
-    PRODUCTION_MONITORING_AVAILABLE = True
-except ImportError:
-    PRODUCTION_MONITORING_AVAILABLE = False
-
 def show_admin_dashboard():
     """Display the admin dashboard with analytics and management options"""
     auth = AuthUtils(config.API_BASE_URL)
@@ -74,44 +67,6 @@ def show_admin_dashboard():
                 f"${revenue:.2f}",
                 delta=f"+${stats.get('revenue_today', 0):.2f} today"
             )
-        
-        st.markdown("---")
-        
-        # Production System Status (if available)
-        if PRODUCTION_MONITORING_AVAILABLE:
-            st.markdown("## 🔧 System Status")
-            try:
-                health_status = health_checker.get_overall_health()
-                production_metrics = get_production_metrics()
-                
-                # System status row
-                col1, col2, col3, col4 = st.columns(4)
-                
-                with col1:
-                    overall_status = health_status['overall_status']
-                    status_color = "🟢" if overall_status == 'healthy' else "🟡" if overall_status == 'degraded' else "🔴"
-                    st.metric("System Health", f"{status_color} {overall_status.title()}")
-                
-                with col2:
-                    cache_stats = production_metrics['cache_stats']
-                    st.metric("Cache Hit Rate", f"{cache_stats['hit_rate']:.1f}%")
-                
-                with col3:
-                    cpu_usage = health_status['components']['system'].get('cpu_percent', 0)
-                    cpu_color = "🟢" if cpu_usage < 70 else "🟡" if cpu_usage < 85 else "🔴"
-                    st.metric("CPU Usage", f"{cpu_color} {cpu_usage:.1f}%")
-                
-                with col4:
-                    memory_usage = health_status['components']['system'].get('memory_percent', 0)
-                    memory_color = "🟢" if memory_usage < 70 else "🟡" if memory_usage < 85 else "🔴"
-                    st.metric("Memory Usage", f"{memory_color} {memory_usage:.1f}%")
-                
-                # Quick link to full production monitoring
-                if st.button("🔧 View Detailed System Monitoring"):
-                    st.switch_page("pages/production_monitoring.py")
-                    
-            except Exception as e:
-                st.warning(f"Production monitoring temporarily unavailable: {str(e)}")
         
         st.markdown("---")
         
@@ -275,7 +230,7 @@ def show_user_management_modal():
 
 async def load_dashboard_stats() -> Dict[str, Any]:
     """Load dashboard statistics"""
-    from db import db_manager as db
+    from db import db
     
     try:
         stats = await db.get_user_statistics()
@@ -309,7 +264,7 @@ async def load_dashboard_stats() -> Dict[str, Any]:
 
 async def load_recent_attempts() -> List[Dict[str, Any]]:
     """Load recent exam attempts"""
-    from db import db_manager as db
+    from db import db
     
     try:
         return await db.get_recent_attempts(limit=10)

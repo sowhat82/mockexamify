@@ -1,39 +1,44 @@
 """
 Enhanced OpenRouter API utilities for MockExamify
-Comprehensive AI-powered content generation and explanations with caching
+Comprehensive AI-powered content generation and explanations with caching and production features
 """
 import httpx
 import json
 import asyncio
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import logging
 import hashlib
 from datetime import datetime, timedelta
+import re
 import config
+from models import Question, DifficultyLevel
 
 logger = logging.getLogger(__name__)
 
-# Simple in-memory cache for explanations
+# Simple in-memory cache for explanations and generation
 _explanation_cache = {}
+_generation_cache = {}
 _cache_expiry = {}
 CACHE_DURATION_HOURS = 24
 
 class OpenRouterManager:
-    """Enhanced manager for OpenRouter API interactions with caching"""
+    """Enhanced manager for OpenRouter API interactions with advanced AI features"""
     
     def __init__(self):
         self.api_key = config.OPENROUTER_API_KEY
         self.base_url = "https://openrouter.ai/api/v1"
-        self.model = "anthropic/claude-3-haiku"
-        self.fallback_model = "openai/gpt-3.5-turbo"
+        self.model = "anthropic/claude-3.5-sonnet"  # More powerful for content generation
+        self.fallback_model = "anthropic/claude-3-haiku"
+        self.budget_model = "openai/gpt-4o-mini"  # For batch operations
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
             "HTTP-Referer": "https://mockexamify.streamlit.app",
-            "X-Title": "MockExamify"
+            "X-Title": "MockExamify Production"
         }
-        self.rate_limit_delay = 1.0  # seconds between requests
+        self.rate_limit_delay = 0.5  # Faster for production
         self.max_retries = 3
+        self.batch_size = 5  # For bulk operations
     
     async def generate_explanation(self, question: str, choices: List[str], correct_index: int, 
                                  scenario: str = "", explanation_seed: str = "") -> str:
@@ -592,6 +597,273 @@ Consider:
         
         return True
     
+    
+    # Advanced AI Generation Methods for Production MVP
+    
+    async def tag_question_topics(self, question_text: str, choices: List[str], 
+                                 exam_category: str) -> List[str]:
+        """Use AI to automatically tag questions with relevant topics"""
+        try:
+            prompt = f"""
+            Analyze this {exam_category} exam question and identify the specific topics it covers.
+            
+            Question: {question_text}
+            Choices: {', '.join(choices)}
+            Exam Category: {exam_category}
+            
+            Return a JSON list of 2-5 specific topic tags that best categorize this question.
+            Topics should be specific (e.g., "Capital Adequacy Ratio", "Risk Management Framework") 
+            rather than general (e.g., "Banking", "Finance").
+            
+            Return format: ["topic1", "topic2", "topic3"]
+            """
+            
+            response = await self._generate_text_with_retry(prompt, model=self.budget_model)
+            
+            # Parse JSON response
+            try:
+                tags = json.loads(response.strip())
+                return [tag.strip() for tag in tags if isinstance(tag, str)][:5]
+            except json.JSONDecodeError:
+                # Fallback: extract topics from response text
+                lines = response.strip().split('\n')
+                tags = []
+                for line in lines:
+                    if '"' in line:
+                        parts = line.split('"')
+                        for part in parts[1::2]:  # Every second part is inside quotes
+                            if part.strip():
+                                tags.append(part.strip())
+                return tags[:5]
+                
+        except Exception as e:
+            logger.error(f"Error tagging question topics: {e}")
+            return []
+    
+    async def generate_question_variants(self, base_question: Dict[str, Any], 
+                                       num_variants: int = 3) -> List[Dict[str, Any]]:
+        """Generate variants of an existing question with different scenarios/numbers"""
+        try:
+            prompt = f"""
+            Create {num_variants} variants of this exam question. Each variant should:
+            - Test the same concept but with different scenarios, numbers, or contexts
+            - Maintain the same difficulty level and question structure
+            - Have 4 plausible answer choices with only one correct answer
+            - Include a brief explanation for the correct answer
+            
+            Original Question: {base_question['question']}
+            Original Choices: {json.dumps(base_question['choices'])}
+            Original Correct Answer: {base_question['choices'][base_question['correct_index']]}
+            Original Explanation: {base_question.get('explanation_seed', '')}
+            
+            Return as JSON array with this structure:
+            [{{
+                "question": "variant question text",
+                "choices": ["A", "B", "C", "D"],
+                "correct_index": 0,
+                "explanation_seed": "brief explanation",
+                "scenario": "optional scenario context"
+            }}]
+            """
+            
+            response = await self._generate_text_with_retry(prompt)
+            
+            try:
+                variants = json.loads(response.strip())
+                validated_variants = []
+                
+                for variant in variants:
+                    if self._validate_question_structure(variant):
+                        validated_variants.append(variant)
+                
+                return validated_variants
+                
+            except json.JSONDecodeError:
+                logger.error("Failed to parse question variants JSON")
+                return []
+                
+        except Exception as e:
+            logger.error(f"Error generating question variants: {e}")
+            return []
+    
+    async def generate_adaptive_questions(self, user_weak_areas: List[str], 
+                                        difficulty_level: str,
+                                        exam_category: str,
+                                        num_questions: int = 5) -> List[Dict[str, Any]]:
+        """Generate questions targeted at user's weak areas for adaptive practice"""
+        try:
+            weak_areas_text = ", ".join(user_weak_areas)
+            
+            prompt = f"""
+            Generate {num_questions} {difficulty_level} level practice questions for {exam_category} 
+            specifically targeting these weak areas: {weak_areas_text}
+            
+            Requirements:
+            - Each question should focus on one of the weak areas
+            - Difficulty: {difficulty_level}
+            - Include practical scenarios where applicable
+            - 4 answer choices each with clear explanations
+            - Progressive difficulty within the set
+            
+            Return as JSON array with this structure:
+            [{{
+                "question": "question text",
+                "choices": ["A", "B", "C", "D"], 
+                "correct_index": 0,
+                "explanation_seed": "detailed explanation",
+                "scenario": "scenario context if applicable",
+                "target_topic": "specific weak area being addressed",
+                "difficulty": "{difficulty_level}"
+            }}]
+            """
+            
+            response = await self._generate_text_with_retry(prompt)
+            
+            try:
+                questions = json.loads(response.strip())
+                validated_questions = []
+                
+                for q in questions:
+                    if self._validate_question_structure(q):
+                        validated_questions.append(q)
+                
+                return validated_questions
+                
+            except json.JSONDecodeError:
+                logger.error("Failed to parse adaptive questions JSON")
+                return []
+                
+        except Exception as e:
+            logger.error(f"Error generating adaptive questions: {e}")
+            return []
+    
+    async def enhance_explanation_quality(self, question: str, basic_explanation: str,
+                                        user_answer: int, correct_answer: int,
+                                        choices: List[str]) -> str:
+        """Enhance a basic explanation with more detailed reasoning"""
+        try:
+            user_choice = choices[user_answer] if 0 <= user_answer < len(choices) else "No answer"
+            correct_choice = choices[correct_answer] if 0 <= correct_answer < len(choices) else "Unknown"
+            
+            prompt = f"""
+            Enhance this explanation for an exam question to make it more educational and comprehensive.
+            
+            Question: {question}
+            Choices: {json.dumps(choices)}
+            User selected: {user_choice}
+            Correct answer: {correct_choice}
+            Basic explanation: {basic_explanation}
+            
+            Create an enhanced explanation that:
+            1. Explains why the correct answer is right (with reasoning)
+            2. Explains why the incorrect answers are wrong
+            3. Provides additional context or learning tips
+            4. Uses clear, educational language
+            5. Keeps it concise but comprehensive
+            
+            Return only the enhanced explanation text.
+            """
+            
+            enhanced = await self._generate_text_with_retry(prompt, model=self.budget_model)
+            return enhanced.strip()
+            
+        except Exception as e:
+            logger.error(f"Error enhancing explanation: {e}")
+            return basic_explanation
+    
+    async def generate_syllabus_coverage_questions(self, syllabus_section: str,
+                                                 learning_objectives: List[str],
+                                                 exam_category: str,
+                                                 num_questions: int = 10) -> List[Dict[str, Any]]:
+        """Generate questions that comprehensively cover a syllabus section"""
+        try:
+            objectives_text = "\n".join([f"- {obj}" for obj in learning_objectives])
+            
+            prompt = f"""
+            Generate {num_questions} exam questions for {exam_category} that comprehensively cover 
+            this syllabus section:
+            
+            Section: {syllabus_section}
+            Learning Objectives:
+            {objectives_text}
+            
+            Requirements:
+            - Cover each learning objective with at least one question
+            - Mix of difficulty levels (easy, medium, hard)
+            - Practical application scenarios where relevant
+            - Clear, unambiguous questions
+            - 4 plausible answer choices
+            - Detailed explanations
+            
+            Return as JSON array with this structure:
+            [{{
+                "question": "question text",
+                "choices": ["A", "B", "C", "D"],
+                "correct_index": 0,
+                "explanation_seed": "detailed explanation",
+                "scenario": "practical scenario if applicable",
+                "learning_objective": "which objective this addresses",
+                "difficulty": "easy|medium|hard",
+                "syllabus_section": "{syllabus_section}"
+            }}]
+            """
+            
+            response = await self._generate_text_with_retry(prompt)
+            
+            try:
+                questions = json.loads(response.strip())
+                validated_questions = []
+                
+                for q in questions:
+                    if self._validate_question_structure(q):
+                        validated_questions.append(q)
+                
+                return validated_questions
+                
+            except json.JSONDecodeError:
+                logger.error("Failed to parse syllabus coverage questions JSON")
+                return []
+                
+        except Exception as e:
+            logger.error(f"Error generating syllabus coverage questions: {e}")
+            return []
+    
+    async def analyze_question_difficulty(self, question: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze and suggest appropriate difficulty level for a question"""
+        try:
+            prompt = f"""
+            Analyze this exam question and determine its appropriate difficulty level and characteristics.
+            
+            Question: {question['question']}
+            Choices: {json.dumps(question['choices'])}
+            Correct Answer: {question['choices'][question['correct_index']]}
+            
+            Analyze and return JSON with:
+            {{
+                "suggested_difficulty": "easy|medium|hard",
+                "complexity_factors": ["factor1", "factor2"],
+                "cognitive_level": "recall|comprehension|application|analysis",
+                "time_estimate_seconds": 60,
+                "requires_calculation": true/false,
+                "requires_memorization": true/false,
+                "scenario_based": true/false,
+                "explanation": "reasoning for difficulty assessment"
+            }}
+            """
+            
+            response = await self._generate_text_with_retry(prompt, model=self.budget_model)
+            
+            try:
+                analysis = json.loads(response.strip())
+                return analysis
+            except json.JSONDecodeError:
+                logger.error("Failed to parse difficulty analysis JSON")
+                return {"suggested_difficulty": "medium", "explanation": "Analysis failed"}
+                
+        except Exception as e:
+            logger.error(f"Error analyzing question difficulty: {e}")
+            return {"suggested_difficulty": "medium", "explanation": "Analysis error"}
+    
     def _clean_question(self, question: Dict[str, Any]) -> Dict[str, Any]:
         """Clean and normalize question data"""
         cleaned = {
@@ -640,3 +912,38 @@ async def generate_study_tips(topic: str, user_performance: Dict[str, Any]) -> s
 async def validate_question_quality(question: Dict[str, Any]) -> Dict[str, Any]:
     """Validate question quality"""
     return await openrouter_manager.validate_question_quality(question)
+
+# New AI-powered helper functions for production MVP
+async def tag_question_topics(question_text: str, choices: List[str], exam_category: str) -> List[str]:
+    """Auto-tag questions with relevant topics"""
+    return await openrouter_manager.tag_question_topics(question_text, choices, exam_category)
+
+async def generate_question_variants(base_question: Dict[str, Any], num_variants: int = 3) -> List[Dict[str, Any]]:
+    """Generate variants of an existing question"""
+    return await openrouter_manager.generate_question_variants(base_question, num_variants)
+
+async def generate_adaptive_questions(user_weak_areas: List[str], difficulty_level: str,
+                                    exam_category: str, num_questions: int = 5) -> List[Dict[str, Any]]:
+    """Generate questions for user's weak areas"""
+    return await openrouter_manager.generate_adaptive_questions(
+        user_weak_areas, difficulty_level, exam_category, num_questions
+    )
+
+async def enhance_explanation_quality(question: str, basic_explanation: str,
+                                    user_answer: int, correct_answer: int,
+                                    choices: List[str]) -> str:
+    """Enhance explanation with detailed reasoning"""
+    return await openrouter_manager.enhance_explanation_quality(
+        question, basic_explanation, user_answer, correct_answer, choices
+    )
+
+async def generate_syllabus_coverage_questions(syllabus_section: str, learning_objectives: List[str],
+                                             exam_category: str, num_questions: int = 10) -> List[Dict[str, Any]]:
+    """Generate questions covering syllabus section"""
+    return await openrouter_manager.generate_syllabus_coverage_questions(
+        syllabus_section, learning_objectives, exam_category, num_questions
+    )
+
+async def analyze_question_difficulty(question: Dict[str, Any]) -> Dict[str, Any]:
+    """Analyze question difficulty and characteristics"""
+    return await openrouter_manager.analyze_question_difficulty(question)

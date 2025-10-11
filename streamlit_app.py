@@ -8,12 +8,18 @@ from auth_utils import AuthUtils, validate_email, validate_password, run_async
 
 # Import enhanced pages
 try:
-    from pages.dashboard import show_dashboard, handle_dashboard_modals
+    from pages.dashboard_enhanced import show_dashboard, handle_dashboard_modals
+    from pages.analytics_dashboard import show_analytics_dashboard
 except ImportError:
-    def show_dashboard():
-        st.error("Dashboard functionality temporarily unavailable")
-    def handle_dashboard_modals():
-        pass
+    try:
+        from pages.dashboard import show_dashboard, handle_dashboard_modals
+    except ImportError:
+        def show_dashboard():
+            st.error("Dashboard functionality temporarily unavailable")
+        def handle_dashboard_modals():
+            pass
+    def show_analytics_dashboard():
+        st.error("Analytics functionality temporarily unavailable")
 
 try:
     from pages.exam import show_exam
@@ -48,6 +54,7 @@ try:
     from pages.admin_upload import show_admin_upload
     from pages.admin_manage import show_admin_manage
     from pages.admin_dashboard import show_admin_dashboard
+    from pages.admin_console import render_admin_console
 except ImportError:
     # Fallback if admin pages aren't available yet
     def show_admin_upload():
@@ -56,6 +63,8 @@ except ImportError:
         st.info("Admin management functionality coming soon!")
     def show_admin_dashboard():
         st.info("Admin dashboard functionality coming soon!")
+    def render_admin_console():
+        st.info("Admin console functionality coming soon!")
 
 # Configure Streamlit page
 st.set_page_config(
@@ -654,7 +663,7 @@ def show_enhanced_register_form(auth: AuthUtils):
                     st.error(f"❌ {error_msg or 'Registration failed. Please try again.'}")
 
 def show_authenticated_app(auth: AuthUtils):
-    """Enhanced authenticated app with improved navigation"""
+    """Enhanced authenticated app with improved navigation and production features"""
     # Enhanced sidebar navigation
     with st.sidebar:
         user = auth.get_current_user()
@@ -677,12 +686,76 @@ def show_authenticated_app(auth: AuthUtils):
         </div>
         """, unsafe_allow_html=True)
         
+        # NEW: Exam Category Selector
+        st.markdown('<div class="nav-section">🎯 Exam Category</div>', unsafe_allow_html=True)
+        
+        # Initialize exam category in session state
+        if "selected_exam_category" not in st.session_state:
+            st.session_state.selected_exam_category = "CACS2"
+        
+        exam_category = st.selectbox(
+            "Select Category",
+            options=["CACS2", "CMSIP"],
+            index=0 if st.session_state.selected_exam_category == "CACS2" else 1,
+            help="Switch between exam categories",
+            key="exam_category_selector"
+        )
+        
+        # Update session state when category changes
+        if exam_category != st.session_state.selected_exam_category:
+            st.session_state.selected_exam_category = exam_category
+            st.rerun()
+        
+        # Show category info
+        category_info = {
+            "CACS2": {"name": "IBF CACS 2", "icon": "🏦", "description": "Investment Banking Foundation"},
+            "CMSIP": {"name": "CMFAS CM-SIP", "icon": "📈", "description": "Securities Investment Products"}
+        }
+        
+        current_category = category_info[exam_category]
+        st.markdown(f"""
+        <div style="background: #f8f9fa; padding: 0.8rem; border-radius: 8px; margin: 0.5rem 0;">
+            <div style="font-size: 1.1rem; font-weight: 600; color: #2d3748;">
+                {current_category['icon']} {current_category['name']}
+            </div>
+            <div style="font-size: 0.85rem; color: #718096; margin-top: 0.2rem;">
+                {current_category['description']}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
         # Main navigation
         st.markdown('<div class="nav-section">📱 Main Menu</div>', unsafe_allow_html=True)
         
         if st.button("🏠 Dashboard", use_container_width=True):
             st.session_state.page = "dashboard"
             st.rerun()
+        
+        if st.button("📊 Analytics", use_container_width=True):
+            st.session_state.page = "analytics"
+            st.rerun()
+        
+        # NEW: Enhanced Practice Options
+        st.markdown('<div class="nav-section">📖 Practice Modes</div>', unsafe_allow_html=True)
+        
+        if st.button("🎯 Topic Practice", use_container_width=True):
+            st.session_state.page = "topic_practice"
+            st.rerun()
+        
+        if st.button("🧠 Adaptive Practice", use_container_width=True):
+            st.session_state.page = "adaptive_practice"
+            st.rerun()
+        
+        if st.button("⚡ Weak Areas Study", use_container_width=True):
+            st.session_state.page = "weak_areas"
+            st.rerun()
+        
+        if st.button("📝 Mock Exams", use_container_width=True):
+            st.session_state.page = "mock_exams"
+            st.rerun()
+        
+        # Standard navigation
+        st.markdown('<div class="nav-section">💳 Account</div>', unsafe_allow_html=True)
         
         if st.button("💳 Purchase Credits", use_container_width=True):
             st.session_state.page = "purchase_credits"
@@ -700,11 +773,15 @@ def show_authenticated_app(auth: AuthUtils):
         if auth.is_admin():
             st.markdown('<div class="nav-section">👨‍💼 Admin Panel</div>', unsafe_allow_html=True)
             
-            if st.button("📊 Admin Dashboard", use_container_width=True):
+            if st.button("�️ Admin Console", use_container_width=True):
+                st.session_state.page = "admin_console"
+                st.rerun()
+            
+            if st.button("� Admin Dashboard", use_container_width=True):
                 st.session_state.page = "admin_dashboard"
                 st.rerun()
             
-            if st.button("📤 Upload Mock", use_container_width=True):
+            if st.button("� Upload Mock", use_container_width=True):
                 st.session_state.page = "admin_upload"
                 st.rerun()
             
@@ -712,8 +789,8 @@ def show_authenticated_app(auth: AuthUtils):
                 st.session_state.page = "admin_manage"
                 st.rerun()
             
-            if st.button("🎫 Support Tickets", use_container_width=True):
-                st.session_state.page = "admin_tickets"
+            if st.button("🔧 Production Monitor", use_container_width=True):
+                st.session_state.page = "production_monitoring"
                 st.rerun()
         
         # Enhanced logout section
@@ -730,8 +807,18 @@ def show_authenticated_app(auth: AuthUtils):
     if page == "dashboard":
         show_dashboard()
         handle_dashboard_modals()
+    elif page == "analytics":
+        show_analytics_dashboard()
     elif page == "exam":
         show_exam()
+    elif page == "topic_practice":
+        show_topic_practice()
+    elif page == "adaptive_practice":
+        show_adaptive_practice()
+    elif page == "weak_areas":
+        show_weak_areas_study()
+    elif page == "mock_exams":
+        show_mock_exams()
     elif page == "purchase_credits":
         show_purchase_credits()
     elif page == "past_attempts":
@@ -739,8 +826,17 @@ def show_authenticated_app(auth: AuthUtils):
         handle_modals()
     elif page == "contact_support":
         show_contact_support()
+    elif page == "admin_console":
+        render_admin_console()
     elif page == "admin_dashboard":
         show_admin_dashboard()
+    elif page == "production_monitoring":
+        # Import and show production monitoring
+        try:
+            from pages.production_monitoring import show_production_monitoring
+            show_production_monitoring()
+        except ImportError:
+            st.error("Production monitoring module not available")
     elif page == "admin_upload":
         show_admin_upload()
     elif page == "admin_manage":
@@ -750,6 +846,232 @@ def show_authenticated_app(auth: AuthUtils):
     else:
         show_dashboard()
         handle_dashboard_modals()
+
+def show_topic_practice():
+    """Topic-specific practice mode"""
+    st.header("🎯 Topic Practice")
+    st.markdown("Practice questions by specific topic areas")
+    
+    exam_category = st.session_state.get("selected_exam_category", "CACS2")
+    
+    # This would integrate with the enhanced database
+    st.info(f"Loading {exam_category} topics...")
+    st.write("**Available Topics:**")
+    
+    # Placeholder for topic selection
+    topics = [
+        "Capital Markets", "Risk Management", "Corporate Finance", 
+        "Investment Banking", "Regulations", "Ethics"
+    ]
+    
+    selected_topic = st.selectbox("Choose a topic to practice", topics)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        difficulty = st.selectbox("Difficulty Level", ["Easy", "Medium", "Hard"])
+    with col2:
+        num_questions = st.slider("Number of Questions", 5, 20, 10)
+    
+    if st.button("🎯 Start Topic Practice", type="primary"):
+        st.session_state.practice_mode = "topic"
+        st.session_state.practice_config = {
+            "topic": selected_topic,
+            "difficulty": difficulty,
+            "num_questions": num_questions,
+            "exam_category": exam_category
+        }
+        st.session_state.page = "exam"
+        st.rerun()
+    
+    if st.button("🏠 Back to Dashboard"):
+        st.session_state.page = "dashboard"
+        st.rerun()
+
+def show_adaptive_practice():
+    """Adaptive practice based on user performance"""
+    st.header("🧠 Adaptive Practice")
+    st.markdown("Personalized questions based on your performance history")
+    
+    exam_category = st.session_state.get("selected_exam_category", "CACS2")
+    
+    # This would analyze user's past performance
+    st.info("Analyzing your performance patterns...")
+    
+    # Placeholder for weak areas analysis
+    weak_areas = ["Capital Adequacy", "Market Risk", "Regulatory Compliance"]
+    
+    if weak_areas:
+        st.write("**Identified Areas for Improvement:**")
+        for area in weak_areas:
+            st.write(f"• {area}")
+        
+        st.markdown("---")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            difficulty_start = st.selectbox("Starting Difficulty", ["Easy", "Medium", "Hard"], index=1)
+        with col2:
+            adaptive_mode = st.selectbox("Adaptive Mode", ["Progressive", "Remedial", "Mixed"])
+        
+        num_questions = st.slider("Session Length", 10, 50, 20)
+        
+        if st.button("🧠 Start Adaptive Practice", type="primary"):
+            st.session_state.practice_mode = "adaptive"
+            st.session_state.practice_config = {
+                "weak_areas": weak_areas,
+                "difficulty_start": difficulty_start,
+                "adaptive_mode": adaptive_mode,
+                "num_questions": num_questions,
+                "exam_category": exam_category
+            }
+            st.session_state.page = "exam"
+            st.rerun()
+    else:
+        st.info("Take a few practice sessions first to enable adaptive recommendations!")
+    
+    if st.button("🏠 Back to Dashboard"):
+        st.session_state.page = "dashboard"
+        st.rerun()
+
+def show_weak_areas_study():
+    """Focused study on weak areas"""
+    st.header("⚡ Weak Areas Study")
+    st.markdown("Intensive practice on your challenging topics")
+    
+    exam_category = st.session_state.get("selected_exam_category", "CACS2")
+    
+    # This would come from user performance analytics
+    st.subheader("📊 Your Performance Analysis")
+    
+    # Placeholder performance data
+    performance_data = {
+        "Capital Markets": {"score": 65, "attempts": 15, "trend": "improving"},
+        "Risk Management": {"score": 45, "attempts": 8, "trend": "needs_work"},
+        "Corporate Finance": {"score": 78, "attempts": 12, "trend": "strong"},
+        "Regulations": {"score": 52, "attempts": 6, "trend": "needs_work"}
+    }
+    
+    for topic, data in performance_data.items():
+        col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
+        
+        with col1:
+            st.write(f"**{topic}**")
+        with col2:
+            color = "red" if data["score"] < 60 else "orange" if data["score"] < 75 else "green"
+            st.markdown(f"<span style='color: {color}'>{data['score']}%</span>", unsafe_allow_html=True)
+        with col3:
+            st.write(f"{data['attempts']} attempts")
+        with col4:
+            trend_icon = "📈" if data["trend"] == "improving" else "⚠️" if data["trend"] == "needs_work" else "✅"
+            st.write(trend_icon)
+    
+    st.markdown("---")
+    
+    # Focus areas selection
+    weak_topics = [topic for topic, data in performance_data.items() if data["score"] < 70]
+    
+    if weak_topics:
+        st.write("**Recommended Focus Areas:**")
+        selected_weak_areas = st.multiselect(
+            "Select areas to practice",
+            weak_topics,
+            default=weak_topics[:2]
+        )
+        
+        if selected_weak_areas:
+            intensity = st.selectbox("Study Intensity", ["Light Review", "Standard Practice", "Intensive Drill"])
+            
+            if st.button("⚡ Start Weak Areas Study", type="primary"):
+                st.session_state.practice_mode = "weak_areas"
+                st.session_state.practice_config = {
+                    "focus_areas": selected_weak_areas,
+                    "intensity": intensity,
+                    "exam_category": exam_category
+                }
+                st.session_state.page = "exam"
+                st.rerun()
+    else:
+        st.success("🎉 Great job! No weak areas identified. Keep up the excellent work!")
+    
+    if st.button("🏠 Back to Dashboard"):
+        st.session_state.page = "dashboard"
+        st.rerun()
+
+def show_mock_exams():
+    """Enhanced mock exam selection"""
+    st.header("📝 Mock Exams")
+    st.markdown("Full-length practice exams with realistic timing")
+    
+    exam_category = st.session_state.get("selected_exam_category", "CACS2")
+    
+    # This would come from the enhanced database
+    st.subheader(f"Available {exam_category} Mock Exams")
+    
+    # Placeholder mock exams
+    mock_exams = [
+        {
+            "id": 1,
+            "title": f"{exam_category} Practice Exam #1",
+            "questions": 40,
+            "time_minutes": 120,
+            "difficulty": "Medium",
+            "description": "Comprehensive coverage of core topics",
+            "credits_required": 2
+        },
+        {
+            "id": 2,
+            "title": f"{exam_category} Practice Exam #2",
+            "questions": 50,
+            "time_minutes": 150,
+            "difficulty": "Hard",
+            "description": "Advanced scenarios and case studies",
+            "credits_required": 3
+        },
+        {
+            "id": 3,
+            "title": f"{exam_category} Quick Review",
+            "questions": 20,
+            "time_minutes": 60,
+            "difficulty": "Easy",
+            "description": "Quick review of key concepts",
+            "credits_required": 1
+        }
+    ]
+    
+    for exam in mock_exams:
+        with st.expander(f"📋 {exam['title']}", expanded=False):
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric("Questions", exam['questions'])
+                st.metric("Time Limit", f"{exam['time_minutes']} min")
+            
+            with col2:
+                st.metric("Difficulty", exam['difficulty'])
+                st.metric("Credits", exam['credits_required'])
+            
+            with col3:
+                st.write("**Description:**")
+                st.write(exam['description'])
+            
+            # Check if user has enough credits
+            user_credits = st.session_state.get('current_user', {}).get('credits_balance', 0)
+            
+            if user_credits >= exam['credits_required']:
+                if st.button(f"🎯 Start {exam['title']}", key=f"start_exam_{exam['id']}", type="primary"):
+                    st.session_state.selected_mock_exam = exam
+                    st.session_state.practice_mode = "mock_exam"
+                    st.session_state.page = "exam"
+                    st.rerun()
+            else:
+                st.warning(f"⚠️ Need {exam['credits_required']} credits (you have {user_credits})")
+                if st.button(f"💳 Purchase Credits", key=f"purchase_{exam['id']}"):
+                    st.session_state.page = "purchase_credits"
+                    st.rerun()
+    
+    if st.button("🏠 Back to Dashboard"):
+        st.session_state.page = "dashboard"
+        st.rerun()
 
 def show_admin_tickets():
     """Enhanced admin tickets management"""

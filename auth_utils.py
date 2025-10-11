@@ -261,3 +261,19 @@ def run_async(coro):
             return loop.run_until_complete(coro)
     except RuntimeError:
         return asyncio.run(coro)
+
+def verify_admin_access() -> bool:
+    """Verify if current user has admin access"""
+    if 'authenticated' not in st.session_state or not st.session_state.authenticated:
+        return False
+    
+    current_user = st.session_state.get('current_user', {})
+    return current_user.get('role') == 'admin'
+
+def require_admin_access():
+    """Decorator/function to require admin access"""
+    if not verify_admin_access():
+        st.error("🚫 Admin access required")
+        st.info("Please login with an admin account to access this page.")
+        return False
+    return True

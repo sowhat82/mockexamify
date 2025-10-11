@@ -83,6 +83,7 @@ class UserLogin(BaseModel):
 class User(BaseModel):
     id: str
     email: str
+    password_hash: Optional[str] = None  # For authentication
     credits_balance: int = 0
     role: str = "user"  # user or admin
     subscription_status: Optional[str] = None

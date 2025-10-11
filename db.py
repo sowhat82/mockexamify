@@ -596,6 +596,46 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error fetching user by email: {e}")
             return None
+
+    async def authenticate_user(self, email: str, password: str) -> Optional[User]:
+        """Authenticate user with email and password"""
+        if self.demo_mode:
+            user_data = self.demo_users.get(email)
+            if user_data:
+                # Check password hash
+                stored_hash = user_data.get("password_hash", "")
+                if bcrypt.checkpw(password.encode('utf-8'), stored_hash.encode('utf-8')):
+                    return User(**user_data)
+            return None
+        
+        try:
+            # Get user by email first
+            user = await self.get_user_by_email(email)
+            if user and hasattr(user, 'password_hash'):
+                # Check password hash
+                if bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
+                    return user
+            return None
+        except Exception as e:
+            logger.error(f"Error authenticating user: {e}")
+            return None
+
+    async def get_user_by_id(self, user_id: str) -> Optional[User]:
+        """Get user by ID"""
+        if self.demo_mode:
+            for user_data in self.demo_users.values():
+                if user_data.get("id") == user_id:
+                    return User(**user_data)
+            return None
+        
+        try:
+            result = self.supabase.table('users').select('*').eq('id', user_id).execute()
+            if result.data:
+                return User(**result.data[0])
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching user by ID: {e}")
+            return None
     
     async def create_user(self, email: str, password_hash: str) -> Optional[User]:
         """Create new user (legacy support)"""

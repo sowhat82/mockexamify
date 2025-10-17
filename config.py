@@ -43,23 +43,14 @@ DEMO_MODE = get_secret('DEMO_MODE', 'false').lower() == 'true'
 if not HAS_STREAMLIT or not hasattr(st, 'secrets'):
     DEMO_MODE = False
 
-# Supabase Configuration
-if DEMO_MODE:
-    SUPABASE_URL = "demo"
-    SUPABASE_KEY = "demo"
-else:
-    SUPABASE_URL = get_secret("SUPABASE_URL")
-    SUPABASE_KEY = get_secret("SUPABASE_KEY")
+# Supabase Configuration - always load for hybrid mode (question pools)
+SUPABASE_URL = get_secret("SUPABASE_URL")
+SUPABASE_KEY = get_secret("SUPABASE_KEY")
 
-# Stripe Configuration
-if DEMO_MODE:
-    STRIPE_SECRET_KEY = "sk_test_demo"
-    STRIPE_PUBLISHABLE_KEY = "pk_test_demo"
-    STRIPE_WEBHOOK_SECRET = "whsec_demo"
-else:
-    STRIPE_SECRET_KEY = get_secret("STRIPE_SECRET_KEY")
-    STRIPE_PUBLISHABLE_KEY = get_secret("STRIPE_PUBLISHABLE_KEY")
-    STRIPE_WEBHOOK_SECRET = get_secret("STRIPE_WEBHOOK_SECRET")
+# Stripe Configuration - always read from secrets
+STRIPE_SECRET_KEY = get_secret("STRIPE_SECRET_KEY")
+STRIPE_PUBLISHABLE_KEY = get_secret("STRIPE_PUBLISHABLE_KEY")
+STRIPE_WEBHOOK_SECRET = get_secret("STRIPE_WEBHOOK_SECRET")
 
 # OpenRouter Configuration
 OPENROUTER_API_KEY = get_secret("OPENROUTER_API_KEY")

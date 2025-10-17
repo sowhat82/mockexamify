@@ -87,11 +87,12 @@ class DatabaseManager:
     
     def __init__(self):
         self.demo_mode = config.DEMO_MODE
-        if self.demo_mode:
-            self.client = None
-        else:
+        # Always initialize Supabase client for question pools, even in demo mode
+        if not self.demo_mode or (config.SUPABASE_URL and config.SUPABASE_URL != "demo"):
             from supabase import create_client, Client
             self.client = create_client(config.SUPABASE_URL, config.SUPABASE_KEY)
+        else:
+            self.client = None
     
     # Demo mode methods
     async def _demo_authenticate_user(self, email: str, password: str) -> Optional[User]:
@@ -844,6 +845,197 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error getting mock performance stats: {e}")
             return {'attempts': 0, 'avg_score': 0, 'pass_rate': 0}
+    
+    async def get_all_question_pools(self) -> List[Dict[str, Any]]:
+        """Get all question pools"""
+        try:
+            if self.demo_mode:
+                # Return empty list in demo mode
+                return []
+            
+            result = self.client.table('question_pools').select('*').execute()
+            return result.data if result.data else []
+        except Exception as e:
+            logger.error(f"Error getting question pools: {e}")
+            return []
+    
+    async def create_or_update_question_pool(
+        self, 
+        pool_name: str, 
+        category: str, 
+        description: str, 
+        created_by: str
+    ) -> Optional[Dict[str, Any]]:
+        """Create new question pool or update existing one by name"""
+        try:
+            if self.demo_mode:
+                # Demo mode - return mock pool
+                return {
+                    'id': 'demo-pool-001',
+                    'pool_name': pool_name,
+                    'category': category,
+                    'description': description,
+                    'total_questions': 0,
+                    'unique_questions': 0,
+                    'created_by': created_by,
+                    'created_at': datetime.now(timezone.utc).isoformat(),
+                    'is_active': True
+                }
+            
+            # Check if pool already exists
+            result = self.client.table('question_pools').select('*').eq('pool_name', pool_name).execute()
+            
+            if result.data and len(result.data) > 0:
+                # Pool exists - update it
+                pool = result.data[0]
+                update_result = self.client.table('question_pools').update({
+                    'category': category,
+                    'description': description,
+                    'last_updated': datetime.now(timezone.utc).isoformat()
+                }).eq('id', pool['id']).execute()
+                
+                return update_result.data[0] if update_result.data else None
+            else:
+                # Pool doesn't exist - create new
+                insert_result = self.client.table('question_pools').insert({
+                    'pool_name': pool_name,
+                    'category': category,
+                    'description': description,
+                    'created_by': created_by,
+                    'total_questions': 0,
+                    'unique_questions': 0,
+                    'created_at': datetime.now(timezone.utc).isoformat(),
+                    'is_active': True
+                }).execute()
+                
+                return insert_result.data[0] if insert_result.data else None
+                
+        except Exception as e:
+            logger.error(f"Error creating/updating question pool: {e}")
+            return None
+    
+    async def get_pool_questions(self, pool_id: str) -> List[Dict[str, Any]]:
+        """Get all questions from a question pool"""
+        try:
+            if self.demo_mode:
+                # Demo mode - return empty list
+                return []
+            
+            result = self.client.table('pool_questions').select('*').eq('pool_id', pool_id).execute()
+            return result.data if result.data else []
+            
+        except Exception as e:
+            logger.error(f"Error getting pool questions: {e}")
+            return []
+    
+    async def create_upload_batch(
+        self, 
+        pool_id: str, 
+        filename: str, 
+        total_questions: int, 
+        uploaded_by: str
+    ) -> Optional[str]:
+        """Create upload batch record and return batch_id"""
+        try:
+            if self.demo_mode:
+                # Demo mode - return mock batch id
+                return 'demo-batch-001'
+            
+            result = self.client.table('upload_batches').insert({
+                'pool_id': pool_id,
+                'filename': filename,
+                'questions_count': total_questions,
+                'duplicates_found': 0,
+                'unique_added': 0,
+                'upload_status': 'processing',
+                'uploaded_by': uploaded_by,
+                'uploaded_at': datetime.now(timezone.utc).isoformat()
+            }).execute()
+            
+            if result.data and len(result.data) > 0:
+                return result.data[0]['id']
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error creating upload batch: {e}")
+            return None
+    
+    async def add_questions_to_pool(
+        self, 
+        pool_id: str, 
+        questions: List[Dict[str, Any]], 
+        source_file: str, 
+        batch_id: str
+    ) -> bool:
+        """Add questions to pool with duplicate tracking"""
+        try:
+            if self.demo_mode:
+                # Demo mode - just return success
+                return True
+            
+            # Prepare questions for insertion
+            questions_to_insert = []
+            
+            for q in questions:
+                question_data = {
+                    'pool_id': pool_id,
+                    'question_text': q['question'],
+                    'choices': json.dumps(q['choices']),
+                    'correct_answer': q['correct_index'],
+                    'explanation': q.get('explanation_seed'),
+                    'source_file': source_file,
+                    'upload_batch_id': batch_id,
+                    'is_duplicate': q.get('is_duplicate', False),
+                    'similarity_score': q.get('similarity_score'),
+                    'uploaded_at': datetime.now(timezone.utc).isoformat(),
+                    'created_at': datetime.now(timezone.utc).isoformat()
+                }
+                
+                # Add scenario if present
+                if q.get('scenario'):
+                    question_data['topic_tags'] = json.dumps([{'scenario': q['scenario']}])
+                
+                questions_to_insert.append(question_data)
+            
+            # Batch insert all questions
+            if questions_to_insert:
+                result = self.client.table('pool_questions').insert(questions_to_insert).execute()
+                
+                if result.data:
+                    # Update batch statistics
+                    await self._update_batch_stats(batch_id, len(questions), 0, len(questions))
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error adding questions to pool: {e}")
+            return False
+    
+    async def _update_batch_stats(
+        self, 
+        batch_id: str, 
+        questions_count: int, 
+        duplicates_found: int, 
+        unique_added: int
+    ) -> bool:
+        """Update upload batch statistics"""
+        try:
+            if self.demo_mode:
+                return True
+            
+            result = self.client.table('upload_batches').update({
+                'questions_count': questions_count,
+                'duplicates_found': duplicates_found,
+                'unique_added': unique_added,
+                'upload_status': 'completed'
+            }).eq('id', batch_id).execute()
+            
+            return len(result.data) > 0
+            
+        except Exception as e:
+            logger.error(f"Error updating batch stats: {e}")
+            return False
 
 
 # Global database instance

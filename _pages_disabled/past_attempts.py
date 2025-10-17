@@ -384,7 +384,7 @@ def retake_exam(attempt: Dict[str, Any]):
 async def load_user_attempts(user_id: str) -> List[Dict[str, Any]]:
     """Load user's exam attempts from database"""
     try:
-        from db import db_manager as db
+        from db import db
         return await db.get_user_attempts(user_id)
     except Exception as e:
         st.error(f"Error loading attempts: {str(e)}")
@@ -497,7 +497,7 @@ def show_unlock_explanations_content(attempt: Dict[str, Any]):
 async def get_attempt_explanations(attempt_id: str) -> List[str]:
     """Get explanations for an attempt"""
     try:
-        from db import db_manager as db
+        from db import db
         return await db.get_attempt_explanations(attempt_id)
     except:
         return []
@@ -505,7 +505,7 @@ async def get_attempt_explanations(attempt_id: str) -> List[str]:
 async def unlock_explanations_for_attempt(attempt_id: str, user_id: str, cost: int) -> bool:
     """Unlock explanations for an attempt"""
     try:
-        from db import db_manager as db
+        from db import db
         
         # Deduct credits
         success = await db.deduct_user_credits(user_id, cost)

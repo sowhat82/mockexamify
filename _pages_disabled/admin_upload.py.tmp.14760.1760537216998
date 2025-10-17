@@ -1,0 +1,300 @@
+"""
+Admin Upload Mock Exam Page
+Allows admins to upload mock exams via CSV/JSON/PDF/Word files
+"""
+import streamlit as st
+import pandas as pd
+import json
+import csv
+import io
+from typing import List, Dict, Any
+import asyncio
+from auth_utils import AuthUtils, run_async
+import config
+from document_parser import document_parser
+
+def show_admin_upload():
+    """Display admin upload mock exam page"""
+    auth = AuthUtils(config.API_BASE_URL)
+    
+    if not auth.is_authenticated() or not auth.is_admin():
+        st.error("Admin access required")
+        st.stop()
+    
+    st.markdown("# 📤 Upload Mock Exam")
+    st.markdown("Upload a new mock exam from CSV or JSON file")
+    
+    # Upload form
+    with st.form("upload_mock_form"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            title = st.text_input(
+                "Mock Exam Title *",
+                placeholder="e.g., Python Programming Fundamentals",
+                help="Clear, descriptive title for the exam"
+            )
+            
+            category = st.selectbox(
+                "Category",
+                ["Programming", "Mathematics", "Science", "Business", "General"],
+                help="Choose the most appropriate category"
+            )
+            
+            price_credits = st.number_input(
+                "Price (Credits) *",
+                min_value=1,
+                max_value=50,
+                value=5,
+                help="Number of credits required to take this exam"
+            )
+        
+        with col2:
+            description = st.text_area(
+                "Description *",
+                placeholder="Describe what this exam covers...",
+                height=100,
+                help="Detailed description of the exam content and objectives"
+            )
+            
+            explanation_enabled = st.checkbox(
+                "Enable AI Explanations",
+                value=True,
+                help="Allow users to unlock AI-generated explanations for answers"
+            )
+        
+        st.markdown("### 📁 Upload Questions File")
+        
+        # File upload
+        uploaded_file = st.file_uploader(
+            "Choose a CSV or JSON file",
+            type=['csv', 'json'],
+            help="Upload questions in CSV or JSON format"
+        )
+        
+        # File format help
+        with st.expander("📋 File Format Requirements"):
+            st.markdown("""
+            **CSV Format:**
+            - Columns: `question`, `choice_1`, `choice_2`, `choice_3`, `choice_4`, `correct_index`, `scenario`, `explanation_seed`
+            - `correct_index`: 0-based index (0, 1, 2, 3)
+            - `scenario`: Optional context/background
+            - `explanation_seed`: Optional hint for AI explanation generation
+            
+            **JSON Format:**
+            ```json
+            [
+                {
+                    "question": "What is the output of print(2 + 2)?",
+                    "choices": ["3", "4", "5", "6"],
+                    "correct_index": 1,
+                    "scenario": "Basic arithmetic in Python",
+                    "explanation_seed": "Addition operator"
+                }
+            ]
+            ```
+            """)
+        
+        # Preview uploaded file
+        if uploaded_file is not None:
+            st.markdown("### 👀 File Preview")
+            try:
+                questions = parse_uploaded_file(uploaded_file)
+                
+                if questions:
+                    st.success(f"✅ Found {len(questions)} questions")
+                    
+                    # Show first few questions as preview
+                    for i, q in enumerate(questions[:3]):
+                        with st.expander(f"Question {i+1}: {q['question'][:50]}..."):
+                            st.write(f"**Question:** {q['question']}")
+                            st.write("**Choices:**")
+                            for j, choice in enumerate(q['choices']):
+                                marker = "✅" if j == q['correct_index'] else "◯"
+                                st.write(f"  {marker} {j}: {choice}")
+                            if q.get('scenario'):
+                                st.write(f"**Scenario:** {q['scenario']}")
+                    
+                    if len(questions) > 3:
+                        st.info(f"... and {len(questions) - 3} more questions")
+                        
+                else:
+                    st.error("No valid questions found in the file")
+                    
+            except Exception as e:
+                st.error(f"Error parsing file: {str(e)}")
+        
+        # Submit button
+        submit_uploaded = st.form_submit_button(
+            "🚀 Create Mock Exam",
+            use_container_width=True,
+            type="primary"
+        )
+        
+        if submit_uploaded:
+            if not title or not description:
+                st.error("Please fill in all required fields (marked with *)")
+                return
+                
+            if uploaded_file is None:
+                st.error("Please upload a questions file")
+                return
+            
+            # Process upload
+            with st.spinner("Creating mock exam..."):
+                success = run_async(process_mock_upload(
+                    title=title,
+                    description=description,
+                    category=category,
+                    price_credits=price_credits,
+                    explanation_enabled=explanation_enabled,
+                    uploaded_file=uploaded_file
+                ))
+                
+                if success:
+                    st.success("🎉 Mock exam created successfully!")
+                    st.balloons()
+                    
+                    if st.button("📊 Go to Manage Mocks"):
+                        st.session_state.page = "admin_manage"
+                        st.rerun()
+                else:
+                    st.error("Failed to create mock exam. Please try again.")
+
+def parse_uploaded_file(uploaded_file) -> List[Dict[str, Any]]:
+    """Parse uploaded CSV or JSON file into questions list"""
+    file_extension = uploaded_file.name.split('.')[-1].lower()
+    
+    if file_extension == 'csv':
+        return parse_csv_file(uploaded_file)
+    elif file_extension == 'json':
+        return parse_json_file(uploaded_file)
+    else:
+        raise ValueError("Unsupported file format. Please use CSV or JSON.")
+
+def parse_csv_file(uploaded_file) -> List[Dict[str, Any]]:
+    """Parse CSV file into questions list"""
+    # Read CSV content
+    content = uploaded_file.read().decode('utf-8')
+    csv_data = csv.DictReader(io.StringIO(content))
+    
+    questions = []
+    
+    for row_num, row in enumerate(csv_data, 1):
+        try:
+            # Extract choices from columns
+            choices = []
+            for i in range(1, 7):  # Support up to 6 choices
+                choice_key = f'choice_{i}'
+                if choice_key in row and row[choice_key].strip():
+                    choices.append(row[choice_key].strip())
+            
+            if len(choices) < 2:
+                st.warning(f"Row {row_num}: Skipping question with less than 2 choices")
+                continue
+            
+            question = {
+                'question': row['question'].strip(),
+                'choices': choices,
+                'correct_index': int(row['correct_index']),
+                'scenario': row.get('scenario', '').strip() or None,
+                'explanation_seed': row.get('explanation_seed', '').strip() or None
+            }
+            
+            # Validate correct_index
+            if question['correct_index'] >= len(choices):
+                st.warning(f"Row {row_num}: Invalid correct_index {question['correct_index']} for {len(choices)} choices")
+                continue
+            
+            questions.append(question)
+            
+        except (ValueError, KeyError) as e:
+            st.warning(f"Row {row_num}: Error parsing question - {str(e)}")
+            continue
+    
+    return questions
+
+def parse_json_file(uploaded_file) -> List[Dict[str, Any]]:
+    """Parse JSON file into questions list"""
+    content = uploaded_file.read().decode('utf-8')
+    data = json.loads(content)
+    
+    if not isinstance(data, list):
+        raise ValueError("JSON file must contain an array of questions")
+    
+    questions = []
+    
+    for i, item in enumerate(data, 1):
+        try:
+            if not isinstance(item, dict):
+                st.warning(f"Question {i}: Must be an object")
+                continue
+            
+            required_fields = ['question', 'choices', 'correct_index']
+            for field in required_fields:
+                if field not in item:
+                    st.warning(f"Question {i}: Missing required field '{field}'")
+                    continue
+            
+            choices = item['choices']
+            if not isinstance(choices, list) or len(choices) < 2:
+                st.warning(f"Question {i}: Must have at least 2 choices")
+                continue
+            
+            correct_index = item['correct_index']
+            if not isinstance(correct_index, int) or correct_index >= len(choices):
+                st.warning(f"Question {i}: Invalid correct_index")
+                continue
+            
+            question = {
+                'question': item['question'],
+                'choices': choices,
+                'correct_index': correct_index,
+                'scenario': item.get('scenario'),
+                'explanation_seed': item.get('explanation_seed')
+            }
+            
+            questions.append(question)
+            
+        except Exception as e:
+            st.warning(f"Question {i}: Error parsing - {str(e)}")
+            continue
+    
+    return questions
+
+async def process_mock_upload(title: str, description: str, category: str,
+                            price_credits: int, explanation_enabled: bool,
+                            uploaded_file) -> bool:
+    """Process the mock exam upload"""
+    try:
+        # Parse questions from file
+        questions = parse_uploaded_file(uploaded_file)
+
+        if not questions:
+            return False
+
+        # Create mock exam in database
+        from db import db_manager as db
+
+        mock_data = {
+            'title': title,
+            'description': description,
+            'category': category,
+            'questions_json': questions,
+            'price_credits': price_credits,
+            'explanation_enabled': explanation_enabled,
+            'is_active': True
+        }
+        
+        success = await db.create_mock(mock_data)
+        
+        if success and explanation_enabled:
+            # Optionally generate AI explanations in background
+            # This could be done asynchronously
+            pass
+        
+        return success
+        
+    except Exception as e:
+        st.error(f"Upload processing error: {str(e)}")
+        return False

@@ -44,7 +44,12 @@ def show_exam():
         st.session_state.time_limit = 60  # minutes
     if 'flagged_questions' not in st.session_state:
         st.session_state.flagged_questions = set()
-    
+
+    # Check if this is a pool-based exam (coming from dashboard)
+    if 'pool_exam' in st.session_state and st.session_state.exam_state == 'not_started':
+        start_pool_exam(st.session_state.pool_exam, user)
+        return
+
     # Route based on exam state
     if st.session_state.exam_state == 'not_started':
         show_exam_selection(user)
@@ -63,12 +68,32 @@ def show_exam_selection(user: Dict[str, Any]):
     
     # Load available mocks
     try:
-        mocks = run_async(db.get_all_mocks())
-        
-        if not mocks:
+        mocks_raw = run_async(db.get_all_mocks())
+
+        if not mocks_raw:
             st.warning("⚠️ No mock exams available. Please contact admin.")
             return
-        
+
+        # Convert Mock objects to dictionaries
+        mocks = []
+        for mock in mocks_raw:
+            if hasattr(mock, '__dict__'):
+                mock_dict = {
+                    'id': mock.id,
+                    'title': mock.title,
+                    'description': mock.description,
+                    'category': getattr(mock, 'category', 'General'),
+                    'questions': mock.questions,
+                    'price_credits': mock.price_credits,
+                    'time_limit_minutes': getattr(mock, 'time_limit_minutes', 60),
+                    'difficulty': getattr(mock, 'difficulty', 'Medium'),
+                    'explanation_enabled': mock.explanation_enabled,
+                    'is_active': mock.is_active
+                }
+                mocks.append(mock_dict)
+            else:
+                mocks.append(mock)
+
         # Display user credits
         user_data = run_async(db.get_user_by_id(user['id']))
         credits = user_data.credits_balance if user_data else 0
@@ -98,42 +123,43 @@ def show_exam_selection(user: Dict[str, Any]):
         # Mock exam cards
         for mock in mocks:
             try:
+                # mock is already a dictionary from conversion above
                 # Parse questions
                 if isinstance(mock.get('questions'), str):
                     questions = json.loads(mock['questions'])
                 else:
                     questions = mock.get('questions', [])
-                
+
                 questions_count = len(questions)
                 price_credits = mock.get('price_credits', 1)
                 
                 with st.container():
                     # Mock exam card
                     st.markdown(f"""
-                    <div style="border: 2px solid #1f77b4; border-radius: 1rem; padding: 1.5rem; 
+                    <div style="border: 2px solid #1f77b4; border-radius: 1rem; padding: 1.5rem;
                                margin-bottom: 1rem; background: white;">
                         <h3 style="color: #1f77b4; margin-top: 0;">📚 {mock.get('title', 'Untitled Mock')}</h3>
                         <p style="color: #666; margin-bottom: 1rem;">{mock.get('description', 'No description available')}</p>
                     </div>
                     """, unsafe_allow_html=True)
-                    
+
                     # Exam details
                     col1, col2, col3, col4, col5 = st.columns(5)
-                    
+
                     with col1:
                         st.metric("📊 Questions", questions_count)
-                    
+
                     with col2:
                         time_limit = mock.get('time_limit_minutes', 60)
                         st.metric("⏱️ Duration", f"{time_limit} min")
-                    
+
                     with col3:
                         st.metric("💰 Cost", f"{price_credits} credit{'s' if price_credits > 1 else ''}")
-                    
+
                     with col4:
                         difficulty = mock.get('difficulty', 'Medium').title()
                         st.metric("🎯 Difficulty", difficulty)
-                    
+
                     with col5:
                         if credits >= price_credits:
                             if st.button(f"🚀 Start Exam", key=f"start_{mock['id']}", type="primary", use_container_width=True):
@@ -157,19 +183,19 @@ def start_exam(mock: Dict[str, Any], user: Dict[str, Any]):
             questions = json.loads(mock['questions'])
         else:
             questions = mock.get('questions', [])
-        
+
         if not questions:
             st.error("No questions found in this exam")
             return
-        
+
         # Check and deduct credits
         credits_needed = mock.get('price_credits', 1)
         deduct_success = run_async(db.deduct_credits_from_user(user['id'], credits_needed))
-        
+
         if not deduct_success:
             st.error("Failed to process payment. Please check your credits balance.")
             return
-        
+
         # Initialize exam session
         st.session_state.current_mock = mock
         st.session_state.questions = questions
@@ -180,12 +206,74 @@ def start_exam(mock: Dict[str, Any], user: Dict[str, Any]):
         st.session_state.time_limit = mock.get('time_limit_minutes', 60)
         st.session_state.flagged_questions = set()
         st.session_state.exam_state = 'in_progress'
-        
+
         st.success(f"Exam started! You have {st.session_state.time_limit} minutes.")
         st.rerun()
-        
+
     except Exception as e:
         st.error(f"Error starting exam: {e}")
+
+def start_pool_exam(pool_exam_config: Dict[str, Any], user: Dict[str, Any]):
+    """Initialize and start a pool-based exam"""
+    try:
+        pool_id = pool_exam_config.get('pool_id')
+        pool_name = pool_exam_config.get('pool_name')
+        question_count = pool_exam_config.get('question_count')
+        credits_needed = pool_exam_config.get('price_credits', 1)  # Match dashboard.py key name
+
+        # Get random questions from pool
+        questions = run_async(db.get_random_pool_questions(pool_id, question_count))
+
+        if not questions:
+            st.error(f"No questions available in {pool_name} pool")
+            # Clear pool_exam from session state
+            if 'pool_exam' in st.session_state:
+                del st.session_state.pool_exam
+            return
+
+        # Check and deduct credits
+        deduct_success = run_async(db.deduct_credits_from_user(user['id'], credits_needed))
+
+        if not deduct_success:
+            st.error("Failed to process payment. Please check your credits balance.")
+            # Clear pool_exam from session state
+            if 'pool_exam' in st.session_state:
+                del st.session_state.pool_exam
+            return
+
+        # Create a mock-like structure for pool exam
+        pool_mock = {
+            'id': pool_id,
+            'title': pool_name,
+            'description': f'Dynamic exam from {pool_name} pool',
+            'is_pool_exam': True,  # Flag to identify pool-based exams
+            'pool_id': pool_id,
+            'category': pool_exam_config.get('category', 'General')
+        }
+
+        # Initialize exam session
+        st.session_state.current_mock = pool_mock
+        st.session_state.questions = questions
+        st.session_state.answers = {}
+        st.session_state.current_question = 0
+        st.session_state.start_time = datetime.now()
+        st.session_state.exam_id = str(uuid.uuid4())
+        st.session_state.time_limit = 60  # Default 60 minutes for pool exams
+        st.session_state.flagged_questions = set()
+        st.session_state.exam_state = 'in_progress'
+
+        # Clear pool_exam from session state
+        if 'pool_exam' in st.session_state:
+            del st.session_state.pool_exam
+
+        st.success(f"Exam started! {question_count} questions from {pool_name}")
+        st.rerun()
+
+    except Exception as e:
+        st.error(f"Error starting pool exam: {e}")
+        # Clear pool_exam from session state
+        if 'pool_exam' in st.session_state:
+            del st.session_state.pool_exam
 
 def show_exam_interface(user: Dict[str, Any]):
     """Display the main exam interface"""
@@ -197,51 +285,29 @@ def show_exam_interface(user: Dict[str, Any]):
     mock = st.session_state.current_mock
     questions = st.session_state.questions
     current_q = st.session_state.current_question
-    
-    # Check time limit
-    if st.session_state.start_time:
-        elapsed_time = datetime.now() - st.session_state.start_time
-        time_limit_seconds = st.session_state.time_limit * 60
-        remaining_seconds = time_limit_seconds - elapsed_time.total_seconds()
-        
-        if remaining_seconds <= 0:
-            # Time's up - auto submit
-            st.warning("⏰ Time's up! Auto-submitting exam...")
-            submit_exam(user, auto_submit=True)
-            return
-    
-    # Header with progress and timer
-    col1, col2, col3 = st.columns([2, 1, 1])
+
+    # Timer disabled per user request
+    # # Check time limit
+    # if st.session_state.start_time:
+    #     elapsed_time = datetime.now() - st.session_state.start_time
+    #     time_limit_seconds = st.session_state.time_limit * 60
+    #     remaining_seconds = time_limit_seconds - elapsed_time.total_seconds()
+    #
+    #     if remaining_seconds <= 0:
+    #         # Time's up - auto submit
+    #         st.warning("⏰ Time's up! Auto-submitting exam...")
+    #         submit_exam(user, auto_submit=True)
+    #         return
+
+    # Header with progress (timer removed)
+    col1, col2 = st.columns([3, 1])
     
     with col1:
         st.markdown(f"# 📝 {mock.get('title', 'Mock Exam')}")
         progress = (current_q + 1) / len(questions)
         st.progress(progress, text=f"Question {current_q + 1} of {len(questions)}")
-    
+
     with col2:
-        # Timer display
-        if st.session_state.start_time:
-            elapsed_time = datetime.now() - st.session_state.start_time
-            remaining_seconds = max(0, (st.session_state.time_limit * 60) - elapsed_time.total_seconds())
-            remaining_minutes = int(remaining_seconds // 60)
-            remaining_secs = int(remaining_seconds % 60)
-            
-            if remaining_seconds <= 300:  # Last 5 minutes - red warning
-                st.markdown(f"""
-                <div style="background: #d32f2f; color: white; padding: 1rem; border-radius: 0.5rem; text-align: center;">
-                    <h3 style="margin: 0;">⏰ {remaining_minutes:02d}:{remaining_secs:02d}</h3>
-                    <p style="margin: 0; font-size: 0.8rem;">Time Remaining</p>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown(f"""
-                <div style="background: #1f77b4; color: white; padding: 1rem; border-radius: 0.5rem; text-align: center;">
-                    <h3 style="margin: 0;">⏱️ {remaining_minutes:02d}:{remaining_secs:02d}</h3>
-                    <p style="margin: 0; font-size: 0.8rem;">Time Remaining</p>
-                </div>
-                """, unsafe_allow_html=True)
-    
-    with col3:
         answered_count = len(st.session_state.answers)
         flagged_count = len(st.session_state.flagged_questions)
         
@@ -468,9 +534,12 @@ def submit_exam(user: Dict[str, Any], auto_submit: bool = False):
             time_taken = (datetime.now() - st.session_state.start_time).total_seconds()
         
         # Save attempt to database
+        # For pool-based exams, use pool_id as mock_id for tracking
+        mock_id = st.session_state.current_mock.get('pool_id') or st.session_state.current_mock['id']
+
         attempt_data = {
             'user_id': user['id'],
-            'mock_id': st.session_state.current_mock['id'],
+            'mock_id': mock_id,
             'user_answers': st.session_state.answers,
             'score': score,
             'correct_answers': correct_answers,
@@ -479,7 +548,7 @@ def submit_exam(user: Dict[str, Any], auto_submit: bool = False):
             'detailed_results': detailed_results,
             'status': 'completed'
         }
-        
+
         attempt = run_async(db.create_attempt(**attempt_data))
         
         if attempt:

@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(streamlit run:*)",
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(pre-commit:*)",
+      "Bash(dir:*)",
+      "Bash(echo:*)",
+      "Bash(echo \"- ENVIRONMENT=development (currently: $ENVIRONMENT)\")",
+      "Bash(netstat:*)",
+      "Bash(tasklist)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(find:*)",
+      "Bash(streamlit:*)",
+      "Bash(curl:*)",
+      "Bash(cat:*)",
+      "Bash(del \"c:\\Users\\alvin\\OneDrive\\Code\\GPT Agents\\New folder\\.streamlit\\config.toml\")",
+      "Bash(git checkout:*)",
+      "Bash(git reset:*)",
+      "Bash(git log:*)",
+      "Bash(Get-Process python)",
+      "Bash(Stop-Process -Force)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if grep -qE '(def |class |import |from |streamlit|st\\.|pages/|db\\.py|auth|login)' $EDITED_FILES 2>/dev/null; then echo '\n⚠️  REMINDER: Significant code changes detected. Consider running regression tests:\n- Quick validation: python run_tests.py --suite quick\n- Full regression: python run_tests.py --suite regression\n- Critical only: python run_tests.py --suite critical'; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

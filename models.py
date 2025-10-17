@@ -4,6 +4,14 @@ Comprehensive Pydantic models and schemas for MockExamify MVP
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, EmailStr, Field
+from enum import Enum
+
+
+class DifficultyLevel(str, Enum):
+    """Difficulty levels for questions and mocks"""
+    EASY = "easy"
+    MEDIUM = "medium"
+    HARD = "hard"
 
 
 class UserCreate(BaseModel):
@@ -47,6 +55,34 @@ class QuestionSchema(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+# Alias for backward compatibility
+Question = QuestionSchema
+
+
+class QuestionChoice(BaseModel):
+    """Individual choice for a question"""
+    text: str
+    is_correct: bool = False
+
+
+class ParsedQuestion(BaseModel):
+    """Parsed question from document"""
+    question: str
+    choices: List[str]
+    correct_index: int
+    explanation: Optional[str] = None
+    scenario: Optional[str] = None
+    source_file: Optional[str] = None
+
+
+class ParseResult(BaseModel):
+    """Result from document parsing"""
+    success: bool
+    questions: List[ParsedQuestion] = []
+    error: Optional[str] = None
+    metadata: Dict[str, Any] = {}
 
 
 class MockCreate(BaseModel):

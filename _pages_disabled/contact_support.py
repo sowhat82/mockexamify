@@ -553,7 +553,7 @@ def get_guide_content(guide_title: str) -> str:
 async def create_support_ticket(ticket_data: Dict[str, Any], uploaded_file=None) -> Optional[str]:
     """Create a new support ticket"""
     try:
-        from db import db_manager as db
+        from db import db
         
         # Handle file upload if present
         file_url = None
@@ -586,7 +586,7 @@ async def upload_support_file(uploaded_file) -> Optional[str]:
 async def load_user_tickets(user_id: str) -> List[Dict[str, Any]]:
     """Load user's support tickets"""
     try:
-        from db import db_manager as db
+        from db import db
         return await db.get_user_support_tickets(user_id)
     except Exception as e:
         return []
@@ -594,7 +594,7 @@ async def load_user_tickets(user_id: str) -> List[Dict[str, Any]]:
 async def update_ticket_status(ticket_id: str, status: str) -> bool:
     """Update ticket status"""
     try:
-        from db import db_manager as db
+        from db import db
         return await db.update_support_ticket_status(ticket_id, status)
     except Exception as e:
         return False

@@ -141,30 +141,23 @@ def show_admin_dashboard():
             else:
                 st.info("No recent tickets")
         
-        # Management Actions
+        # Quick Actions (non-duplicated features only)
         st.markdown("---")
         st.markdown("## ⚙️ Quick Actions")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
+
+        col1, col2, col3 = st.columns(3)
+
         with col1:
-            if st.button("📤 Upload New Mock", use_container_width=True, type="primary"):
-                st.session_state.page = "admin_upload"
-                st.rerun()
-        
-        with col2:
-            if st.button("📝 Manage Mocks", use_container_width=True):
-                st.session_state.page = "admin_manage"
-                st.rerun()
-        
-        with col3:
-            if st.button("👥 Manage Users", use_container_width=True):
+            if st.button("👥 Manage Users", use_container_width=True, type="primary"):
                 show_user_management_modal()
-        
-        with col4:
-            if st.button("🎫 Support Tickets", use_container_width=True):
-                st.session_state.page = "admin_tickets"
-                st.rerun()
+
+        with col2:
+            if st.button("💰 Adjust User Credits", use_container_width=True):
+                show_credits_management_modal()
+
+        with col3:
+            if st.button("📊 Export Analytics", use_container_width=True):
+                export_analytics()
         
         # System Health
         st.markdown("---")

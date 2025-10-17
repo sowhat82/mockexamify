@@ -242,22 +242,61 @@ if st.session_state.get('show_delete_confirm') and st.session_state.get('delete_
 
 async def load_all_mocks() -> List[Dict[str, Any]]:
     """Load all mock exams from database"""
-    from db import db_manager as db
-    return await db.get_all_mocks(active_only=False)
+    from db import db
+    mocks = await db.get_all_mocks(active_only=False)
+
+    # Convert Mock objects to dictionaries
+    result = []
+    for mock in mocks:
+        if hasattr(mock, '__dict__'):
+            # It's a Mock object, convert to dict
+            mock_dict = {
+                'id': mock.id,
+                'title': mock.title,
+                'description': mock.description,
+                'category': getattr(mock, 'category', 'General'),
+                'questions_json': mock.questions,
+                'price_credits': mock.price_credits,
+                'explanation_enabled': mock.explanation_enabled,
+                'is_active': mock.is_active,
+                'created_at': str(mock.created_at) if hasattr(mock, 'created_at') else None
+            }
+            result.append(mock_dict)
+        else:
+            # Already a dict
+            result.append(mock)
+
+    return result
 
 async def load_mock_by_id(mock_id: str) -> Dict[str, Any]:
     """Load a specific mock by ID"""
-    from db import db_manager as db
-    return await db.get_mock_by_id(mock_id)
+    from db import db
+    mock = await db.get_mock_by_id(mock_id)
+
+    if mock and hasattr(mock, '__dict__'):
+        # It's a Mock object, convert to dict
+        return {
+            'id': mock.id,
+            'title': mock.title,
+            'description': mock.description,
+            'category': getattr(mock, 'category', 'General'),
+            'questions_json': mock.questions,
+            'price_credits': mock.price_credits,
+            'explanation_enabled': mock.explanation_enabled,
+            'is_active': mock.is_active,
+            'created_at': str(mock.created_at) if hasattr(mock, 'created_at') else None
+        }
+
+    return mock
 
 async def update_mock(mock_id: str, update_data: Dict[str, Any]) -> bool:
     """Update a mock exam"""
-    from db import db_manager as db
+    from db import db
     return await db.update_mock(mock_id, update_data)
 
 async def delete_mock(mock_id: str) -> bool:
     """Delete a mock exam"""
-    from db import db_manager as db
+    from db import db
     return await db.delete_mock(mock_id)
 
 async def regenerate_explanations(mock_id: str) -> bool:

@@ -61,14 +61,6 @@ def show_admin_upload():
                 value=True,
                 help="Allow users to unlock AI-generated explanations for answers"
             )
-            
-            time_limit = st.number_input(
-                "Time Limit (minutes)",
-                min_value=5,
-                max_value=180,
-                value=60,
-                help="Maximum time allowed for the exam"
-            )
         
         st.markdown("### 📁 Upload Questions File")
         
@@ -155,7 +147,6 @@ def show_admin_upload():
                     category=category,
                     price_credits=price_credits,
                     explanation_enabled=explanation_enabled,
-                    time_limit=time_limit,
                     uploaded_file=uploaded_file
                 ))
                 
@@ -270,20 +261,20 @@ def parse_json_file(uploaded_file) -> List[Dict[str, Any]]:
     
     return questions
 
-async def process_mock_upload(title: str, description: str, category: str, 
+async def process_mock_upload(title: str, description: str, category: str,
                             price_credits: int, explanation_enabled: bool,
-                            time_limit: int, uploaded_file) -> bool:
+                            uploaded_file) -> bool:
     """Process the mock exam upload"""
     try:
         # Parse questions from file
         questions = parse_uploaded_file(uploaded_file)
-        
+
         if not questions:
             return False
-        
+
         # Create mock exam in database
         from db import db_manager as db
-        
+
         mock_data = {
             'title': title,
             'description': description,
@@ -291,7 +282,6 @@ async def process_mock_upload(title: str, description: str, category: str,
             'questions_json': questions,
             'price_credits': price_credits,
             'explanation_enabled': explanation_enabled,
-            'time_limit_minutes': time_limit,
             'is_active': True
         }
         

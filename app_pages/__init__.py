@@ -1,0 +1,3 @@
+"""
+Pages module for MockExamify
+"""

@@ -8,7 +8,7 @@ from auth_utils import AuthUtils, validate_email, validate_password, run_async
 
 # Import enhanced pages
 try:
-    from pages.dashboard import show_dashboard, handle_dashboard_modals
+    from app_pages.dashboard import show_dashboard, handle_dashboard_modals
 except ImportError:
     def show_dashboard():
         st.error("Dashboard functionality temporarily unavailable")
@@ -16,13 +16,13 @@ except ImportError:
         pass
 
 try:
-    from pages.exam import show_exam
+    from app_pages.exam import show_exam
 except ImportError:
     def show_exam():
         st.error("Exam functionality temporarily unavailable")
 
 try:
-    from pages.purchase_credits import show_purchase_credits, handle_payment_callback
+    from app_pages.purchase_credits import show_purchase_credits, handle_payment_callback
 except ImportError:
     def show_purchase_credits():
         st.error("Purchase functionality temporarily unavailable")
@@ -30,39 +30,54 @@ except ImportError:
         pass
 
 try:
-    from pages.past_attempts import show_past_attempts, handle_modals
+    from app_pages.past_attempts import show_past_attempts, handle_modals
 except ImportError:
     def show_past_attempts():
         st.error("Past attempts functionality temporarily unavailable")
     def handle_modals():
         pass
 
+# Import supporting pages
 try:
-    from pages.contact_support import show_contact_support
+    from app_pages.contact_support import show_contact_support
 except ImportError:
     def show_contact_support():
         st.error("Contact support functionality temporarily unavailable")
 
+# Import legal pages
+try:
+    from app_pages.terms_of_service import show_terms_page
+    from app_pages.privacy_policy import show_privacy_page
+except ImportError:
+    def show_terms_page():
+        st.error("Terms of Service page temporarily unavailable")
+    def show_privacy_page():
+        st.error("Privacy Policy page temporarily unavailable")
+
 # Import admin pages
 try:
-    from pages.admin_upload import show_admin_upload
-    from pages.admin_manage import show_admin_manage
-    from pages.admin_dashboard import show_admin_dashboard
-except ImportError:
+    from app_pages.admin_upload import show_admin_upload
+    from app_pages.admin_manage import show_admin_manage
+    from app_pages.admin_dashboard import show_admin_dashboard
+    from app_pages.admin_question_pools import show_admin_question_pools
+except ImportError as e:
     # Fallback if admin pages aren't available yet
+    st.error(f"Admin pages import error: {e}")
     def show_admin_upload():
         st.info("Admin upload functionality coming soon!")
     def show_admin_manage():
         st.info("Admin management functionality coming soon!")
     def show_admin_dashboard():
         st.info("Admin dashboard functionality coming soon!")
+    def show_admin_question_pools():
+        st.info("Question pools functionality coming soon!")
 
 # Configure Streamlit page
 st.set_page_config(
     page_title="MockExamify - AI-Powered Mock Exams",
     page_icon="🎯",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",  # Sidebar hidden permanently
     menu_items={
         'Get Help': 'mailto:support@mockexamify.com',
         'Report a bug': 'mailto:support@mockexamify.com',
@@ -75,6 +90,24 @@ st.markdown("""
 <style>
 /* Import Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* CRITICAL: Hide sidebar immediately on page load to prevent flashing */
+section[data-testid="stSidebar"] {
+    display: none !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    overflow: hidden !important;
+}
+[data-testid="collapsedControl"] {
+    display: none !important;
+    visibility: hidden !important;
+}
+[data-testid="stSidebarNav"] {
+    display: none !important;
+    visibility: hidden !important;
+}
 
 /* Global styles */
 .stApp {
@@ -278,12 +311,11 @@ st.markdown("""
     color: #2d3748;
 }
 
-/* Label styling */
+/* Label styling - removed hardcoded colors for theme compatibility */
 .stTextInput > label,
 .stTextArea > label,
 .stSelectbox > label,
 .stFileUploader > label {
-    color: #2d3748 !important;
     font-weight: 600 !important;
     font-size: 16px !important;
     margin-bottom: 0.5rem !important;
@@ -291,7 +323,6 @@ st.markdown("""
 
 /* Form labels */
 .stForm label {
-    color: #2d3748 !important;
     font-weight: 600 !important;
 }
 
@@ -311,25 +342,85 @@ st.markdown("""
     color: #4a5568;
 }
 
-/* Checkbox styling improvements */
+/* Checkbox styling improvements - removed hardcoded colors for theme compatibility */
 .stCheckbox > label {
-    color: #2d3748 !important;
     font-weight: 500 !important;
+    color: #000000 !important;
+}
+
+.stCheckbox > label > div {
+    color: #000000 !important;
+}
+
+.stCheckbox > label > div > p {
+    color: #000000 !important;
+}
+
+/* Hide the emoji checkmark in checkbox label to avoid double checkmarks */
+.stCheckbox > label > div > p::before {
+    content: none !important;
 }
 
 /* Expander styling */
 .streamlit-expanderHeader {
     background-color: #f7fafc;
     border-radius: 8px;
-    color: #2d3748;
+    color: #000000 !important;
     font-weight: 600;
+}
+
+.streamlit-expanderHeader p {
+    color: #000000 !important;
+}
+
+.streamlit-expanderHeader svg {
+    color: #000000 !important;
+}
+
+/* New expander styling for Streamlit updates */
+.st-emotion-cache-p5msec {
+    color: #000000 !important;
+}
+
+[data-testid="stExpander"] summary {
+    color: #000000 !important;
+}
+
+[data-testid="stExpander"] summary p {
+    color: #000000 !important;
 }
 
 .streamlit-expanderContent {
     background-color: white;
-    color: #4a5568;
+    color: #000000 !important;
     border: 1px solid #e2e8f0;
     border-radius: 0 0 8px 8px;
+}
+
+/* Force all text inside expanders to be black */
+[data-testid="stExpander"] div {
+    color: #000000 !important;
+}
+
+[data-testid="stExpander"] p {
+    color: #000000 !important;
+}
+
+[data-testid="stExpander"] h1,
+[data-testid="stExpander"] h2,
+[data-testid="stExpander"] h3,
+[data-testid="stExpander"] h4,
+[data-testid="stExpander"] h5,
+[data-testid="stExpander"] h6 {
+    color: #000000 !important;
+}
+
+[data-testid="stExpander"] li {
+    color: #000000 !important;
+}
+
+[data-testid="stExpander"] strong {
+    color: #000000 !important;
 }
 
 /* Button styling */
@@ -388,6 +479,35 @@ header {visibility: hidden;}
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 
+/* Error/Warning/Success message text color */
+.stAlert p {
+    color: #000000 !important;
+}
+
+.stAlert div {
+    color: #000000 !important;
+}
+
+/* Error messages */
+[data-testid="stNotificationContentError"] {
+    color: #000000 !important;
+}
+
+/* Success messages */
+[data-testid="stNotificationContentSuccess"] {
+    color: #000000 !important;
+}
+
+/* Warning messages */
+[data-testid="stNotificationContentWarning"] {
+    color: #000000 !important;
+}
+
+/* Info messages */
+[data-testid="stNotificationContentInfo"] {
+    color: #000000 !important;
+}
+
 /* Checkbox styling */
 .stCheckbox {
     margin: 1rem 0;
@@ -436,6 +556,15 @@ def main():
         handle_payment_callback()
         return
     
+    # Check if viewing legal pages (accessible without authentication)
+    current_page = st.session_state.get("page", "login")
+    if current_page == "terms_of_service":
+        show_terms_page()
+        return
+    elif current_page == "privacy_policy":
+        show_privacy_page()
+        return
+    
     # Check authentication status
     if auth.is_authenticated():
         show_authenticated_app(auth)
@@ -444,6 +573,45 @@ def main():
 
 def show_authentication_page(auth: AuthUtils):
     """Enhanced authentication page with better design"""
+    
+    # Hide sidebar permanently with aggressive CSS to prevent flashing
+    st.markdown("""
+    <style>
+    /* Aggressive sidebar hiding - prevents flash on load */
+    section[data-testid="stSidebar"] {
+        display: none !important;
+        visibility: hidden !important;
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: 0 !important;
+    }
+    [data-testid="collapsedControl"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    [data-testid="stSidebarNav"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    /* Hide the sidebar toggle button */
+    button[kind="header"] {
+        display: none !important;
+    }
+    
+    /* Fix form label and placeholder text colors */
+    .stTextInput label {
+        color: #000000 !important;
+    }
+    .stTextInput input::placeholder {
+        color: #666666 !important;
+        opacity: 1 !important;
+    }
+    .stTextInput input {
+        color: #000000 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
     # Hero section
     st.markdown("""
     <div class="welcome-section">
@@ -503,8 +671,51 @@ def show_authentication_page(auth: AuthUtils):
 
 def show_enhanced_login_form(auth: AuthUtils):
     """Enhanced login form with better UX"""
-    st.markdown("### Welcome Back!")
-    st.markdown("Sign in to access your mock exams and track your progress.")
+    st.markdown('<h3 style="color: #000000;">Welcome Back!</h3>', unsafe_allow_html=True)
+    st.markdown('<p style="color: #333333;">Sign in to access your mock exams and track your progress.</p>', unsafe_allow_html=True)
+    
+    # Quick login buttons for development
+    try:
+        is_demo = config.DEMO_MODE
+        is_dev = config.ENVIRONMENT == "development"
+
+        # Show quick login if demo mode AND development (user is responsible for security)
+        if is_demo and is_dev:
+            st.markdown("""
+            <div style="background-color: #e8f4f8; padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #0066cc; margin-bottom: 1rem;">
+                <p style="color: #000000; margin: 0; font-weight: 500;">🚀 <strong>Quick Login</strong> (Development Mode)</p>
+            </div>
+            """, unsafe_allow_html=True)
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.button("👨‍💼 Login as Admin", use_container_width=True, type="secondary"):
+                    # Auto-login as admin
+                    st.session_state.authenticated = True
+                    st.session_state.current_user = {
+                        "id": "admin-demo-id",
+                        "email": "admin@mockexamify.com",
+                        "role": "admin",
+                        "credits_balance": 100
+                    }
+                    st.session_state.page = "dashboard"
+                    st.rerun()
+            
+            with col2:
+                if st.button("👨‍🎓 Login as Student", use_container_width=True, type="secondary"):
+                    # Auto-login as student
+                    st.session_state.authenticated = True
+                    st.session_state.current_user = {
+                        "id": "student-demo-id",
+                        "email": "student@test.com",
+                        "role": "user",
+                        "credits_balance": 10
+                    }
+                    st.session_state.page = "dashboard"
+                    st.rerun()
+    except Exception as e:
+        # Silently fail if quick login setup fails
+        pass
     
     with st.form("login_form", clear_on_submit=False):
         email = st.text_input(
@@ -574,8 +785,8 @@ def show_enhanced_login_form(auth: AuthUtils):
 
 def show_enhanced_register_form(auth: AuthUtils):
     """Enhanced registration form with better UX"""
-    st.markdown("### Join MockExamify Today!")
-    st.markdown("Create your account and get **5 free credits** to start practicing!")
+    st.markdown('<h3 style="color: #000000;">Join MockExamify Today!</h3>', unsafe_allow_html=True)
+    st.markdown('<p style="color: #333333;">Create your account and get <strong>5 free credits</strong> to start practicing!</p>', unsafe_allow_html=True)
     
     with st.form("register_form", clear_on_submit=False):
         email = st.text_input(
@@ -598,7 +809,7 @@ def show_enhanced_register_form(auth: AuthUtils):
         )
         
         terms_agreed = st.checkbox(
-            "✅ I agree to the Terms of Service and Privacy Policy",
+            "I agree to the Terms of Service and Privacy Policy",
             help="You must agree to continue"
         )
         
@@ -652,76 +863,83 @@ def show_enhanced_register_form(auth: AuthUtils):
                     st.rerun()
                 else:
                     st.error(f"❌ {error_msg or 'Registration failed. Please try again.'}")
+    
+    # Links to legal documents (outside form) - using expanders to show inline
+    st.markdown('<p style="color: #666666; text-align: center; font-size: 0.9rem; margin: 1rem 0 0.5rem 0;">By creating an account, you agree to our legal terms. Click to read:</p>', unsafe_allow_html=True)
+    
+    from pathlib import Path
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        with st.expander("📜 Terms of Service", expanded=False):
+            try:
+                tos_path = Path(__file__).parent / "legal" / "terms_of_service.md"
+                with open(tos_path, 'r', encoding='utf-8') as f:
+                    tos_content = f.read()
+                st.markdown(tos_content, unsafe_allow_html=True)
+            except FileNotFoundError:
+                st.error("Terms of Service document not found.")
+    
+    with col2:
+        with st.expander("🔒 Privacy Policy", expanded=False):
+            try:
+                privacy_path = Path(__file__).parent / "legal" / "privacy_policy.md"
+                with open(privacy_path, 'r', encoding='utf-8') as f:
+                    privacy_content = f.read()
+                st.markdown(privacy_content, unsafe_allow_html=True)
+            except FileNotFoundError:
+                st.error("Privacy Policy document not found.")
 
 def show_authenticated_app(auth: AuthUtils):
     """Enhanced authenticated app with improved navigation"""
-    # Enhanced sidebar navigation
-    with st.sidebar:
-        user = auth.get_current_user()
-        
-        # Enhanced user info card
+    
+    # Hide sidebar permanently
+    st.markdown("""
+    <style>
+    section[data-testid="stSidebar"] {display: none !important;}
+    [data-testid="collapsedControl"] {display: none !important;}
+    </style>
+    """, unsafe_allow_html=True)
+    
+    user = auth.get_current_user()
+    credits = user.get('credits_balance', 0)
+    
+    # Top navigation bar with user info
+    col1, col2, col3 = st.columns([2, 1, 1])
+    
+    with col1:
         st.markdown(f"""
-        <div class="sidebar-info">
-            <h3>👋 Welcome Back!</h3>
-            <p><strong>📧 {user.get('email', 'User')}</strong></p>
+        <div style="padding: 10px 0;">
+            <h3 style="margin: 0;">🎯 MockExamify</h3>
         </div>
         """, unsafe_allow_html=True)
-        
-        # Enhanced credit balance display
-        credits = user.get('credits_balance', 0)
+    
+    with col2:
         st.markdown(f"""
-        <div class="credit-balance">
-            <h3>💰 Your Credits</h3>
-            <div class="amount">{credits}</div>
-            <p>{"Ready to explore!" if credits > 0 else "Purchase credits to start practicing"}</p>
+        <div style="padding: 10px; text-align: right;">
+            <p style="margin: 0;"><strong>💰 Credits:</strong> {credits}</p>
         </div>
         """, unsafe_allow_html=True)
-        
-        # Main navigation
-        st.markdown('<div class="nav-section">📱 Main Menu</div>', unsafe_allow_html=True)
-        
-        if st.button("🏠 Dashboard", use_container_width=True):
-            st.session_state.page = "dashboard"
-            st.rerun()
-        
-        if st.button("💳 Purchase Credits", use_container_width=True):
-            st.session_state.page = "purchase_credits"
-            st.rerun()
-        
-        if st.button("📈 Past Attempts", use_container_width=True):
-            st.session_state.page = "past_attempts"
-            st.rerun()
-        
-        if st.button("💬 Contact Support", use_container_width=True):
-            st.session_state.page = "contact_support"
-            st.rerun()
-        
-        # Enhanced admin menu
-        if auth.is_admin():
-            st.markdown('<div class="nav-section">👨‍💼 Admin Panel</div>', unsafe_allow_html=True)
-            
-            if st.button("📊 Admin Dashboard", use_container_width=True):
-                st.session_state.page = "admin_dashboard"
-                st.rerun()
-            
-            if st.button("📤 Upload Mock", use_container_width=True):
-                st.session_state.page = "admin_upload"
-                st.rerun()
-            
-            if st.button("📝 Manage Mocks", use_container_width=True):
-                st.session_state.page = "admin_manage"
-                st.rerun()
-            
-            if st.button("🎫 Support Tickets", use_container_width=True):
-                st.session_state.page = "admin_tickets"
-                st.rerun()
-        
-        # Enhanced logout section
-        st.markdown('<div class="nav-section">👤 Account</div>', unsafe_allow_html=True)
-        if st.button("🚪 Sign Out", use_container_width=True):
+    
+    with col3:
+        st.markdown(f"""
+        <div style="padding: 10px; text-align: right;">
+            <p style="margin: 0;"><strong>👤</strong> {user.get('email', 'User')}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # Navigation: Only logout button
+    col_spacer, col_logout = st.columns([9, 1])
+    
+    with col_logout:
+        if st.button("🚪 Logout", use_container_width=True):
             auth.logout()
             st.session_state.page = "login"
             st.rerun()
+    
+    st.markdown("---")
     
     # Enhanced main content area with better routing
     page = st.session_state.get("page", "dashboard")
@@ -745,8 +963,14 @@ def show_authenticated_app(auth: AuthUtils):
         show_admin_upload()
     elif page == "admin_manage":
         show_admin_manage()
+    elif page == "admin_question_pools":
+        show_admin_question_pools()
     elif page == "admin_tickets":
         show_admin_tickets()
+    elif page == "terms_of_service":
+        show_terms_page()
+    elif page == "privacy_policy":
+        show_privacy_page()
     else:
         show_dashboard()
         handle_dashboard_modals()

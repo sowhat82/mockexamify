@@ -261,6 +261,10 @@ def start_pool_exam(pool_exam_config: Dict[str, Any], user: Dict[str, Any]):
                 del st.session_state.pool_exam
             return
 
+        # Update user's credits in session state
+        if "current_user" in st.session_state:
+            st.session_state.current_user["credits_balance"] -= credits_needed
+
         # Create a mock-like structure for pool exam
         pool_mock = {
             "id": pool_id,
@@ -335,8 +339,8 @@ def show_exam_interface(user: Dict[str, Any]):
         st.markdown(
             f"""
         <div style="background: #f0f8ff; padding: 1rem; border-radius: 0.5rem;">
-            <p style="margin: 0;"><strong>✅ Answered:</strong> {answered_count}/{len(questions)}</p>
-            <p style="margin: 0;"><strong>🚩 Flagged:</strong> {flagged_count}</p>
+            <p style="margin: 0; color: #000000;"><strong style="color: #000000;">✅ Answered:</strong> {answered_count}/{len(questions)}</p>
+            <p style="margin: 0; color: #000000;"><strong style="color: #000000;">🚩 Flagged:</strong> {flagged_count}</p>
         </div>
         """,
             unsafe_allow_html=True,

@@ -52,6 +52,16 @@ DEMO_USERS = {
         "role": "user",
         "created_at": datetime.now(timezone.utc).isoformat(),
     },
+    "student@test.com": {
+        "id": "student-demo-id",
+        "email": "student@test.com",
+        "password_hash": bcrypt.hashpw("password".encode("utf-8"), bcrypt.gensalt()).decode(
+            "utf-8"
+        ),
+        "credits_balance": 10,
+        "role": "user",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    },
 }
 
 DEMO_MOCKS = {
@@ -656,6 +666,164 @@ class DatabaseManager:
             logger.error(f"Error creating ticket: {e}")
             return None
 
+    # Modern support ticket APIs (newer table 'support_tickets')
+    async def create_support_ticket(self, ticket_data: Dict[str, Any]) -> Optional[str]:
+        """Create a new support ticket using support_tickets table
+
+        ticket_data should contain: user_id, subject, description/message, browser, device, error_message, affected_exam, priority, category
+        Returns ticket id on success
+        """
+        try:
+            if self.demo_mode:
+                # Return a fake UUID-like string
+                fake_id = f"demo-support-{len(DEMO_ATTEMPTS) + 1}"
+                return fake_id
+
+            payload = {
+                "user_id": ticket_data.get("user_id"),
+                "user_email": ticket_data.get("user_email"),
+                "subject": ticket_data.get("subject"),
+                "message": ticket_data.get("description") or ticket_data.get("message"),
+                "browser": ticket_data.get("browser"),
+                "device": ticket_data.get("device"),
+                "error_message": ticket_data.get("error_message"),
+                "affected_exam": ticket_data.get("affected_exam"),
+                # Store status in Title Case to match UI expectations (e.g., 'Open', 'Resolved')
+                "status": ticket_data.get("status", "Open"),
+                "priority": ticket_data.get("priority", "Medium"),
+                "category": ticket_data.get("category", "Other"),
+                "attachment_url": ticket_data.get("attachment_url"),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+            result = self.client.table("support_tickets").insert(payload).execute()
+            if result.data and len(result.data) > 0:
+                return result.data[0].get("id")
+            return None
+        except Exception as e:
+            logger.error(f"Error creating support ticket: {e}")
+            return None
+
+    async def get_all_support_tickets(self) -> List[Dict[str, Any]]:
+        """Retrieve all support tickets (admins can view all)"""
+        try:
+            if self.demo_mode:
+                # Build demo list from fallback tickets
+                demo_list = []
+                # Convert DEMO_ATTEMPTS or DEMO_MOCKS if necessary; keep empty for demo
+                return demo_list
+
+            result = (
+                self.client.table("support_tickets")
+                .select("*")
+                .order("created_at", desc=True)
+                .execute()
+            )
+            return result.data if result.data else []
+        except Exception as e:
+            logger.error(f"Error getting all support tickets: {e}")
+            return []
+
+    async def get_user_support_tickets(self, user_id: str) -> List[Dict[str, Any]]:
+        """Get support tickets submitted by a specific user"""
+        try:
+            if self.demo_mode:
+                return []
+
+            result = (
+                self.client.table("support_tickets")
+                .select("*")
+                .eq("user_id", user_id)
+                .order("created_at", desc=True)
+                .execute()
+            )
+            return result.data if result.data else []
+        except Exception as e:
+            logger.error(f"Error getting user support tickets: {e}")
+            return []
+
+    async def update_support_ticket_status(self, ticket_id: str, new_status: str) -> bool:
+        """Update status of a support ticket"""
+        try:
+            if self.demo_mode:
+                return True
+
+            result = (
+                self.client.table("support_tickets")
+                .update({"status": new_status})
+                .eq("id", ticket_id)
+                .execute()
+            )
+            return len(result.data) > 0
+        except Exception as e:
+            logger.error(f"Error updating support ticket status: {e}")
+            return False
+
+    async def add_ticket_response(
+        self, ticket_id: str, message: str, responder: str = "admin"
+    ) -> bool:
+        """Add a response to a support ticket.
+
+        Tries to insert into support_ticket_responses; if not available, appends to a 'responses' JSONB field on support_tickets.
+        """
+        try:
+            if self.demo_mode:
+                return True
+
+            # Prefer a dedicated responses table if present
+            try:
+                resp_result = (
+                    self.client.table("support_ticket_responses")
+                    .insert(
+                        {
+                            "ticket_id": ticket_id,
+                            "responder": responder,
+                            "message": message,
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                        }
+                    )
+                    .execute()
+                )
+                if resp_result.data:
+                    return True
+            except Exception:
+                # Fallback: append to JSONB 'responses' array on support_tickets
+                try:
+                    # Get existing responses
+                    ticket = (
+                        self.client.table("support_tickets")
+                        .select("responses")
+                        .eq("id", ticket_id)
+                        .execute()
+                    )
+                    existing = []
+                    if ticket.data and len(ticket.data) > 0 and ticket.data[0].get("responses"):
+                        existing = ticket.data[0]["responses"]
+
+                    existing.append(
+                        {
+                            "responder": responder,
+                            "message": message,
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                        }
+                    )
+
+                    update = (
+                        self.client.table("support_tickets")
+                        .update({"responses": existing})
+                        .eq("id", ticket_id)
+                        .execute()
+                    )
+                    return len(update.data) > 0
+                except Exception as e:
+                    logger.error(f"Error appending response to support ticket: {e}")
+                    return False
+
+            return False
+        except Exception as e:
+            logger.error(f"Error adding ticket response: {e}")
+            return False
+
     # Payment Methods
     async def create_payment(
         self,
@@ -782,27 +950,41 @@ class DatabaseManager:
     async def deduct_credits_from_user(self, user_id: str, credits_to_deduct: int) -> bool:
         """Deduct credits from user account"""
         try:
-            if self.demo_mode:
-                # Update demo user data
-                for email, user_data in DEMO_USERS.items():
-                    if user_data["id"] == user_id:
-                        if user_data["credits_balance"] >= credits_to_deduct:
-                            user_data["credits_balance"] -= credits_to_deduct
-                            return True
-                        return False
-                return False
+            logger.info(f"Attempting to deduct {credits_to_deduct} credits from user {user_id}")
 
-            # Get current user credits
+            # Check if user is a demo user first (by user_id)
+            for email, user_data in DEMO_USERS.items():
+                if user_data["id"] == user_id:
+                    logger.info(f"Found demo user: {email}")
+                    if user_data["credits_balance"] >= credits_to_deduct:
+                        user_data["credits_balance"] -= credits_to_deduct
+                        logger.info(
+                            f"Demo user credits deducted. New balance: {user_data['credits_balance']}"
+                        )
+                        return True
+                    else:
+                        logger.error(
+                            f"Demo user insufficient credits: has {user_data['credits_balance']}, needs {credits_to_deduct}"
+                        )
+                        return False
+
+            # Not a demo user - try real database
+            # Get current user credits from real database
             result = (
                 self.client.table("users").select("credits_balance").eq("id", user_id).execute()
             )
 
             if not result.data:
+                logger.error(f"User {user_id} not found in database or DEMO_USERS")
                 return False
 
             current_credits = result.data[0]["credits_balance"]
+            logger.info(f"User {user_id} has {current_credits} credits, needs {credits_to_deduct}")
 
             if current_credits < credits_to_deduct:
+                logger.error(
+                    f"Insufficient credits: has {current_credits}, needs {credits_to_deduct}"
+                )
                 return False  # Insufficient credits
 
             new_balance = current_credits - credits_to_deduct
@@ -815,7 +997,14 @@ class DatabaseManager:
                 .execute()
             )
 
-            return len(update_result.data) > 0
+            success = len(update_result.data) > 0
+            if success:
+                logger.info(
+                    f"Successfully deducted {credits_to_deduct} credits. New balance: {new_balance}"
+                )
+            else:
+                logger.error(f"Failed to update credits in database")
+            return success
         except Exception as e:
             logger.error(f"Error deducting credits from user: {e}")
             return False
@@ -1032,6 +1221,53 @@ class DatabaseManager:
 
         except Exception as e:
             logger.error(f"Error getting pool questions: {e}")
+            return []
+
+    async def get_random_pool_questions(self, pool_id: str, count: int) -> List[Dict[str, Any]]:
+        """Get N random questions from a pool (excluding duplicates)"""
+        try:
+            # Question pools always use real database (hybrid mode)
+            result = (
+                self.client.table("pool_questions")
+                .select("*")
+                .eq("pool_id", pool_id)
+                .eq("is_duplicate", False)
+                .execute()
+            )
+
+            if not result.data:
+                return []
+
+            # Randomly sample N questions
+            import random
+
+            available_questions = result.data
+
+            if len(available_questions) <= count:
+                selected = available_questions
+            else:
+                selected = random.sample(available_questions, count)
+
+            # Convert to standard format for exam
+            formatted_questions = []
+            for q in selected:
+                formatted_questions.append(
+                    {
+                        "question": q["question_text"],
+                        "choices": (
+                            json.loads(q["choices"])
+                            if isinstance(q["choices"], str)
+                            else q["choices"]
+                        ),
+                        "correct_index": q["correct_answer"],
+                        "explanation_template": q.get("explanation", ""),
+                    }
+                )
+
+            return formatted_questions
+
+        except Exception as e:
+            logger.error(f"Error getting random pool questions: {e}")
             return []
 
     async def create_upload_batch(

@@ -251,8 +251,14 @@ def start_pool_exam(pool_exam_config: Dict[str, Any], user: Dict[str, Any]):
                 del st.session_state.pool_exam
             return
 
+        # Debug info
+        st.info(f"DEBUG: Attempting to deduct {credits_needed} credits from user {user.get('id')}")
+        st.info(f"DEBUG: User object: {user}")
+
         # Check and deduct credits
         deduct_success = run_async(db.deduct_credits_from_user(user["id"], credits_needed))
+
+        st.info(f"DEBUG: Deduct success = {deduct_success}")
 
         if not deduct_success:
             st.error("Failed to process payment. Please check your credits balance.")

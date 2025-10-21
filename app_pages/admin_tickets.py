@@ -195,6 +195,11 @@ def show_admin_tickets():
         show_ticket_response_modal()
         return
 
+    # Back button
+    if st.button("⬅️ Back to Dashboard", key="back_to_dashboard"):
+        st.session_state.page = "dashboard"
+        st.rerun()
+
     # Header
     st.markdown("## 🎫 Support Tickets Management")
     st.markdown("*Manage and respond to user support requests*")
@@ -219,7 +224,18 @@ def show_admin_tickets():
 
 def show_all_tickets():
     """Display all support tickets"""
-    st.markdown("### 📥 All Support Tickets")
+    # Custom CSS to make labels black and header
+    st.markdown(
+        """
+        <style>
+        .stSelectbox > label, .stTextInput > label {
+            color: #000000 !important;
+        }
+        </style>
+        <h3 style="color: #000000;">📥 All Support Tickets</h3>
+    """,
+        unsafe_allow_html=True,
+    )
 
     # Filters
     col1, col2, col3, col4 = st.columns(4)
@@ -271,7 +287,10 @@ def show_all_tickets():
         )
 
     # Display ticket count
-    st.markdown(f"**Found {len(tickets)} ticket(s)**")
+    st.markdown(
+        f'<p style="color: #000000;"><strong>Found {len(tickets)} ticket(s)</strong></p>',
+        unsafe_allow_html=True,
+    )
 
     if not tickets:
         st.info("📭 No tickets found matching your filters.")
@@ -284,8 +303,11 @@ def show_all_tickets():
 
 def show_open_tickets():
     """Display only open tickets"""
-    st.markdown("### 🔥 Open Tickets")
-    st.markdown("*Tickets requiring immediate attention*")
+    st.markdown('<h3 style="color: #000000;">🔥 Open Tickets</h3>', unsafe_allow_html=True)
+    st.markdown(
+        '<p style="color: #000000; font-style: italic;">Tickets requiring immediate attention</p>',
+        unsafe_allow_html=True,
+    )
 
     # Load open tickets
     with st.spinner("Loading open tickets..."):
@@ -302,7 +324,7 @@ def show_open_tickets():
 
 def show_resolved_tickets():
     """Display resolved tickets"""
-    st.markdown("### ✅ Resolved Tickets")
+    st.markdown('<h3 style="color: #000000;">✅ Resolved Tickets</h3>', unsafe_allow_html=True)
 
     # Load resolved tickets
     with st.spinner("Loading resolved tickets..."):
@@ -321,7 +343,7 @@ def show_resolved_tickets():
 
 def show_ticket_statistics():
     """Display ticket statistics and analytics"""
-    st.markdown("### 📊 Ticket Statistics")
+    st.markdown('<h3 style="color: #000000;">📊 Ticket Statistics</h3>', unsafe_allow_html=True)
 
     # Load statistics
     with st.spinner("Loading statistics..."):
@@ -359,25 +381,36 @@ def show_ticket_statistics():
     st.markdown("---")
 
     # Status breakdown
-    st.markdown("#### 📋 Ticket Status Breakdown")
+    st.markdown(
+        '<h4 style="color: #000000;">📋 Ticket Status Breakdown</h4>', unsafe_allow_html=True
+    )
     col1, col2 = st.columns(2)
 
     with col1:
         status_data = stats.get("by_status", {})
         for status, count in status_data.items():
-            st.markdown(f"**{status}:** {count}")
+            st.markdown(
+                f'<p style="color: #000000;"><strong>{status}:</strong> {count}</p>',
+                unsafe_allow_html=True,
+            )
 
     with col2:
         priority_data = stats.get("by_priority", {})
-        st.markdown("**Priority Distribution:**")
+        st.markdown(
+            '<p style="color: #000000;"><strong>Priority Distribution:</strong></p>',
+            unsafe_allow_html=True,
+        )
         for priority, count in priority_data.items():
             emoji = {"Low": "🟢", "Medium": "🟡", "High": "🟠", "Urgent": "🔴"}.get(priority, "⚪")
-            st.markdown(f"{emoji} **{priority}:** {count}")
+            st.markdown(
+                f'<p style="color: #000000;">{emoji} <strong>{priority}:</strong> {count}</p>',
+                unsafe_allow_html=True,
+            )
 
     st.markdown("---")
 
     # Category breakdown
-    st.markdown("#### 📂 Tickets by Category")
+    st.markdown('<h4 style="color: #000000;">📂 Tickets by Category</h4>', unsafe_allow_html=True)
     category_data = stats.get("by_category", {})
 
     for category, count in sorted(category_data.items(), key=lambda x: x[1], reverse=True):

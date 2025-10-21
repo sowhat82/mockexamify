@@ -195,6 +195,11 @@ def show_admin_tickets():
         show_ticket_response_modal()
         return
 
+    # Back button
+    if st.button("⬅️ Back to Dashboard", key="back_to_dashboard"):
+        st.session_state.page = "dashboard"
+        st.rerun()
+
     # Header
     st.markdown("## 🎫 Support Tickets Management")
     st.markdown("*Manage and respond to user support requests*")
@@ -219,7 +224,7 @@ def show_admin_tickets():
 
 def show_all_tickets():
     """Display all support tickets"""
-    st.markdown("### 📥 All Support Tickets")
+    st.markdown('<h3 style="color: #000000;">📥 All Support Tickets</h3>', unsafe_allow_html=True)
 
     # Filters
     col1, col2, col3, col4 = st.columns(4)

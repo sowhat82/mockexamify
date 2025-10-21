@@ -1,4 +1,4 @@
-# MockExamify - Interactive Mock Exam Platform 🎯
+# MockExamify - Interactive Mock Exam Platform 🎯 <!-- color-change-test -->
 
 A comprehensive full-stack Python application for selling and hosting interactive mock exams with credit system, payments, and AI integration.
 

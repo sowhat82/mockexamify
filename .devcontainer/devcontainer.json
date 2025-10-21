@@ -1,0 +1,22 @@
+{
+  "name": "cloud-dev",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "GitHub.copilot",
+        "GitHub.copilot-chat",
+        "esbenp.prettier-vscode"
+      ],
+      "settings": {
+        "editor.formatOnSave": true
+      }
+    }
+  },
+  "forwardPorts": [3000, 5173],
+  "portsAttributes": {
+    "3000": { "label": "App", "onAutoForward": "openPreview" },
+    "5173": { "label": "Vite", "onAutoForward": "openPreview" }
+  },
+  "postCreateCommand": "npm ci"
+}

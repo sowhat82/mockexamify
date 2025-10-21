@@ -68,6 +68,18 @@ def show_dashboard():
     st.title("📊 Dashboard")
     st.write(f"*{greeting}, **{user_name}**! Ready to boost your exam performance?*")
 
+    # Header contact support button (top-right)
+    hdr_cols = st.columns([10, 1])
+    with hdr_cols[1]:
+        if st.button(
+            "💬 Contact Support",
+            key="header_contact_support",
+            help="Open support center",
+            use_container_width=True,
+        ):
+            st.session_state.page = "contact_support"
+            st.rerun()
+
     # Quick stats overview
     show_quick_stats(user)
 
@@ -210,18 +222,12 @@ def show_admin_panel():
     st.markdown("---")
     st.markdown("## 👨‍💼 Admin Panel")
 
-    admin_col1, admin_col2, admin_col3, admin_col4, admin_col5 = st.columns(5)
+    admin_col1, admin_col2, admin_col3, admin_col4 = st.columns(4)
 
     with admin_col1:
         if st.button("📤 Upload Mock Exam", use_container_width=True):
             st.session_state.page = "admin_upload"
             st.rerun()
-
-    # Hidden for future enhancement - traditional mock exam management
-    # with admin_col2:
-    #     if st.button("📝 Manage Exams", use_container_width=True):
-    #         st.session_state.page = "admin_manage"
-    #         st.rerun()
 
     with admin_col2:
         if st.button("💼 Manage Pools", use_container_width=True):
@@ -234,13 +240,8 @@ def show_admin_panel():
             st.rerun()
 
     with admin_col4:
-        if st.button("� Analytics Dashboard", use_container_width=True, type="primary"):
+        if st.button("📊 Analytics Dashboard", use_container_width=True, type="primary"):
             st.session_state.page = "admin_dashboard"
-            st.rerun()
-
-    with admin_col5:
-        if st.button("📊 Reports", use_container_width=True):
-            st.session_state.page = "admin_analytics"
             st.rerun()
 
 
@@ -577,6 +578,8 @@ def show_enhanced_mock_card(mock_obj: Any, container, user: Dict[str, Any]):
                     color: white;
                     padding: 0.3rem 0.8rem;
                     border-radius: 1rem;
+
+
                     font-size: 0.8rem;
                     font-weight: bold;
                 ">
@@ -633,7 +636,7 @@ def show_enhanced_mock_card(mock_obj: Any, container, user: Dict[str, Any]):
 
 def show_progress_overview(user: Dict[str, Any]):
     """Display user progress overview"""
-    st.markdown("### 📈 Your Progress")
+    st.markdown('<h3 style="color: #000000;">📈 Your Progress</h3>', unsafe_allow_html=True)
 
     try:
         stats = run_async(load_user_statistics(user["id"]))
@@ -731,7 +734,7 @@ def show_progress_overview(user: Dict[str, Any]):
 
 def show_recent_activity(user: Dict[str, Any]):
     """Display recent user activity"""
-    st.markdown("### 🔥 Recent Activity")
+    st.markdown('<h3 style="color: #000000;">🔥 Recent Activity</h3>', unsafe_allow_html=True)
 
     try:
         activities = run_async(load_user_activities(user["id"]))

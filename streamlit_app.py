@@ -1017,24 +1017,9 @@ def show_authenticated_app(auth: AuthUtils):
 
 def show_admin_tickets():
     """Enhanced admin tickets management"""
-    st.markdown("### 🎫 Support Tickets Management")
-    st.info("📧 Support ticket management functionality coming soon!")
+    from app_pages.admin_tickets import show_admin_tickets as show_tickets_page
 
-    # Placeholder for future ticket management features
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.metric("Open Tickets", "0", "0")
-
-    with col2:
-        st.metric("Resolved Today", "0", "0")
-
-    with col3:
-        st.metric("Avg Response Time", "< 24h", "0h")
-
-    if st.button("🏠 Back to Dashboard", type="primary"):
-        st.session_state.page = "dashboard"
-        st.rerun()
+    show_tickets_page()
 
 
 if __name__ == "__main__":

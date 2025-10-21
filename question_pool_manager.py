@@ -2,12 +2,13 @@
 Question Pool Manager for MockExamify
 Handles question bank storage, AI-powered duplicate detection, and pool management
 """
+
 import asyncio
 import hashlib
 import json
 import logging
-from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
 
 from openrouter_utils import OpenRouterManager
 
@@ -74,7 +75,10 @@ class QuestionPoolManager:
         return unique_questions, duplicate_questions
 
     async def detect_similar_questions_with_ai(
-        self, new_question: Dict[str, Any], existing_questions: List[Dict[str, Any]], threshold: float = 0.90
+        self,
+        new_question: Dict[str, Any],
+        existing_questions: List[Dict[str, Any]],
+        threshold: float = 0.90,
     ) -> List[Tuple[Dict[str, Any], float]]:
         """
         Use AI to detect semantically similar questions
@@ -86,6 +90,7 @@ class QuestionPoolManager:
             # For efficiency, only check against random sample if too many questions
             sample_size = min(len(existing_questions), 50)
             import random
+
             questions_to_check = (
                 random.sample(existing_questions, sample_size)
                 if len(existing_questions) > sample_size
@@ -107,9 +112,7 @@ class QuestionPoolManager:
             logger.error(f"Error detecting similar questions with AI: {e}")
             return []
 
-    async def _calculate_semantic_similarity(
-        self, q1: Dict[str, Any], q2: Dict[str, Any]
-    ) -> float:
+    async def _calculate_semantic_similarity(self, q1: Dict[str, Any], q2: Dict[str, Any]) -> float:
         """
         Use AI to calculate semantic similarity between two questions
         Returns score from 0.0 to 1.0
@@ -142,7 +145,7 @@ Examples:
 
             # Use OpenRouterManager with cascading model fallback
             response = await self.ai._generate_text(prompt, max_tokens=10, temperature=0.1)
-            
+
             if response and not response.startswith("Error:"):
                 # Extract number from response
                 try:
@@ -252,9 +255,7 @@ Examples:
 
         return {
             "total_questions": len(questions),
-            "unique_questions": len(
-                set(self.calculate_question_hash(q) for q in questions)
-            ),
+            "unique_questions": len(set(self.calculate_question_hash(q) for q in questions)),
             "categories": categories,
             "difficulties": difficulties,
             "date_range": date_range,

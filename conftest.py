@@ -2,13 +2,15 @@
 MockExamify Test Configuration
 Pytest fixtures and test setup for comprehensive testing
 """
-import pytest
+
 import asyncio
 import os
 import tempfile
 from datetime import datetime
-from unittest.mock import Mock, MagicMock, AsyncMock, patch
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
@@ -16,14 +18,17 @@ from streamlit.testing.v1 import AppTest
 import config
 from auth_utils import AuthUtils
 from db import DatabaseManager
-from models import User, QuestionSchema, Mock, Attempt
+from models import Attempt, Mock, QuestionSchema, User
+
 
 class TestConfig:
     """Test-specific configuration"""
+
     TEST_DATABASE_URL = "sqlite:///test_mockexamify.db"
     TEST_API_BASE_URL = "http://localhost:8501"
     TEST_DEMO_MODE = True
     TEST_ENVIRONMENT = "testing"
+
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -32,20 +37,23 @@ def event_loop():
     yield loop
     loop.close()
 
+
 @pytest.fixture(autouse=True)
 def mock_streamlit_state():
     """Mock Streamlit session state for all tests"""
-    with patch.dict('streamlit.session_state', {}, clear=True):
+    with patch.dict("streamlit.session_state", {}, clear=True):
         st.session_state.authenticated = False
         st.session_state.current_user = None
         st.session_state.page = "login"
         st.session_state.token = None
         yield st.session_state
 
+
 @pytest.fixture
 def test_config():
     """Provide test configuration"""
     return TestConfig()
+
 
 @pytest.fixture
 def mock_auth_utils():
@@ -59,6 +67,7 @@ def mock_auth_utils():
     auth.logout = MagicMock()
     return auth
 
+
 @pytest.fixture
 def mock_authenticated_auth():
     """Mock authenticated AuthUtils"""
@@ -68,10 +77,11 @@ def mock_authenticated_auth():
         "id": "test-user-1",
         "email": "test@example.com",
         "role": "user",
-        "credits_balance": 10
+        "credits_balance": 10,
     }
     auth.is_admin.return_value = False
     return auth
+
 
 @pytest.fixture
 def mock_admin_auth():
@@ -82,16 +92,17 @@ def mock_admin_auth():
         "id": "admin-1",
         "email": "admin@mockexamify.com",
         "role": "admin",
-        "credits_balance": 0  # Admins don't need credits
+        "credits_balance": 0,  # Admins don't need credits
     }
     auth.is_admin.return_value = True
     return auth
+
 
 @pytest.fixture
 def mock_db():
     """Mock database manager"""
     db = Mock(spec=DatabaseManager)
-    
+
     # Mock demo data
     demo_user = User(
         id="test-user-1",
@@ -99,9 +110,9 @@ def mock_db():
         password_hash="hashed_password",
         credits_balance=10,
         role="user",
-        created_at="2024-01-01T00:00:00Z"
+        created_at="2024-01-01T00:00:00Z",
     )
-    
+
     demo_mock = Mock(
         id=1,
         title="Test Category Mock",
@@ -112,9 +123,9 @@ def mock_db():
         total_questions=10,
         difficulty_level="Medium",
         question_types=["Multiple Choice"],
-        created_by="admin"
+        created_by="admin",
     )
-    
+
     # Setup async mock methods
     db.get_user_by_email = AsyncMock(return_value=demo_user)
     db.get_user_by_id = AsyncMock(return_value=demo_user)
@@ -125,8 +136,9 @@ def mock_db():
     db.get_papers_by_category = AsyncMock(return_value=[])
     db.create_attempt = AsyncMock(return_value=None)
     db.add_credits = AsyncMock(return_value=True)
-    
+
     return db
+
 
 @pytest.fixture
 def test_user_data():
@@ -136,8 +148,9 @@ def test_user_data():
         "password": "testpass123",
         "id": "test-user-1",
         "role": "user",
-        "credits_balance": 10
+        "credits_balance": 10,
     }
+
 
 @pytest.fixture
 def test_admin_data():
@@ -147,8 +160,9 @@ def test_admin_data():
         "password": "admin123",
         "id": "admin-1",
         "role": "admin",
-        "credits_balance": 0  # Admins don't need credits
+        "credits_balance": 0,  # Admins don't need credits
     }
+
 
 @pytest.fixture
 def sample_questions():
@@ -161,7 +175,7 @@ def sample_questions():
             "correct_index": 2,
             "explanation": "Paris is the capital and largest city of France.",
             "category": "Geography",
-            "difficulty": "easy"
+            "difficulty": "easy",
         },
         {
             "id": 2,
@@ -170,15 +184,16 @@ def sample_questions():
             "correct_index": 1,
             "explanation": "Python is used with Streamlit framework.",
             "category": "Programming",
-            "difficulty": "medium"
-        }
+            "difficulty": "medium",
+        },
     ]
+
 
 @pytest.fixture
 def mock_supabase_client():
     """Mock Supabase client for database testing"""
     client = Mock()
-    
+
     # Mock table operations
     table_mock = Mock()
     table_mock.select.return_value = table_mock
@@ -187,43 +202,51 @@ def mock_supabase_client():
     table_mock.delete.return_value = table_mock
     table_mock.eq.return_value = table_mock
     table_mock.execute.return_value = Mock(data=[], error=None)
-    
+
     client.table.return_value = table_mock
     return client
+
 
 @pytest.fixture
 def app_test():
     """Streamlit app testing fixture"""
     return AppTest.from_file("streamlit_app.py")
 
+
 class TestHelpers:
     """Helper functions for tests"""
-    
+
     @staticmethod
     def mock_streamlit_components():
         """Mock common Streamlit components"""
-        with patch('streamlit.title') as mock_title, \
-             patch('streamlit.header') as mock_header, \
-             patch('streamlit.subheader') as mock_subheader, \
-             patch('streamlit.text') as mock_text, \
-             patch('streamlit.markdown') as mock_markdown, \
-             patch('streamlit.error') as mock_error, \
-             patch('streamlit.success') as mock_success, \
-             patch('streamlit.info') as mock_info, \
-             patch('streamlit.warning') as mock_warning:
-            
+        with patch("streamlit.title") as mock_title, patch(
+            "streamlit.header"
+        ) as mock_header, patch("streamlit.subheader") as mock_subheader, patch(
+            "streamlit.text"
+        ) as mock_text, patch(
+            "streamlit.markdown"
+        ) as mock_markdown, patch(
+            "streamlit.error"
+        ) as mock_error, patch(
+            "streamlit.success"
+        ) as mock_success, patch(
+            "streamlit.info"
+        ) as mock_info, patch(
+            "streamlit.warning"
+        ) as mock_warning:
+
             yield {
-                'title': mock_title,
-                'header': mock_header,
-                'subheader': mock_subheader,
-                'text': mock_text,
-                'markdown': mock_markdown,
-                'error': mock_error,
-                'success': mock_success,
-                'info': mock_info,
-                'warning': mock_warning
+                "title": mock_title,
+                "header": mock_header,
+                "subheader": mock_subheader,
+                "text": mock_text,
+                "markdown": mock_markdown,
+                "error": mock_error,
+                "success": mock_success,
+                "info": mock_info,
+                "warning": mock_warning,
             }
-    
+
     @staticmethod
     def create_mock_response(data=None, error=None):
         """Create mock API response"""
@@ -231,24 +254,26 @@ class TestHelpers:
         response.data = data or []
         response.error = error
         return response
-    
+
     @staticmethod
     def assert_no_errors_displayed(mock_components):
         """Assert no error messages were displayed"""
-        mock_components['error'].assert_not_called()
-    
+        mock_components["error"].assert_not_called()
+
     @staticmethod
     def assert_success_message(mock_components, message=None):
         """Assert success message was displayed"""
-        mock_components['success'].assert_called()
+        mock_components["success"].assert_called()
         if message:
-            args = mock_components['success'].call_args[0]
+            args = mock_components["success"].call_args[0]
             assert message in args[0]
+
 
 @pytest.fixture
 def test_helpers():
     """Provide test helper functions"""
     return TestHelpers()
+
 
 # Test markers
 pytest_markers = [
@@ -259,14 +284,16 @@ pytest_markers = [
     "db: Database operation tests",
     "ui: User interface tests",
     "admin: Admin functionality tests",
-    "slow: Tests that take longer to run"
+    "slow: Tests that take longer to run",
 ]
+
 
 # Register custom markers
 def pytest_configure(config):
     """Register custom pytest markers"""
     for marker in pytest_markers:
         config.addinivalue_line("markers", marker)
+
 
 # Test data cleanup
 @pytest.fixture(autouse=True)

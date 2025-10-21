@@ -2,6 +2,7 @@
 Debug script to check why quick login isn't showing
 Run this to see the exact conditions being checked
 """
+
 import config
 
 print("=" * 60)

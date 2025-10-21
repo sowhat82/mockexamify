@@ -2,15 +2,18 @@
 Document Parser for Mock Exam Questions
 Extracts questions from PDF and Word documents using AI
 """
+
 import io
 import json
 import re
-from typing import List, Dict, Any, Optional, Tuple
-import PyPDF2
-from docx import Document
+from typing import Any, Dict, List, Optional, Tuple
+
 import httpx
-import config
+import PyPDF2
 import streamlit as st
+from docx import Document
+
+import config
 
 
 class DocumentParser:
@@ -30,12 +33,12 @@ class DocumentParser:
         """
         try:
             # Determine file type
-            file_extension = uploaded_file.name.split('.')[-1].lower()
+            file_extension = uploaded_file.name.split(".")[-1].lower()
 
             # Extract text from document
-            if file_extension == 'pdf':
+            if file_extension == "pdf":
                 text = self._extract_text_from_pdf(uploaded_file)
-            elif file_extension in ['docx', 'doc']:
+            elif file_extension in ["docx", "doc"]:
                 text = self._extract_text_from_word(uploaded_file)
             else:
                 return False, [], f"Unsupported file type: {file_extension}"
@@ -147,16 +150,16 @@ class DocumentParser:
         current_chunk = ""
 
         # Split by common question delimiters
-        lines = text.split('\n')
+        lines = text.split("\n")
 
         for line in lines:
             # Check if adding this line would exceed chunk size
             if len(current_chunk) + len(line) > chunk_size and current_chunk:
                 # Save current chunk and start new one
                 chunks.append(current_chunk)
-                current_chunk = line + '\n'
+                current_chunk = line + "\n"
             else:
-                current_chunk += line + '\n'
+                current_chunk += line + "\n"
 
         # Add last chunk
         if current_chunk.strip():
@@ -173,16 +176,25 @@ DOCUMENT TEXT:
 
 INSTRUCTIONS:
 1. Identify all multiple-choice questions in the text
-2. For each question, extract:
-   - The question text
+2. **CRITICAL - FIX OCR ERRORS**: The text may contain OCR errors where words are split into individual letters with spaces or line breaks. Fix these errors:
+   - Example: "p e r s h a r e" should be "per share"
+   - Example: "r e c e i v e d" should be "received"
+   - Example: "d i v i d e n d s o f" should be "dividends of"
+   - Remove extra spaces between individual letters
+   - Reconstruct proper words from letter sequences
+   - Fix formatting issues like conjoined words (e.g., "pershareand" → "per share and")
+   - Preserve mathematical symbols like $, %, numbers
+
+3. For each question, extract:
+   - The question text (with OCR errors corrected)
    - All answer choices (typically A, B, C, D or 1, 2, 3, 4)
    - The correct answer
    - Any scenario/context provided before the question
    - Any explanation or additional notes
 
-3. Format your response as a JSON array of questions. Each question should have:
-   - "question": the question text (string)
-   - "choices": array of answer choice texts (array of strings)
+4. Format your response as a JSON array of questions. Each question should have:
+   - "question": the question text (string, OCR errors fixed)
+   - "choices": array of answer choice texts (array of strings, OCR errors fixed)
    - "correct_index": zero-based index of correct answer (integer, 0-3)
    - "scenario": optional context/scenario (string or null)
    - "explanation_seed": optional hint for explanation (string or null)
@@ -219,8 +231,12 @@ Extract all questions now:"""
         # Check if API key is configured (allow AI parsing even in DEMO_MODE)
         if not self.api_key or self.api_key == "demo" or self.api_key == "your_openrouter_api_key":
             # No valid API key configured
-            st.warning("⚠️ OpenRouter API key not configured. Using basic pattern matching fallback.")
-            st.info("💡 To enable AI-powered document parsing, add your OPENROUTER_API_KEY to .streamlit/secrets.toml")
+            st.warning(
+                "⚠️ OpenRouter API key not configured. Using basic pattern matching fallback."
+            )
+            st.info(
+                "💡 To enable AI-powered document parsing, add your OPENROUTER_API_KEY to .streamlit/secrets.toml"
+            )
             return self._demo_parse_fallback()
 
         try:
@@ -228,27 +244,20 @@ Extract all questions now:"""
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
                 "HTTP-Referer": "https://mockexamify.com",
-                "X-Title": "MockExamify"
+                "X-Title": "MockExamify",
             }
 
             payload = {
                 "model": self.model,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
+                "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.1,  # Low temperature for consistent extraction
-                "max_tokens": 4000
+                "max_tokens": 4000,
             }
 
             # Make synchronous request
             with httpx.Client(timeout=60.0) as client:
                 response = client.post(
-                    f"{self.base_url}/chat/completions",
-                    headers=headers,
-                    json=payload
+                    f"{self.base_url}/chat/completions", headers=headers, json=payload
                 )
 
             if response.status_code != 200:
@@ -274,7 +283,7 @@ Extract all questions now:"""
             return questions if isinstance(questions, list) else []
         except json.JSONDecodeError:
             # Try to find JSON array in the content
-            json_match = re.search(r'\[[\s\S]*\]', content)
+            json_match = re.search(r"\[[\s\S]*\]", content)
             if json_match:
                 try:
                     questions = json.loads(json_match.group(0))
@@ -332,7 +341,9 @@ Extract all questions now:"""
                     "choices": [str(choice).strip() for choice in q["choices"]],
                     "correct_index": correct_index,
                     "scenario": q.get("scenario", "").strip() if q.get("scenario") else None,
-                    "explanation_seed": q.get("explanation_seed", "").strip() if q.get("explanation_seed") else None
+                    "explanation_seed": (
+                        q.get("explanation_seed", "").strip() if q.get("explanation_seed") else None
+                    ),
                 }
 
                 valid_questions.append(cleaned_question)
@@ -352,7 +363,7 @@ Extract all questions now:"""
 
     def get_supported_extensions(self) -> List[str]:
         """Get list of supported file extensions"""
-        return ['pdf', 'docx', 'doc']
+        return ["pdf", "docx", "doc"]
 
     def get_file_type_help(self) -> str:
         """Get help text for supported file types"""

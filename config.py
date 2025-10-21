@@ -1,12 +1,15 @@
 """
 Configuration management for MockExamify
 """
+
 import os
+
 from dotenv import load_dotenv
 
 # Try to import streamlit for secrets access
 try:
     import streamlit as st
+
     HAS_STREAMLIT = True
 except ImportError:
     HAS_STREAMLIT = False
@@ -14,10 +17,12 @@ except ImportError:
 # Try to load environment variables from .env file
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     # dotenv not available, skip loading .env file
     pass
+
 
 def get_secret(key: str, default: str = "") -> str:
     """Get secret from environment variables or Streamlit secrets"""
@@ -25,22 +30,23 @@ def get_secret(key: str, default: str = "") -> str:
     value = os.getenv(key)
     if value:
         return value
-    
+
     # Then try Streamlit secrets if available
     if HAS_STREAMLIT:
         try:
-            if hasattr(st, 'secrets') and key in st.secrets:
+            if hasattr(st, "secrets") and key in st.secrets:
                 return st.secrets[key]
         except:
             pass
-    
+
     return default
 
+
 # Check if we're in demo mode
-DEMO_MODE = get_secret('DEMO_MODE', 'false').lower() == 'true'
+DEMO_MODE = get_secret("DEMO_MODE", "false").lower() == "true"
 
 # Override demo mode if no secrets are available (force production mode on Streamlit Cloud)
-if not HAS_STREAMLIT or not hasattr(st, 'secrets'):
+if not HAS_STREAMLIT or not hasattr(st, "secrets"):
     DEMO_MODE = False
 
 # Supabase Configuration - always load for hybrid mode (question pools)
@@ -89,28 +95,30 @@ PDF_OUTPUT_DIR = "temp_pdfs"
 os.makedirs(PDF_TEMPLATE_DIR, exist_ok=True)
 os.makedirs(PDF_OUTPUT_DIR, exist_ok=True)
 
+
 def validate_config():
     """Validate that all required configuration is present"""
     if DEMO_MODE:
         return True
-        
+
     required_vars = [
         "SUPABASE_URL",
-        "SUPABASE_KEY", 
+        "SUPABASE_KEY",
         "STRIPE_SECRET_KEY",
         "STRIPE_PUBLISHABLE_KEY",
-        "SECRET_KEY"
+        "SECRET_KEY",
     ]
-    
+
     missing_vars = []
     for var in required_vars:
         if not globals().get(var):
             missing_vars.append(var)
-    
+
     if missing_vars:
         raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
-    
+
     return True
+
 
 # Fallback configuration for Streamlit Cloud
 try:

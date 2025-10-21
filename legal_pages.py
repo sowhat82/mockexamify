@@ -1,8 +1,11 @@
 """
 Legal pages for MockExamify - Terms of Service and Privacy Policy
 """
-import streamlit as st
+
 from pathlib import Path
+
+import streamlit as st
+
 
 def show_terms_of_service():
     """Display Terms of Service"""
@@ -11,11 +14,12 @@ def show_terms_of_service():
     # Read and display the Terms of Service
     tos_path = Path(__file__).parent / "legal" / "terms_of_service.md"
     try:
-        with open(tos_path, 'r', encoding='utf-8') as f:
+        with open(tos_path, "r", encoding="utf-8") as f:
             tos_content = f.read()
 
         # Create a scrollable container for the terms
-        st.markdown("""
+        st.markdown(
+            """
         <style>
         .legal-document {
             background: white;
@@ -27,7 +31,9 @@ def show_terms_of_service():
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
         </style>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
         with st.container():
             st.markdown(tos_content)
@@ -39,6 +45,7 @@ def show_terms_of_service():
     except FileNotFoundError:
         st.error("Terms of Service document not found. Please contact support.")
 
+
 def show_privacy_policy():
     """Display Privacy Policy"""
     st.markdown("### 🔒 Privacy Policy")
@@ -46,11 +53,12 @@ def show_privacy_policy():
     # Read and display the Privacy Policy
     privacy_path = Path(__file__).parent / "legal" / "privacy_policy.md"
     try:
-        with open(privacy_path, 'r', encoding='utf-8') as f:
+        with open(privacy_path, "r", encoding="utf-8") as f:
             privacy_content = f.read()
 
         # Create a scrollable container for the policy
-        st.markdown("""
+        st.markdown(
+            """
         <style>
         .legal-document {
             background: white;
@@ -62,7 +70,9 @@ def show_privacy_policy():
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
         </style>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
         with st.container():
             st.markdown(privacy_content)
@@ -73,6 +83,7 @@ def show_privacy_policy():
 
     except FileNotFoundError:
         st.error("Privacy Policy document not found. Please contact support.")
+
 
 def show_legal_modal(document_type="tos"):
     """Show legal document in a modal-style dialog"""

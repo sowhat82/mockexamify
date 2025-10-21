@@ -57,6 +57,32 @@ def show_question_pool_upload(auth):
         "📌 Upload multiple PDF versions of the same exam. System automatically detects and removes duplicates!"
     )
 
+    # CSS to force form labels to be black
+    st.markdown(
+        """
+    <style>
+        /* Force all form labels to black */
+        .stTextInput > label,
+        .stSelectbox > label,
+        .stTextArea > label,
+        .stFileUploader > label,
+        .stCheckbox > label,
+        .stSlider > label,
+        .stNumberInput > label,
+        div[data-testid="stForm"] label {
+            color: #000000 !important;
+        }
+
+        /* Force placeholder text to dark gray */
+        .stTextInput input::placeholder,
+        .stTextArea textarea::placeholder {
+            color: #4a4a4a !important;
+        }
+    </style>
+    """,
+        unsafe_allow_html=True,
+    )
+
     with st.form("upload_pool_form"):
         # Pool configuration
         pool_name = st.text_input(
@@ -163,6 +189,32 @@ def show_single_mock_upload(auth):
     """Single mock exam upload mode - traditional approach"""
     st.markdown("## 🎯 Single Mock Exam Upload")
     st.markdown("Upload a new mock exam from CSV, JSON, PDF, or Word document")
+
+    # CSS to force form labels to be black
+    st.markdown(
+        """
+    <style>
+        /* Force all form labels to black */
+        .stTextInput > label,
+        .stSelectbox > label,
+        .stTextArea > label,
+        .stFileUploader > label,
+        .stCheckbox > label,
+        .stSlider > label,
+        .stNumberInput > label,
+        div[data-testid="stForm"] label {
+            color: #000000 !important;
+        }
+
+        /* Force placeholder text to dark gray */
+        .stTextInput input::placeholder,
+        .stTextArea textarea::placeholder {
+            color: #4a4a4a !important;
+        }
+    </style>
+    """,
+        unsafe_allow_html=True,
+    )
 
     # Upload form
     with st.form("upload_mock_form"):

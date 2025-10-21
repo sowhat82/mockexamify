@@ -18,13 +18,13 @@ import config
 def show_exam():
     """Main exam interface - called by streamlit_app.py"""
     auth = AuthUtils(config.API_BASE_URL)
-    
+
     if not auth.is_authenticated():
         st.error("Please log in to access the exam page")
         st.stop()
-    
+
     user = auth.get_current_user()
-    
+
     # Initialize session state for exam
     if 'exam_state' not in st.session_state:
         st.session_state.exam_state = 'not_started'
@@ -65,7 +65,7 @@ def show_exam_selection(user: Dict[str, Any]):
     """Display available exams for selection"""
     st.markdown("# 📝 Take Mock Exam")
     st.markdown("*Choose an exam to test your knowledge*")
-    
+
     # Load available mocks
     try:
         mocks_raw = run_async(db.get_all_mocks())
@@ -97,29 +97,29 @@ def show_exam_selection(user: Dict[str, Any]):
         # Display user credits
         user_data = run_async(db.get_user_by_id(user['id']))
         credits = user_data.credits_balance if user_data else 0
-        
+
         # Credits display
         col1, col2, col3 = st.columns([2, 1, 1])
         with col1:
             st.markdown(f"""
-            <div style="background: linear-gradient(90deg, #1f77b4, #ff7f0e); 
+            <div style="background: linear-gradient(90deg, #1f77b4, #ff7f0e);
                        padding: 1rem; border-radius: 0.5rem; color: white;">
                 <h3 style="margin: 0;">💰 Available Credits: {credits}</h3>
             </div>
             """, unsafe_allow_html=True)
-        
+
         with col2:
             if st.button("💳 Buy Credits", use_container_width=True):
                 st.session_state.page = "purchase_credits"
                 st.rerun()
-        
+
         with col3:
             if st.button("📈 Past Attempts", use_container_width=True):
                 st.session_state.page = "past_attempts"
                 st.rerun()
-        
+
         st.markdown("---")
-        
+
         # Mock exam cards
         for mock in mocks:
             try:
@@ -132,7 +132,7 @@ def show_exam_selection(user: Dict[str, Any]):
 
                 questions_count = len(questions)
                 price_credits = mock.get('price_credits', 1)
-                
+
                 with st.container():
                     # Mock exam card
                     st.markdown(f"""
@@ -166,12 +166,12 @@ def show_exam_selection(user: Dict[str, Any]):
                                 start_exam(mock, user)
                         else:
                             st.button("💳 Need Credits", disabled=True, use_container_width=True)
-                    
+
                     st.markdown("---")
-            
+
             except Exception as e:
                 st.error(f"Error loading exam: {e}")
-    
+
     except Exception as e:
         st.error(f"Error loading exams: {e}")
 
@@ -281,7 +281,7 @@ def show_exam_interface(user: Dict[str, Any]):
         st.error("Exam data not found")
         reset_exam_state()
         return
-    
+
     mock = st.session_state.current_mock
     questions = st.session_state.questions
     current_q = st.session_state.current_question
@@ -301,7 +301,7 @@ def show_exam_interface(user: Dict[str, Any]):
 
     # Header with progress (timer removed)
     col1, col2 = st.columns([3, 1])
-    
+
     with col1:
         st.markdown(f"# 📝 {mock.get('title', 'Mock Exam')}")
         progress = (current_q + 1) / len(questions)
@@ -310,65 +310,65 @@ def show_exam_interface(user: Dict[str, Any]):
     with col2:
         answered_count = len(st.session_state.answers)
         flagged_count = len(st.session_state.flagged_questions)
-        
+
         st.markdown(f"""
         <div style="background: #f0f8ff; padding: 1rem; border-radius: 0.5rem;">
             <p style="margin: 0;"><strong>✅ Answered:</strong> {answered_count}/{len(questions)}</p>
             <p style="margin: 0;"><strong>🚩 Flagged:</strong> {flagged_count}</p>
         </div>
         """, unsafe_allow_html=True)
-    
+
     st.markdown("---")
-    
+
     # Display current question
     if current_q < len(questions):
         question = questions[current_q]
         display_question(question, current_q, user)
-    
+
     # Navigation and controls
     st.markdown("---")
     show_exam_navigation(user, len(questions))
 
 def display_question(question: Dict[str, Any], question_index: int, user: Dict[str, Any]):
     """Display a single question with answer choices"""
-    
+
     # Question header
     col1, col2 = st.columns([4, 1])
-    
+
     with col1:
         st.markdown(f"### Question {question_index + 1}")
-    
+
     with col2:
         # Flag question button
         is_flagged = question_index in st.session_state.flagged_questions
         flag_text = "🚩 Flagged" if is_flagged else "🏳️ Flag"
         flag_type = "secondary" if is_flagged else "primary"
-        
+
         if st.button(flag_text, key=f"flag_{question_index}", type=flag_type):
             if is_flagged:
                 st.session_state.flagged_questions.discard(question_index)
             else:
                 st.session_state.flagged_questions.add(question_index)
             st.rerun()
-    
+
     # Question text
     question_text = question.get('question', '')
     st.markdown(f"**{question_text}**")
-    
+
     # Scenario if present
     if 'scenario' in question and question['scenario']:
         with st.expander("📋 Scenario", expanded=False):
             st.markdown(question['scenario'])
-    
+
     # Answer choices
     choices = question.get('choices', [])
     if not choices:
         st.error("No choices available for this question")
         return
-    
+
     # Get current answer
     current_answer = st.session_state.answers.get(question_index)
-    
+
     # Display radio buttons for choices
     answer_choice = st.radio(
         "Select your answer:",
@@ -377,11 +377,11 @@ def display_question(question: Dict[str, Any], question_index: int, user: Dict[s
         index=current_answer if current_answer is not None else None,
         key=f"answer_{question_index}"
     )
-    
+
     # Save answer when selected
     if answer_choice is not None:
         st.session_state.answers[question_index] = answer_choice
-    
+
     # Show answer confidence (optional)
     with st.expander("💡 Answer Confidence (Optional)", expanded=False):
         confidence = st.slider(
@@ -394,9 +394,9 @@ def display_question(question: Dict[str, Any], question_index: int, user: Dict[s
 def show_exam_navigation(user: Dict[str, Any], total_questions: int):
     """Display navigation controls for the exam"""
     current_q = st.session_state.current_question
-    
+
     col1, col2, col3, col4, col5 = st.columns([1, 1, 2, 1, 1])
-    
+
     # Previous button
     with col1:
         if current_q > 0:
@@ -405,7 +405,7 @@ def show_exam_navigation(user: Dict[str, Any], total_questions: int):
                 st.rerun()
         else:
             st.button("⬅️ Previous", disabled=True, use_container_width=True)
-    
+
     # Next button
     with col2:
         if current_q < total_questions - 1:
@@ -414,7 +414,7 @@ def show_exam_navigation(user: Dict[str, Any], total_questions: int):
                 st.rerun()
         else:
             st.button("Next ➡️", disabled=True, use_container_width=True)
-    
+
     # Question navigator
     with col3:
         with st.expander("🗺️ Question Navigator", expanded=False):
@@ -437,16 +437,16 @@ def show_exam_navigation(user: Dict[str, Any], total_questions: int):
                         else:
                             button_text = f"⚪{i+1}"
                             button_type = "primary"
-                    
+
                     if st.button(button_text, key=f"nav_{i}", use_container_width=True):
                         st.session_state.current_question = i
                         st.rerun()
-    
+
     # Review and Submit buttons
     with col4:
         if st.button("📋 Review", use_container_width=True):
             show_review_modal()
-    
+
     with col5:
         if st.button("✅ Submit", type="primary", use_container_width=True):
             submit_exam(user)
@@ -455,25 +455,25 @@ def show_review_modal():
     """Show exam review in a modal"""
     with st.expander("📋 Exam Review", expanded=True):
         st.markdown("### Review Your Answers")
-        
+
         answered = len(st.session_state.answers)
         total = len(st.session_state.questions)
         flagged = len(st.session_state.flagged_questions)
-        
+
         col1, col2, col3 = st.columns(3)
-        
+
         with col1:
             st.metric("Answered", f"{answered}/{total}")
-        
+
         with col2:
             st.metric("Unanswered", total - answered)
-        
+
         with col3:
             st.metric("Flagged", flagged)
-        
+
         if answered < total:
             st.warning(f"⚠️ You have {total - answered} unanswered questions")
-        
+
         if flagged > 0:
             st.info(f"🚩 You have {flagged} flagged questions to review")
 
@@ -483,15 +483,15 @@ def submit_exam(user: Dict[str, Any], auto_submit: bool = False):
         if not st.session_state.current_mock or not st.session_state.questions:
             st.error("Exam data not found")
             return
-        
+
         # Show confirmation dialog unless auto-submit
         if not auto_submit:
             answered = len(st.session_state.answers)
             total = len(st.session_state.questions)
-            
+
             if answered < total:
                 st.warning(f"⚠️ You have {total - answered} unanswered questions. Submit anyway?")
-                
+
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button("📝 Continue Exam", use_container_width=True):
@@ -501,20 +501,20 @@ def submit_exam(user: Dict[str, Any], auto_submit: bool = False):
                         pass  # Continue to submission
                     else:
                         return
-        
+
         # Calculate results
         questions = st.session_state.questions
         correct_answers = 0
         detailed_results = []
-        
+
         for i, question in enumerate(questions):
             user_answer = st.session_state.answers.get(i)
             correct_index = question.get('correct_index')
             is_correct = user_answer == correct_index
-            
+
             if is_correct:
                 correct_answers += 1
-            
+
             detailed_results.append({
                 'question_index': i,
                 'question': question.get('question', ''),
@@ -523,16 +523,16 @@ def submit_exam(user: Dict[str, Any], auto_submit: bool = False):
                 'is_correct': is_correct,
                 'choices': question.get('choices', [])
             })
-        
+
         # Calculate score
         total_questions = len(questions)
         score = (correct_answers / total_questions) * 100 if total_questions > 0 else 0
-        
+
         # Calculate time taken
         time_taken = None
         if st.session_state.start_time:
             time_taken = (datetime.now() - st.session_state.start_time).total_seconds()
-        
+
         # Save attempt to database
         # For pool-based exams, use pool_id as mock_id for tracking
         mock_id = st.session_state.current_mock.get('pool_id') or st.session_state.current_mock['id']
@@ -550,7 +550,7 @@ def submit_exam(user: Dict[str, Any], auto_submit: bool = False):
         }
 
         attempt = run_async(db.create_attempt(**attempt_data))
-        
+
         if attempt:
             # Store results in session state
             st.session_state.exam_results = {
@@ -562,13 +562,13 @@ def submit_exam(user: Dict[str, Any], auto_submit: bool = False):
                 'detailed_results': detailed_results,
                 'auto_submit': auto_submit
             }
-            
+
             st.session_state.exam_state = 'completed'
             st.success("✅ Exam submitted successfully!")
             st.rerun()
         else:
             st.error("Failed to save exam results. Please try again.")
-    
+
     except Exception as e:
         st.error(f"Error submitting exam: {e}")
 
@@ -578,15 +578,15 @@ def show_exam_results(user: Dict[str, Any]):
         st.error("No exam results found")
         reset_exam_state()
         return
-    
+
     results = st.session_state.exam_results
-    
+
     # Results header
     st.markdown("# 🎉 Exam Completed!")
-    
+
     if results.get('auto_submit'):
         st.warning("⏰ This exam was auto-submitted due to time limit")
-    
+
     # Score display
     score = results['score']
     if score >= 80:
@@ -605,9 +605,9 @@ def show_exam_results(user: Dict[str, Any]):
         score_color = "#dc3545"  # Red
         score_emoji = "📚"
         grade = "Needs Improvement"
-    
+
     st.markdown(f"""
-    <div style="background: {score_color}; color: white; padding: 2rem; border-radius: 1rem; 
+    <div style="background: {score_color}; color: white; padding: 2rem; border-radius: 1rem;
                text-align: center; margin-bottom: 2rem;">
         <h1 style="margin: 0; font-size: 3rem;">{score_emoji} {score:.1f}%</h1>
         <h2 style="margin: 0.5rem 0; opacity: 0.9;">{grade}</h2>
@@ -616,17 +616,17 @@ def show_exam_results(user: Dict[str, Any]):
         </p>
     </div>
     """, unsafe_allow_html=True)
-    
+
     # Performance metrics
     col1, col2, col3, col4 = st.columns(4)
-    
+
     with col1:
         st.metric("✅ Correct", results['correct_answers'])
-    
+
     with col2:
         incorrect = results['total_questions'] - results['correct_answers']
         st.metric("❌ Incorrect", incorrect)
-    
+
     with col3:
         if results['time_taken']:
             minutes = int(results['time_taken'] // 60)
@@ -634,25 +634,25 @@ def show_exam_results(user: Dict[str, Any]):
             st.metric("⏱️ Time Taken", f"{minutes}m {seconds}s")
         else:
             st.metric("⏱️ Time Taken", "N/A")
-    
+
     with col4:
         percentage = (results['correct_answers'] / results['total_questions']) * 100
         st.metric("📊 Accuracy", f"{percentage:.1f}%")
-    
+
     # Action buttons
     st.markdown("---")
     col1, col2, col3, col4 = st.columns(4)
-    
+
     with col1:
         if st.button("📝 Take Another Exam", use_container_width=True, type="primary"):
             reset_exam_state()
             st.rerun()
-    
+
     with col2:
         if st.button("📈 View Past Attempts", use_container_width=True):
             st.session_state.page = "past_attempts"
             st.rerun()
-    
+
     with col3:
         if st.button("📄 Download PDF", use_container_width=True):
             with st.spinner("Generating PDF report..."):
@@ -661,23 +661,23 @@ def show_exam_results(user: Dict[str, Any]):
                     st.success("PDF generated successfully! Check your downloads.")
                 else:
                     st.error("Failed to generate PDF. Please try again.")
-    
+
     with col4:
         if st.button("🏠 Dashboard", use_container_width=True):
             reset_exam_state()
             st.session_state.page = "dashboard"
             st.rerun()
-    
+
     # Detailed results
     st.markdown("---")
     st.markdown("## 📊 Detailed Results")
-    
+
     with st.expander("📋 Question-by-Question Review", expanded=True):
         for i, result in enumerate(results['detailed_results']):
             is_correct = result['is_correct']
             icon = "✅" if is_correct else "❌"
             color = "#d4edda" if is_correct else "#f8d7da"
-            
+
             st.markdown(f"""
             <div style="background: {color}; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
                 <strong>{icon} Question {i + 1}:</strong> {result['question']}<br>
@@ -693,11 +693,11 @@ def reset_exam_state():
         'start_time', 'exam_id', 'questions', 'time_limit',
         'flagged_questions', 'exam_results'
     ]
-    
+
     for key in keys_to_reset:
         if key in st.session_state:
             del st.session_state[key]
-    
+
     st.session_state.exam_state = 'not_started'
 
 def generate_exam_pdf_download(user: Dict[str, Any], results: Dict[str, Any]) -> bool:
@@ -714,7 +714,7 @@ def generate_exam_pdf_download(user: Dict[str, Any], results: Dict[str, Any]) ->
             'completed_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'user_answers': st.session_state.get('answers', {})
         }
-        
+
         mock_data = {
             'id': st.session_state.current_mock.get('id'),
             'title': st.session_state.current_mock.get('title'),
@@ -723,22 +723,22 @@ def generate_exam_pdf_download(user: Dict[str, Any], results: Dict[str, Any]) ->
             'questions_json': st.session_state.get('questions', []),
             'time_limit_minutes': st.session_state.get('time_limit', 60)
         }
-        
+
         user_data = {
             'email': user.get('email'),
             'id': user.get('id')
         }
-        
+
         # Generate PDF
         filepath, download_url = run_async(generate_exam_results_pdf(
             attempt_data, mock_data, user_data, include_explanations=True
         ))
-        
+
         if filepath:
             # For Streamlit, we can provide a download button
             with open(filepath, "rb") as pdf_file:
                 pdf_data = pdf_file.read()
-            
+
             st.download_button(
                 label="📥 Download Your Results PDF",
                 data=pdf_data,
@@ -747,9 +747,9 @@ def generate_exam_pdf_download(user: Dict[str, Any], results: Dict[str, Any]) ->
                 use_container_width=True
             )
             return True
-        
+
         return False
-        
+
     except Exception as e:
         st.error(f"Error generating PDF: {e}")
         return False

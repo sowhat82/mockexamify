@@ -2,7 +2,7 @@
 
 ## ✅ What Just Happened
 
-The admin upload page is now **LIVE** and ready to use! 
+The admin upload page is now **LIVE** and ready to use!
 
 - ✅ App running at: **http://localhost:8501**
 - ✅ Admin upload page enabled
@@ -31,12 +31,12 @@ Before you can upload, you need to create the database tables in Supabase:
 4. **Verify Tables Created**
    Run this query to confirm:
    ```sql
-   SELECT table_name 
-   FROM information_schema.tables 
-   WHERE table_schema = 'public' 
+   SELECT table_name
+   FROM information_schema.tables
+   WHERE table_schema = 'public'
    AND table_name IN ('question_pools', 'pool_questions', 'upload_batches', 'duplicate_cache');
    ```
-   
+
    You should see all 4 table names listed.
 
 ### Step 2: Login as Admin
@@ -174,7 +174,7 @@ Pool now has: 99 unique questions
 
 ## ✅ You're Ready!
 
-Your question pool system is now **fully operational**! 
+Your question pool system is now **fully operational**!
 
 Just:
 1. ✅ Apply the database schema (one-time setup)

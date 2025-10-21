@@ -144,9 +144,9 @@ You need to apply this SQL in Supabase:
 -- 4. Click "Run"
 
 -- 5. Verify tables created:
-SELECT table_name 
-FROM information_schema.tables 
-WHERE table_schema = 'public' 
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = 'public'
   AND table_name IN ('question_pools', 'pool_questions', 'upload_batches', 'duplicate_cache');
 
 -- Should return 4 rows
@@ -212,12 +212,12 @@ WHERE table_schema = 'public'
 SELECT * FROM question_pools;
 
 -- Check questions count
-SELECT pool_id, COUNT(*) as question_count 
-FROM pool_questions 
+SELECT pool_id, COUNT(*) as question_count
+FROM pool_questions
 GROUP BY pool_id;
 
 -- Check upload history
-SELECT * FROM upload_batches 
+SELECT * FROM upload_batches
 ORDER BY uploaded_at DESC;
 ```
 

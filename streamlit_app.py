@@ -2,75 +2,101 @@
 MockExamify - Enhanced Streamlit Application
 Interactive Mock Exam Platform with Credit System
 """
+
 import streamlit as st
+
 import config
-from auth_utils import AuthUtils, validate_email, validate_password, run_async
+from auth_utils import AuthUtils, run_async, validate_email, validate_password
 
 # Import enhanced pages
 try:
-    from app_pages.dashboard import show_dashboard, handle_dashboard_modals
+    from app_pages.dashboard import handle_dashboard_modals, show_dashboard
 except ImportError:
+
     def show_dashboard():
         st.error("Dashboard functionality temporarily unavailable")
+
     def handle_dashboard_modals():
         pass
+
 
 try:
     from app_pages.exam import show_exam
 except ImportError:
+
     def show_exam():
         st.error("Exam functionality temporarily unavailable")
 
+
 try:
-    from app_pages.purchase_credits import show_purchase_credits, handle_payment_callback
+    from app_pages.purchase_credits import (
+        handle_payment_callback,
+        show_purchase_credits,
+    )
 except ImportError:
+
     def show_purchase_credits():
         st.error("Purchase functionality temporarily unavailable")
+
     def handle_payment_callback():
         pass
 
+
 try:
-    from app_pages.past_attempts import show_past_attempts, handle_modals
+    from app_pages.past_attempts import handle_modals, show_past_attempts
 except ImportError:
+
     def show_past_attempts():
         st.error("Past attempts functionality temporarily unavailable")
+
     def handle_modals():
         pass
+
 
 # Import supporting pages
 try:
     from app_pages.contact_support import show_contact_support
 except ImportError:
+
     def show_contact_support():
         st.error("Contact support functionality temporarily unavailable")
 
+
 # Import legal pages
 try:
-    from app_pages.terms_of_service import show_terms_page
     from app_pages.privacy_policy import show_privacy_page
+    from app_pages.terms_of_service import show_terms_page
 except ImportError:
+
     def show_terms_page():
         st.error("Terms of Service page temporarily unavailable")
+
     def show_privacy_page():
         st.error("Privacy Policy page temporarily unavailable")
 
+
 # Import admin pages
 try:
-    from app_pages.admin_upload import show_admin_upload
-    from app_pages.admin_manage import show_admin_manage
     from app_pages.admin_dashboard import show_admin_dashboard
+    from app_pages.admin_manage import show_admin_manage
     from app_pages.admin_question_pools import show_admin_question_pools
+    from app_pages.admin_upload import show_admin_upload
 except ImportError as e:
     # Fallback if admin pages aren't available yet
     st.error(f"Admin pages import error: {e}")
+
     def show_admin_upload():
         st.info("Admin upload functionality coming soon!")
+
     def show_admin_manage():
         st.info("Admin management functionality coming soon!")
+
     def show_admin_dashboard():
         st.info("Admin dashboard functionality coming soon!")
+
     def show_admin_question_pools():
         st.info("Question pools functionality coming soon!")
+
 
 # Configure Streamlit page
 st.set_page_config(
@@ -79,14 +105,15 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",  # Sidebar hidden permanently
     menu_items={
-        'Get Help': 'mailto:support@mockexamify.com',
-        'Report a bug': 'mailto:support@mockexamify.com',
-        'About': "MockExamify - Master your exams with AI-powered mock tests!"
-    }
+        "Get Help": "mailto:support@mockexamify.com",
+        "Report a bug": "mailto:support@mockexamify.com",
+        "About": "MockExamify - Master your exams with AI-powered mock tests!",
+    },
 )
 
 # Enhanced Custom CSS with modern design
-st.markdown("""
+st.markdown(
+    """
 <style>
 /* Import Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -397,31 +424,8 @@ section[data-testid="stSidebar"] {
     border-radius: 0 0 8px 8px;
 }
 
-/* Force all text inside expanders to be black */
-[data-testid="stExpander"] div {
-    color: #000000 !important;
-}
-
-[data-testid="stExpander"] p {
-    color: #000000 !important;
-}
-
-[data-testid="stExpander"] h1,
-[data-testid="stExpander"] h2,
-[data-testid="stExpander"] h3,
-[data-testid="stExpander"] h4,
-[data-testid="stExpander"] h5,
-[data-testid="stExpander"] h6 {
-    color: #000000 !important;
-}
-
-[data-testid="stExpander"] li {
-    color: #000000 !important;
-}
-
-[data-testid="stExpander"] strong {
-    color: #000000 !important;
-}
+/* Expander content styling - allow custom colors */
+/* Removed forced black color to allow pages to set their own text colors */
 
 /* Button styling */
 .stButton > button {
@@ -523,21 +527,24 @@ header {visibility: hidden;}
     .main-header {
         font-size: 2rem;
     }
-    
+
     .welcome-section {
         padding: 2rem 1rem;
     }
-    
+
     .welcome-section h2 {
         font-size: 2rem;
     }
-    
+
     .feature-card {
         padding: 1.5rem;
     }
 }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
+
 
 def main():
     """Main application logic with enhanced UI"""
@@ -546,16 +553,16 @@ def main():
         st.session_state.page = "login"
     if "last_email" not in st.session_state:
         st.session_state.last_email = ""
-    
+
     # Initialize auth utility
     auth = AuthUtils(config.API_BASE_URL)
-    
+
     # Handle payment callbacks
     query_params = st.query_params
     if "payment" in query_params:
         handle_payment_callback()
         return
-    
+
     # Check if viewing legal pages (accessible without authentication)
     current_page = st.session_state.get("page", "login")
     if current_page == "terms_of_service":
@@ -564,18 +571,20 @@ def main():
     elif current_page == "privacy_policy":
         show_privacy_page()
         return
-    
+
     # Check authentication status
     if auth.is_authenticated():
         show_authenticated_app(auth)
     else:
         show_authentication_page(auth)
 
+
 def show_authentication_page(auth: AuthUtils):
     """Enhanced authentication page with better design"""
-    
+
     # Hide sidebar permanently with aggressive CSS to prevent flashing
-    st.markdown("""
+    st.markdown(
+        """
     <style>
     /* Aggressive sidebar hiding - prevents flash on load */
     section[data-testid="stSidebar"] {
@@ -597,7 +606,7 @@ def show_authentication_page(auth: AuthUtils):
     button[kind="header"] {
         display: none !important;
     }
-    
+
     /* Fix form label and placeholder text colors */
     .stTextInput label {
         color: #000000 !important;
@@ -610,23 +619,29 @@ def show_authentication_page(auth: AuthUtils):
         color: #000000 !important;
     }
     </style>
-    """, unsafe_allow_html=True)
-    
+    """,
+        unsafe_allow_html=True,
+    )
+
     # Hero section
-    st.markdown("""
+    st.markdown(
+        """
     <div class="welcome-section">
         <h2>🎯 MockExamify</h2>
         <p>Master Your Exams with AI-Powered Mock Tests</p>
     </div>
-    """, unsafe_allow_html=True)
-    
+    """,
+        unsafe_allow_html=True,
+    )
+
     # Features showcase with enhanced cards
     st.markdown("## Why Choose MockExamify?")
-    
+
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
-        st.markdown("""
+        st.markdown(
+            """
         <div class="feature-card">
             <h4>📚 Comprehensive Exams</h4>
             <p>• Industry-standard questions</p>
@@ -634,10 +649,13 @@ def show_authentication_page(auth: AuthUtils):
             <p>• Detailed performance analysis</p>
             <p>• Multiple difficulty levels</p>
         </div>
-        """, unsafe_allow_html=True)
-    
+        """,
+            unsafe_allow_html=True,
+        )
+
     with col2:
-        st.markdown("""
+        st.markdown(
+            """
         <div class="feature-card">
             <h4>🤖 AI-Powered Insights</h4>
             <p>• Personalized explanations</p>
@@ -645,10 +663,13 @@ def show_authentication_page(auth: AuthUtils):
             <p>• Adaptive recommendations</p>
             <p>• Learning path optimization</p>
         </div>
-        """, unsafe_allow_html=True)
-    
+        """,
+            unsafe_allow_html=True,
+        )
+
     with col3:
-        st.markdown("""
+        st.markdown(
+            """
         <div class="feature-card">
             <h4>💎 Flexible Pricing</h4>
             <p>• Pay-per-exam credit system</p>
@@ -656,38 +677,46 @@ def show_authentication_page(auth: AuthUtils):
             <p>• Credits never expire</p>
             <p>• Bulk purchase discounts</p>
         </div>
-        """, unsafe_allow_html=True)
-    
+        """,
+            unsafe_allow_html=True,
+        )
+
     st.markdown("---")
-    
+
     # Enhanced Login/Register tabs
     tab1, tab2 = st.tabs(["🔑 Sign In", "✨ Create Account"])
-    
+
     with tab1:
         show_enhanced_login_form(auth)
-    
+
     with tab2:
         show_enhanced_register_form(auth)
+
 
 def show_enhanced_login_form(auth: AuthUtils):
     """Enhanced login form with better UX"""
     st.markdown('<h3 style="color: #000000;">Welcome Back!</h3>', unsafe_allow_html=True)
-    st.markdown('<p style="color: #333333;">Sign in to access your mock exams and track your progress.</p>', unsafe_allow_html=True)
-    
+    st.markdown(
+        '<p style="color: #333333;">Sign in to access your mock exams and track your progress.</p>',
+        unsafe_allow_html=True,
+    )
+
     # Quick login buttons for development
     try:
-        is_demo = config.DEMO_MODE
         is_dev = config.ENVIRONMENT == "development"
 
-        # Show quick login if demo mode AND development (user is responsible for security)
-        if is_demo and is_dev:
-            st.markdown("""
+        # Show quick login if development mode (works with both demo and production database)
+        if is_dev:
+            st.markdown(
+                """
             <div style="background-color: #e8f4f8; padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #0066cc; margin-bottom: 1rem;">
                 <p style="color: #000000; margin: 0; font-weight: 500;">🚀 <strong>Quick Login</strong> (Development Mode)</p>
             </div>
-            """, unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 if st.button("👨‍💼 Login as Admin", use_container_width=True, type="secondary"):
                     # Auto-login as admin
@@ -696,11 +725,11 @@ def show_enhanced_login_form(auth: AuthUtils):
                         "id": "admin-demo-id",
                         "email": "admin@mockexamify.com",
                         "role": "admin",
-                        "credits_balance": 100
+                        "credits_balance": 100,
                     }
                     st.session_state.page = "dashboard"
                     st.rerun()
-            
+
             with col2:
                 if st.button("👨‍🎓 Login as Student", use_container_width=True, type="secondary"):
                     # Auto-login as student
@@ -709,59 +738,54 @@ def show_enhanced_login_form(auth: AuthUtils):
                         "id": "student-demo-id",
                         "email": "student@test.com",
                         "role": "user",
-                        "credits_balance": 10
+                        "credits_balance": 10,
                     }
                     st.session_state.page = "dashboard"
                     st.rerun()
     except Exception as e:
         # Silently fail if quick login setup fails
         pass
-    
+
     with st.form("login_form", clear_on_submit=False):
         email = st.text_input(
             "📧 Email Address",
             value=st.session_state.last_email,
             placeholder="your.email@example.com",
-            help="Enter your registered email address"
+            help="Enter your registered email address",
         )
-        
+
         password = st.text_input(
             "🔒 Password",
             type="password",
             placeholder="Enter your password",
-            help="Enter your account password"
+            help="Enter your account password",
         )
-        
+
         col1, col2 = st.columns([3, 2])
-        
+
         with col1:
             login_submitted = st.form_submit_button(
-                "🚀 Sign In", 
-                use_container_width=True, 
-                type="primary"
+                "🚀 Sign In", use_container_width=True, type="primary"
             )
-        
+
         with col2:
-            forgot_password = st.form_submit_button(
-                "❓ Forgot Password?", 
-                use_container_width=True
-            )
-        
+            forgot_password = st.form_submit_button("❓ Forgot Password?", use_container_width=True)
+
         if login_submitted:
             if not email or not password:
                 st.error("⚠️ Please fill in both email and password")
                 return
-            
+
             # Validate email format
             email_valid, email_error = validate_email(email)
             if not email_valid:
                 st.error(f"⚠️ {email_error}")
                 return
-            
+
             # Attempt login with enhanced feedback
             with st.spinner("🔄 Signing you in..."):
                 success, user_data, error_msg = run_async(auth.sign_in(email, password))
-                
+
                 if success and user_data:
                     # Store user session data
                     st.session_state.authenticated = True
@@ -770,81 +794,80 @@ def show_enhanced_login_form(auth: AuthUtils):
                         "id": user_data.get("user_id"),
                         "email": email,
                         "role": user_data.get("role", "user"),
-                        "credits_balance": user_data.get("credits_balance", 0)
+                        "credits_balance": user_data.get("credits_balance", 0),
                     }
                     st.session_state.last_email = email
                     st.session_state.page = "dashboard"
-                    
+
                     st.success("🎉 Welcome back! Redirecting to your dashboard...")
                     st.rerun()
                 else:
                     st.error(f"❌ {error_msg or 'Login failed. Please check your credentials.'}")
-        
+
         if forgot_password:
             st.info("🔄 Password reset feature coming soon! Contact support for assistance.")
+
 
 def show_enhanced_register_form(auth: AuthUtils):
     """Enhanced registration form with better UX"""
     st.markdown('<h3 style="color: #000000;">Join MockExamify Today!</h3>', unsafe_allow_html=True)
-    st.markdown('<p style="color: #333333;">Create your account and get <strong>5 free credits</strong> to start practicing!</p>', unsafe_allow_html=True)
-    
+    st.markdown(
+        '<p style="color: #333333;">Create your account and get <strong>5 free credits</strong> to start practicing!</p>',
+        unsafe_allow_html=True,
+    )
+
     with st.form("register_form", clear_on_submit=False):
         email = st.text_input(
             "📧 Email Address",
             placeholder="your.email@example.com",
-            help="This will be your login email"
+            help="This will be your login email",
         )
-        
+
         password = st.text_input(
             "🔒 Password",
             type="password",
             placeholder="Choose a strong password",
-            help="Minimum 6 characters with letters and numbers"
+            help="Minimum 6 characters with letters and numbers",
         )
-        
+
         confirm_password = st.text_input(
-            "🔒 Confirm Password",
-            type="password",
-            placeholder="Re-enter your password"
+            "🔒 Confirm Password", type="password", placeholder="Re-enter your password"
         )
-        
+
         terms_agreed = st.checkbox(
-            "I agree to the Terms of Service and Privacy Policy",
-            help="You must agree to continue"
+            "I agree to the Terms of Service and Privacy Policy", help="You must agree to continue"
         )
-        
+
         register_submitted = st.form_submit_button(
-            "🎯 Create My Account", 
-            use_container_width=True, 
-            type="primary"
+            "🎯 Create My Account", use_container_width=True, type="primary"
         )
-        
+
         if register_submitted:
             # Enhanced validation with better feedback
             if not email or not password or not confirm_password:
                 st.error("⚠️ Please fill in all fields")
                 return
-            
+
             if not terms_agreed:
                 st.error("⚠️ Please agree to the Terms of Service to continue")
                 return
-            
+
             # Validate email
             email_valid, email_error = validate_email(email)
             if not email_valid:
                 st.error(f"⚠️ {email_error}")
                 return
-            
+
             # Validate password
             password_valid, password_error = validate_password(password, confirm_password)
             if not password_valid:
                 st.error(f"⚠️ {password_error}")
                 return
-            
+
             # Attempt registration with enhanced feedback
             with st.spinner("🚀 Creating your account..."):
                 success, user_data, error_msg = run_async(auth.sign_up(email, password))
-                
+
                 if success and user_data:
                     # Automatically log the user in after successful registration
                     st.session_state.authenticated = True
@@ -853,97 +876,113 @@ def show_enhanced_register_form(auth: AuthUtils):
                         "id": user_data.get("user_id"),
                         "email": email,
                         "role": user_data.get("role", "user"),
-                        "credits_balance": user_data.get("credits_balance", 5)
+                        "credits_balance": user_data.get("credits_balance", 5),
                     }
                     st.session_state.last_email = email
                     st.session_state.page = "dashboard"
-                    
+
                     st.success("🎉 Account created successfully! Welcome to MockExamify!")
                     st.balloons()
                     st.rerun()
                 else:
                     st.error(f"❌ {error_msg or 'Registration failed. Please try again.'}")
-    
+
     # Links to legal documents (outside form) - using expanders to show inline
-    st.markdown('<p style="color: #666666; text-align: center; font-size: 0.9rem; margin: 1rem 0 0.5rem 0;">By creating an account, you agree to our legal terms. Click to read:</p>', unsafe_allow_html=True)
-    
+    st.markdown(
+        '<p style="color: #666666; text-align: center; font-size: 0.9rem; margin: 1rem 0 0.5rem 0;">By creating an account, you agree to our legal terms. Click to read:</p>',
+        unsafe_allow_html=True,
+    )
+
     from pathlib import Path
-    
+
     col1, col2 = st.columns(2)
     with col1:
         with st.expander("📜 Terms of Service", expanded=False):
             try:
                 tos_path = Path(__file__).parent / "legal" / "terms_of_service.md"
-                with open(tos_path, 'r', encoding='utf-8') as f:
+                with open(tos_path, "r", encoding="utf-8") as f:
                     tos_content = f.read()
                 st.markdown(tos_content, unsafe_allow_html=True)
             except FileNotFoundError:
                 st.error("Terms of Service document not found.")
-    
+
     with col2:
         with st.expander("🔒 Privacy Policy", expanded=False):
             try:
                 privacy_path = Path(__file__).parent / "legal" / "privacy_policy.md"
-                with open(privacy_path, 'r', encoding='utf-8') as f:
+                with open(privacy_path, "r", encoding="utf-8") as f:
                     privacy_content = f.read()
                 st.markdown(privacy_content, unsafe_allow_html=True)
             except FileNotFoundError:
                 st.error("Privacy Policy document not found.")
 
+
 def show_authenticated_app(auth: AuthUtils):
     """Enhanced authenticated app with improved navigation"""
-    
+
     # Hide sidebar permanently
-    st.markdown("""
+    st.markdown(
+        """
     <style>
     section[data-testid="stSidebar"] {display: none !important;}
     [data-testid="collapsedControl"] {display: none !important;}
     </style>
-    """, unsafe_allow_html=True)
-    
+    """,
+        unsafe_allow_html=True,
+    )
+
     user = auth.get_current_user()
-    credits = user.get('credits_balance', 0)
-    
+    credits = user.get("credits_balance", 0)
+
     # Top navigation bar with user info
     col1, col2, col3 = st.columns([2, 1, 1])
-    
+
     with col1:
-        st.markdown(f"""
+        st.markdown(
+            f"""
         <div style="padding: 10px 0;">
             <h3 style="margin: 0;">🎯 MockExamify</h3>
         </div>
-        """, unsafe_allow_html=True)
-    
+        """,
+            unsafe_allow_html=True,
+        )
+
     with col2:
-        st.markdown(f"""
+        st.markdown(
+            f"""
         <div style="padding: 10px; text-align: right;">
             <p style="margin: 0;"><strong>💰 Credits:</strong> {credits}</p>
         </div>
-        """, unsafe_allow_html=True)
-    
+        """,
+            unsafe_allow_html=True,
+        )
+
     with col3:
-        st.markdown(f"""
+        st.markdown(
+            f"""
         <div style="padding: 10px; text-align: right;">
             <p style="margin: 0;"><strong>👤</strong> {user.get('email', 'User')}</p>
         </div>
-        """, unsafe_allow_html=True)
-    
+        """,
+            unsafe_allow_html=True,
+        )
+
     st.markdown("---")
-    
+
     # Navigation: Only logout button
     col_spacer, col_logout = st.columns([9, 1])
-    
+
     with col_logout:
         if st.button("🚪 Logout", use_container_width=True):
             auth.logout()
             st.session_state.page = "login"
             st.rerun()
-    
+
     st.markdown("---")
-    
+
     # Enhanced main content area with better routing
     page = st.session_state.get("page", "dashboard")
-    
+
     # Route to appropriate page (each page handles its own header)
     if page == "dashboard":
         show_dashboard()
@@ -975,26 +1014,28 @@ def show_authenticated_app(auth: AuthUtils):
         show_dashboard()
         handle_dashboard_modals()
 
+
 def show_admin_tickets():
     """Enhanced admin tickets management"""
     st.markdown("### 🎫 Support Tickets Management")
     st.info("📧 Support ticket management functionality coming soon!")
-    
+
     # Placeholder for future ticket management features
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
         st.metric("Open Tickets", "0", "0")
-    
+
     with col2:
         st.metric("Resolved Today", "0", "0")
-    
+
     with col3:
         st.metric("Avg Response Time", "< 24h", "0h")
-    
+
     if st.button("🏠 Back to Dashboard", type="primary"):
         st.session_state.page = "dashboard"
         st.rerun()
+
 
 if __name__ == "__main__":
     main()

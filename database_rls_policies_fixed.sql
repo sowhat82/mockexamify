@@ -45,7 +45,7 @@ ON public.mocks FOR INSERT
 TO authenticated
 WITH CHECK (
   EXISTS (
-    SELECT 1 FROM public.users u 
+    SELECT 1 FROM public.users u
     WHERE u.id = auth.uid() AND u.role = 'admin'
   )
 );
@@ -55,7 +55,7 @@ ON public.mocks FOR UPDATE
 TO authenticated
 USING (
   EXISTS (
-    SELECT 1 FROM public.users u 
+    SELECT 1 FROM public.users u
     WHERE u.id = auth.uid() AND u.role = 'admin'
   )
 );
@@ -117,7 +117,7 @@ ON public.tickets FOR SELECT
 TO authenticated
 USING (
   EXISTS (
-    SELECT 1 FROM public.users u 
+    SELECT 1 FROM public.users u
     WHERE u.id = auth.uid() AND u.role = 'admin'
   )
 );
@@ -128,7 +128,7 @@ ON public.tickets FOR UPDATE
 TO authenticated
 USING (
   EXISTS (
-    SELECT 1 FROM public.users u 
+    SELECT 1 FROM public.users u
     WHERE u.id = auth.uid() AND u.role = 'admin'
   )
 );
@@ -138,10 +138,10 @@ USING (
 -- VERIFICATION QUERY
 -- ============================================================
 -- Run this after to verify RLS is enabled:
--- 
+--
 -- SELECT schemaname, tablename, rowsecurity
 -- FROM pg_tables
--- WHERE schemaname = 'public' 
+-- WHERE schemaname = 'public'
 -- AND tablename IN ('users', 'mocks', 'attempts', 'tickets');
 --
 -- All tables should show rowsecurity = true

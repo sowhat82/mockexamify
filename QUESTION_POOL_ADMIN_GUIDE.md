@@ -98,8 +98,8 @@ Before you can use the question pool system, you need to create the database tab
 3. Paste and click **"Run"**
 4. Verify tables created:
    ```sql
-   SELECT table_name FROM information_schema.tables 
-   WHERE table_schema = 'public' 
+   SELECT table_name FROM information_schema.tables
+   WHERE table_schema = 'public'
    AND table_name IN ('question_pools', 'pool_questions', 'upload_batches', 'duplicate_cache');
    ```
 
@@ -149,7 +149,7 @@ In `question_pool_manager.py`, you can adjust:
 
 When AI detection is enabled, the system tries models in this order:
 1. 🆓 **Llama 3.3 70B** (free) - First choice
-2. 🆓 **Mistral 7B** (free) - Second choice  
+2. 🆓 **Mistral 7B** (free) - Second choice
 3. 💵 **Mixtral 8x7B** (paid) - Backup
 4. 💵 **GPT-4o mini** (paid) - Final fallback
 

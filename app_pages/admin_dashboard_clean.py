@@ -2,11 +2,14 @@
 Admin Dashboard for MockExamify - CLEAN VERSION (Real Data Only)
 Shows only actual data from database, no prototypes or fake numbers
 """
-import streamlit as st
-from typing import Dict, Any, List
-from auth_utils import AuthUtils, run_async
-import config
+
+from typing import Any, Dict, List
+
 import pandas as pd
+import streamlit as st
+
+import config
+from auth_utils import AuthUtils, run_async
 
 
 def show_admin_dashboard():
@@ -30,13 +33,13 @@ def show_admin_dashboard():
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            st.metric("👥 Total Users", stats['total_users'])
+            st.metric("👥 Total Users", stats["total_users"])
 
         with col2:
-            st.metric("📚 Total Mocks", stats['total_mocks'])
+            st.metric("📚 Total Mocks", stats["total_mocks"])
 
         with col3:
-            st.metric("🎯 Total Attempts", stats['total_attempts'])
+            st.metric("🎯 Total Attempts", stats["total_attempts"])
 
         st.markdown("---")
 
@@ -49,7 +52,7 @@ def show_admin_dashboard():
             st.markdown("### 📝 Recent Exam Attempts")
             if recent_attempts and len(recent_attempts) > 0:
                 for attempt in recent_attempts[:5]:
-                    score = attempt.get('score', 0)
+                    score = attempt.get("score", 0)
                     score_color = get_score_color(score)
 
                     st.markdown(
@@ -71,11 +74,11 @@ def show_admin_dashboard():
 
             if tickets and len(tickets) > 0:
                 for ticket in tickets[:5]:
-                    status = ticket.get('status', 'Open').lower()
-                    status_color = '#ff9800' if status == 'open' else '#4caf50'
+                    status = ticket.get("status", "Open").lower()
+                    status_color = "#ff9800" if status == "open" else "#4caf50"
 
-                    subject = ticket.get('subject', 'No subject')
-                    created = ticket.get('created_at', 'Unknown')
+                    subject = ticket.get("subject", "No subject")
+                    created = ticket.get("created_at", "Unknown")
 
                     st.markdown(
                         f"""
@@ -140,9 +143,9 @@ def show_user_management_modal():
             for email, user_data in DEMO_USERS.items():
                 users_list.append(
                     {
-                        'Email': email,
-                        'Credits': user_data.get('credits_balance', 0),
-                        'Role': user_data.get('role', 'user'),
+                        "Email": email,
+                        "Credits": user_data.get("credits_balance", 0),
+                        "Role": user_data.get("role", "user"),
                     }
                 )
 
@@ -164,13 +167,14 @@ def show_credits_management_modal():
             max_value=100,
             value=0,
             key="credits_amount",
-            help="Positive numbers add credits, negative numbers remove credits"
+            help="Positive numbers add credits, negative numbers remove credits",
         )
 
         if st.button("💰 Apply Adjustment", type="primary"):
             if user_email and credits_to_add != 0:
                 # Actually update the database
                 from db import db
+
                 success = run_async(db.adjust_user_credits(user_email, credits_to_add))
 
                 if success:
@@ -193,16 +197,16 @@ async def load_dashboard_stats() -> Dict[str, Any]:
 
         # Return only what we have
         return {
-            'total_users': stats.get('total_users', 0),
-            'total_mocks': stats.get('total_mocks', 0),
-            'total_attempts': stats.get('total_attempts', 0),
+            "total_users": stats.get("total_users", 0),
+            "total_mocks": stats.get("total_mocks", 0),
+            "total_attempts": stats.get("total_attempts", 0),
         }
     except Exception as e:
         # Return zeros if error - NO FAKE DATA
         return {
-            'total_users': 0,
-            'total_mocks': 0,
-            'total_attempts': 0,
+            "total_users": 0,
+            "total_mocks": 0,
+            "total_attempts": 0,
         }
 
 

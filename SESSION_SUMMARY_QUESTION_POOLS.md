@@ -93,8 +93,8 @@ Final Pool:
 -- Paste and run the SQL
 
 -- Verify tables created:
-SELECT table_name FROM information_schema.tables 
-WHERE table_schema = 'public' 
+SELECT table_name FROM information_schema.tables
+WHERE table_schema = 'public'
 AND table_name IN ('question_pools', 'pool_questions', 'upload_batches', 'duplicate_cache');
 ```
 

@@ -1,14 +1,17 @@
 """
 Comprehensive Pydantic models and schemas for MockExamify MVP
 """
+
 from datetime import datetime, timezone
-from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, EmailStr, Field
 from enum import Enum
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, EmailStr, Field
 
 
 class DifficultyLevel(str, Enum):
     """Difficulty levels for questions and mocks"""
+
     EASY = "easy"
     MEDIUM = "medium"
     HARD = "hard"
@@ -19,7 +22,7 @@ class UserCreate(BaseModel):
     password: str = Field(..., min_length=6)
     confirm_password: str = Field(..., min_length=6)
     terms_accepted: bool = Field(default=False)
-    
+
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -33,13 +36,14 @@ class User(BaseModel):
     role: str = "user"  # user or admin
     subscription_status: Optional[str] = None
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
 
 class QuestionSchema(BaseModel):
     """Schema for individual questions"""
+
     id: Optional[str] = None
     mock_id: Optional[str] = None
     question: str
@@ -52,7 +56,7 @@ class QuestionSchema(BaseModel):
     variant_of: Optional[str] = None  # For question variants
     scenario: Optional[str] = None  # For scenario-based questions
     created_at: Optional[datetime] = None
-    
+
     class Config:
         from_attributes = True
 
@@ -63,12 +67,14 @@ Question = QuestionSchema
 
 class QuestionChoice(BaseModel):
     """Individual choice for a question"""
+
     text: str
     is_correct: bool = False
 
 
 class ParsedQuestion(BaseModel):
     """Parsed question from document"""
+
     question: str
     choices: List[str]
     correct_index: int
@@ -79,6 +85,7 @@ class ParsedQuestion(BaseModel):
 
 class ParseResult(BaseModel):
     """Result from document parsing"""
+
     success: bool
     questions: List[ParsedQuestion] = []
     error: Optional[str] = None
@@ -119,25 +126,25 @@ class Mock(BaseModel):
     difficulty: Optional[str] = "medium"  # Add difficulty field
     is_active: bool
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for backward compatibility"""
         return {
-            'id': self.id,
-            'title': self.title,
-            'description': self.description,
-            'questions': self.questions,
-            'price_credits': self.price_credits,
-            'explanation_enabled': self.explanation_enabled,
-            'time_limit_minutes': self.time_limit_minutes,
-            'category': self.category,
-            'difficulty': self.difficulty,
-            'is_active': self.is_active,
-            'created_at': self.created_at,
-            'questions_json': self.questions  # Alias for backward compatibility
+            "id": self.id,
+            "title": self.title,
+            "description": self.description,
+            "questions": self.questions,
+            "price_credits": self.price_credits,
+            "explanation_enabled": self.explanation_enabled,
+            "time_limit_minutes": self.time_limit_minutes,
+            "category": self.category,
+            "difficulty": self.difficulty,
+            "is_active": self.is_active,
+            "created_at": self.created_at,
+            "questions_json": self.questions,  # Alias for backward compatibility
         }
 
 
@@ -161,7 +168,7 @@ class Attempt(BaseModel):
     pdf_url: Optional[str] = None
     started_at: datetime
     completed_at: Optional[datetime] = None
-    
+
     class Config:
         from_attributes = True
 
@@ -176,7 +183,7 @@ class AttemptResponse(BaseModel):
     correct_answers: int
     explanation_unlocked: bool
     timestamp: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -202,7 +209,7 @@ class Payment(BaseModel):
     status: str  # pending, completed, failed
     created_at: datetime
     completed_at: Optional[datetime] = None
-    
+
     class Config:
         from_attributes = True
 
@@ -220,7 +227,7 @@ class SupportTicket(BaseModel):
     status: str = "open"  # open, resolved, closed
     created_at: datetime
     resolved_at: Optional[datetime] = None
-    
+
     class Config:
         from_attributes = True
 
@@ -241,7 +248,7 @@ class Ticket(BaseModel):
     message: str
     status: str = "open"  # open, in_progress, closed
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 

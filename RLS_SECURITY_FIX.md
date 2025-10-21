@@ -22,9 +22,9 @@ This is a **CRITICAL SECURITY ISSUE** that exposes your data to unauthorized acc
 
 4. **Verify RLS is enabled:**
    ```sql
-   SELECT schemaname, tablename, rowsecurity 
-   FROM pg_tables 
-   WHERE schemaname = 'public' 
+   SELECT schemaname, tablename, rowsecurity
+   FROM pg_tables
+   WHERE schemaname = 'public'
    AND tablename IN ('users', 'mocks', 'attempts', 'tickets');
    ```
    All tables should show `rowsecurity = true`
@@ -78,8 +78,8 @@ After applying the SQL:
 
 1. **Check RLS is enabled:**
    ```sql
-   SELECT tablename, rowsecurity 
-   FROM pg_tables 
+   SELECT tablename, rowsecurity
+   FROM pg_tables
    WHERE schemaname = 'public';
    ```
 

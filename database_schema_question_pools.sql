@@ -25,22 +25,22 @@ CREATE TABLE IF NOT EXISTS pool_questions (
     explanation TEXT,
     difficulty VARCHAR(50) DEFAULT 'medium',
     topic_tags JSONB DEFAULT '[]'::jsonb, -- Array of topic tags
-    
+
     -- Source tracking
     source_file VARCHAR(255), -- Original PDF filename
     upload_batch_id UUID, -- Groups questions from same upload
     uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
+
     -- Duplicate detection
     is_duplicate BOOLEAN DEFAULT FALSE,
     duplicate_of UUID REFERENCES pool_questions(id),
     similarity_score DECIMAL(5,2), -- AI similarity score (0-100)
-    
+
     -- Metadata
     times_shown INTEGER DEFAULT 0,
     times_correct INTEGER DEFAULT 0,
     times_incorrect INTEGER DEFAULT 0,
-    
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS duplicate_cache (
     is_duplicate BOOLEAN NOT NULL,
     ai_reasoning TEXT, -- Why AI marked as duplicate/not
     checked_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
+
     UNIQUE(question1_id, question2_id)
 );
 
@@ -93,15 +93,15 @@ CREATE OR REPLACE FUNCTION update_pool_stats(p_pool_id UUID)
 RETURNS VOID AS $$
 BEGIN
     UPDATE question_pools
-    SET 
+    SET
         total_questions = (
-            SELECT COUNT(*) 
-            FROM pool_questions 
+            SELECT COUNT(*)
+            FROM pool_questions
             WHERE pool_id = p_pool_id
         ),
         unique_questions = (
-            SELECT COUNT(*) 
-            FROM pool_questions 
+            SELECT COUNT(*)
+            FROM pool_questions
             WHERE pool_id = p_pool_id AND is_duplicate = FALSE
         ),
         last_updated = NOW()

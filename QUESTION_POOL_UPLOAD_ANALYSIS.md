@@ -129,7 +129,7 @@ According to `database_schema_question_pools.sql`, these tables should exist:
 Add to `db.py` (DatabaseManager class):
 
 ```python
-async def create_or_update_question_pool(self, pool_name: str, category: str, 
+async def create_or_update_question_pool(self, pool_name: str, category: str,
                                          description: str, created_by: str) -> Optional[Dict]:
     """Create new question pool or update existing one by name"""
     # Implementation needed
@@ -138,12 +138,12 @@ async def get_pool_questions(self, pool_id: str) -> List[Dict[str, Any]]:
     """Get all questions from a question pool"""
     # Implementation needed
 
-async def create_upload_batch(self, pool_id: str, filename: str, 
+async def create_upload_batch(self, pool_id: str, filename: str,
                               total_questions: int, uploaded_by: str) -> Optional[str]:
     """Create upload batch record and return batch_id"""
     # Implementation needed
 
-async def add_questions_to_pool(self, pool_id: str, questions: List[Dict], 
+async def add_questions_to_pool(self, pool_id: str, questions: List[Dict],
                                 source_file: str, batch_id: str) -> bool:
     """Add questions to pool with duplicate tracking"""
     # Implementation needed
@@ -153,9 +153,9 @@ async def add_questions_to_pool(self, pool_id: str, questions: List[Dict],
 
 Run this SQL in Supabase to check:
 ```sql
-SELECT table_name 
-FROM information_schema.tables 
-WHERE table_schema = 'public' 
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = 'public'
   AND table_name IN ('question_pools', 'pool_questions', 'upload_batches', 'duplicate_cache');
 ```
 

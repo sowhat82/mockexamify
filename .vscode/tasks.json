@@ -1,0 +1,142 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Setup: Install Dependencies",
+      "type": "shell",
+      "windows": {
+        "command": "${workspaceFolder}/setup.ps1"
+      },
+      "linux": {
+        "command": "bash ${workspaceFolder}/setup.sh"
+      },
+      "osx": {
+        "command": "bash ${workspaceFolder}/setup.sh"
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      },
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      }
+    },
+    {
+      "label": "Run: Flask API Only",
+      "type": "shell",
+      "windows": {
+        "command": ".\\venv\\Scripts\\python.exe",
+        "args": ["-m", "flask", "--app", "api", "run", "--port", "5000"]
+      },
+      "linux": {
+        "command": "${workspaceFolder}/venv/bin/python",
+        "args": ["-m", "flask", "--app", "api", "run", "--port", "5000"]
+      },
+      "osx": {
+        "command": "${workspaceFolder}/venv/bin/python",
+        "args": ["-m", "flask", "--app", "api", "run", "--port", "5000"]
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^.*$",
+          "file": 1,
+          "location": 2,
+          "message": 3
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^.*Restarting with.*$",
+          "endsPattern": "^.*Running on.*$"
+        }
+      },
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      }
+    },
+    {
+      "label": "Run: Streamlit UI Only",
+      "type": "shell",
+      "windows": {
+        "command": ".\\venv\\Scripts\\python.exe",
+        "args": ["-m", "streamlit", "run", "streamlit_app.py", "--server.port", "8501", "--server.headless", "true"]
+      },
+      "linux": {
+        "command": "${workspaceFolder}/venv/bin/python",
+        "args": ["-m", "streamlit", "run", "streamlit_app.py", "--server.port", "8501", "--server.headless", "true"]
+      },
+      "osx": {
+        "command": "${workspaceFolder}/venv/bin/python",
+        "args": ["-m", "streamlit", "run", "streamlit_app.py", "--server.port", "8501", "--server.headless", "true"]
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^.*$",
+          "file": 1,
+          "location": 2,
+          "message": 3
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^.*Collecting usage statistics.*$",
+          "endsPattern": "^.*You can now view your Streamlit app.*$"
+        }
+      },
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      }
+    },
+    {
+      "label": "Run: Both Servers (Flask + Streamlit)",
+      "type": "shell",
+      "windows": {
+        "command": "${workspaceFolder}/run_all.ps1"
+      },
+      "linux": {
+        "command": "bash ${workspaceFolder}/run_all.sh"
+      },
+      "osx": {
+        "command": "bash ${workspaceFolder}/run_all.sh"
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "isBackground": true,
+      "problemMatcher": [],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      }
+    }
+  ]
+}

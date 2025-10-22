@@ -55,11 +55,11 @@ cleanup() {
 # Register cleanup on Ctrl+C
 trap cleanup SIGINT SIGTERM
 
-# Start Flask in background
-echo -e "\n\033[0;33m[1/2] Starting Flask API on port $FLASK_PORT...\033[0m"
-python -m flask --app api run --port $FLASK_PORT &
+# Start FastAPI in background
+echo -e "\n\033[0;33m[1/2] Starting FastAPI on port $FLASK_PORT...\033[0m"
+python -m uvicorn api:app --host 0.0.0.0 --port $FLASK_PORT &
 FLASK_PID=$!
-echo -e "\033[0;32m✓ Flask started (PID: $FLASK_PID)\033[0m"
+echo -e "\033[0;32m✓ FastAPI started (PID: $FLASK_PID)\033[0m"
 
 sleep 2
 

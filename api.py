@@ -20,19 +20,22 @@ from io import BytesIO
 # Local imports
 import config
 from models import (
-    User, UserCreate, UserLogin, UserRole, ExamCategory, ExamCategoryCreate,
-    Topic, TopicCreate, Question, QuestionCreate, Paper, PaperCreate, 
-    Attempt, AttemptCreate, AttemptSubmission, CreditPurchase,
-    CreditTransactionType, CreditTransactionReason, DifficultyLevel,
-    PaperMode, UserMastery, StripeCheckoutRequest, APIResponse
+    User, UserCreate, UserLogin, DifficultyLevel,
+    Question, QuestionSchema, Mock, MockCreate, MockUpdate,
+    Attempt, AttemptCreate, AttemptResponse,
+    Payment, StripeCheckoutRequest, StripeWebhookEvent,
+    TicketCreate, SupportTicket, CreditPackInfo, DashboardStats
 )
-from db import db_manager as db
-from stripe_utils import stripe_manager
+from db import db
+from stripe_utils import StripeUtils
 from openrouter_utils import openrouter_manager
-from pdf_utils import pdf_generator
+from pdf_utils import enhanced_pdf_generator as pdf_generator
 from admin_utils import admin_manager
+
+# Initialize stripe manager
+stripe_manager = StripeUtils(config.STRIPE_SECRET_KEY)
 from security_utils import security_manager, InputValidator, log_admin_action
-from production_utils import cache_manager, performance_monitor
+from production_utils import production_cache as cache_manager, performance_monitor
 
 # Configure comprehensive logging
 logging.basicConfig(level=logging.INFO)
@@ -827,11 +830,11 @@ async def startup_event():
     """Initialize services on startup"""
     logger.info("Starting MockExamify API v2.0.0...")
     
-    # Initialize database
-    await db.initialize()
+    # Initialize database (commented out - DB runs in demo mode)
+    # await db.initialize_tables()
     
-    # Initialize performance monitoring
-    performance_monitor.start()
+    # Initialize performance monitoring (commented out - optional feature)
+    # performance_monitor.start()
     
     # Log startup
     security_manager.log_security_event("api_startup", "low", {
@@ -846,8 +849,8 @@ async def shutdown_event():
     """Cleanup on shutdown"""
     logger.info("Shutting down MockExamify API...")
     
-    # Stop performance monitoring
-    performance_monitor.stop()
+    # Stop performance monitoring (commented out - optional feature)
+    # performance_monitor.stop()
     
     # Log shutdown
     security_manager.log_security_event("api_shutdown", "low", {

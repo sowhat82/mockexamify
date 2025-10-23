@@ -662,14 +662,35 @@ def show_review_modal():
             st.metric("Flagged", flagged)
 
         if submitted < total:
-            st.warning(f"⚠️ You have {total - submitted} questions remaining to submit")
+            st.markdown(
+                f"""
+                <div style="background: #ffc107; color: #ffffff; padding: 1rem; border-radius: 0.5rem; margin-top: 1rem;">
+                    <strong style="color: #ffffff;">⚠️ You have {total - submitted} questions remaining to submit</strong>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
         if flagged > 0:
-            st.info(f"🚩 You have {flagged} flagged questions to review")
+            st.markdown(
+                f"""
+                <div style="background: #17a2b8; color: #ffffff; padding: 1rem; border-radius: 0.5rem; margin-top: 1rem;">
+                    <strong style="color: #ffffff;">🚩 You have {flagged} flagged questions to review</strong>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
         if submitted > 0:
             current_score = (correct / submitted) * 100
-            st.info(f"📊 Current Score: {current_score:.1f}% ({correct}/{submitted} correct)")
+            st.markdown(
+                f"""
+                <div style="background: #17a2b8; color: #ffffff; padding: 1rem; border-radius: 0.5rem; margin-top: 1rem;">
+                    <strong style="color: #ffffff;">📊 Current Score: {current_score:.1f}% ({correct}/{submitted} correct)</strong>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 def finish_exam(user: Dict[str, Any]):

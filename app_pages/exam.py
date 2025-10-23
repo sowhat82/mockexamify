@@ -446,9 +446,23 @@ def display_question(question: Dict[str, Any], question_index: int, user: Dict[s
 
         # Show feedback banner
         if is_correct:
-            st.success("✅ Correct! Well done!")
+            st.markdown(
+                """
+                <div style="background: #28a745; color: #ffffff; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                    <strong style="color: #ffffff;">✅ Correct! Well done!</strong>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
         else:
-            st.error("❌ Incorrect")
+            st.markdown(
+                """
+                <div style="background: #dc3545; color: #ffffff; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                    <strong style="color: #ffffff;">❌ Incorrect</strong>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
         # Show all choices with indicators
         st.markdown("**Your answer:**")

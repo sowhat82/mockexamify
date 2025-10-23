@@ -497,19 +497,22 @@ def display_question(question: Dict[str, Any], question_index: int, user: Dict[s
 
     else:
         # Question not yet submitted - show interactive form
-        # Get current answer
-        current_answer = st.session_state.answers.get(question_index)
-
         # Display radio buttons for choices
+        # Use widget key to manage state directly - don't mix with manual session state
+        widget_key = f"answer_{question_index}"
+
+        # Initialize widget state from answers dict if it exists and widget state doesn't
+        if widget_key not in st.session_state and question_index in st.session_state.answers:
+            st.session_state[widget_key] = st.session_state.answers[question_index]
+
         answer_choice = st.radio(
             "Select your answer:",
             options=range(len(choices)),
             format_func=lambda x: f"{chr(65 + x)}. {choices[x]}",
-            index=current_answer if current_answer is not None else None,
-            key=f"answer_{question_index}",
+            key=widget_key,
         )
 
-        # Save answer when selected
+        # Save answer to answers dict when selected
         if answer_choice is not None:
             st.session_state.answers[question_index] = answer_choice
 

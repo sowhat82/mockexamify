@@ -21,7 +21,18 @@
       "Bash(git reset:*)",
       "Bash(git log:*)",
       "Bash(Get-Process python)",
-      "Bash(Stop-Process -Force)"
+      "Bash(Stop-Process -Force)",
+      "Bash(git merge:*)",
+      "Bash(git push:*)",
+      "Bash(python3 -m pip install:*)",
+      "Bash(bash:*)",
+      "Bash(SQL_FILE=migrations/fix_admin_pool_questions_access.sql source venv/bin/activate:*)",
+      "Bash(source:*)",
+      "Bash(SQL_FILE=migrations/fix_admin_pool_questions_access.sql python apply_supabase_sql.py:*)",
+      "Bash(env)",
+      "Bash(pkill:*)",
+      "Bash(chmod:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

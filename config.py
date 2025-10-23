@@ -52,6 +52,7 @@ if not HAS_STREAMLIT or not hasattr(st, "secrets"):
 # Supabase Configuration - always load for hybrid mode (question pools)
 SUPABASE_URL = get_secret("SUPABASE_URL")
 SUPABASE_KEY = get_secret("SUPABASE_KEY")
+SUPABASE_SERVICE_KEY = get_secret("SUPABASE_SERVICE_KEY", "")  # Service role key for admin operations
 
 # Stripe Configuration - always read from secrets
 STRIPE_SECRET_KEY = get_secret("STRIPE_SECRET_KEY")

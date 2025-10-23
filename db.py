@@ -109,8 +109,17 @@ class DatabaseManager:
             from supabase import Client, create_client
 
             self.client = create_client(config.SUPABASE_URL, config.SUPABASE_KEY)
+
+            # Create admin client with service role key for bypassing RLS on admin operations
+            if config.SUPABASE_SERVICE_KEY:
+                self.admin_client = create_client(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY)
+                logger.info("Admin client initialized with service role key")
+            else:
+                self.admin_client = self.client  # Fall back to regular client
+                logger.warning("No service role key found - admin operations may fail due to RLS")
         else:
             self.client = None
+            self.admin_client = None
 
     # Demo mode methods
     async def _demo_authenticate_user(self, email: str, password: str) -> Optional[User]:
@@ -1137,7 +1146,9 @@ class DatabaseManager:
         try:
             # Question pools always use real database (hybrid mode)
             # Even in demo mode, we want to access real question pools
-            result = self.client.table("question_pools").select("*").execute()
+            # Use admin client to bypass RLS policies
+            client = self.admin_client if self.admin_client else self.client
+            result = client.table("question_pools").select("*").execute()
             return result.data if result.data else []
         except Exception as e:
             logger.error(f"Error getting question pools: {e}")
@@ -1214,8 +1225,10 @@ class DatabaseManager:
         try:
             # Question pools always use real database (hybrid mode)
             # Even in demo mode, we want to access real question pools
+            # Use admin client to bypass RLS policies
+            client = self.admin_client if self.admin_client else self.client
             result = (
-                self.client.table("pool_questions").select("*").eq("pool_id", pool_id).execute()
+                client.table("pool_questions").select("*").eq("pool_id", pool_id).execute()
             )
             return result.data if result.data else []
 
@@ -1227,8 +1240,10 @@ class DatabaseManager:
         """Get N random questions from a pool (excluding duplicates)"""
         try:
             # Question pools always use real database (hybrid mode)
+            # Use admin client to bypass RLS policies
+            client = self.admin_client if self.admin_client else self.client
             result = (
-                self.client.table("pool_questions")
+                client.table("pool_questions")
                 .select("*")
                 .eq("pool_id", pool_id)
                 .eq("is_duplicate", False)

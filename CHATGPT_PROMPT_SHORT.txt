@@ -1,0 +1,45 @@
+I need to apply a SQL fix to my Supabase database. Please guide me step-by-step.
+
+Project: https://app.supabase.com/project/mgdgovkyomfkcljutcsj/sql/new
+
+Problem: My admin dashboard shows "No questions found" but the database has 85 questions. This is an RLS policy issue.
+
+SQL to run:
+```sql
+DROP POLICY IF EXISTS "pool_questions_read" ON public.pool_questions;
+
+CREATE POLICY "pool_questions_users_read"
+ON public.pool_questions FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.question_pools qp
+    WHERE qp.id = pool_questions.pool_id
+    AND qp.is_active = true
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM public.users u
+    WHERE u.id = auth.uid()
+    AND u.role = 'admin'
+  )
+);
+
+CREATE POLICY "pool_questions_admin_read_all"
+ON public.pool_questions FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM public.users u
+    WHERE u.id = auth.uid()
+    AND u.role = 'admin'
+  )
+);
+```
+
+Guide me through:
+1. Opening the Supabase SQL Editor
+2. Pasting and running this SQL
+3. Verifying it worked
+4. What to do next
+
+Start with step 1.

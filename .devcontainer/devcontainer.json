@@ -11,11 +11,15 @@
   "portsAttributes": {
     "5000": {
       "label": "Flask API",
-      "onAutoForward": "notify"
+      "onAutoForward": "silent",
+      "visibility": "public",
+      "protocol": "https"
     },
     "8501": {
       "label": "Streamlit UI",
-      "onAutoForward": "openBrowser"
+      "onAutoForward": "openBrowser",
+      "visibility": "public",
+      "protocol": "https"
     }
   },
 

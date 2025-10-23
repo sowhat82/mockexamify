@@ -1,0 +1,67 @@
+I need help adding my Supabase Service Role Key to fix my application. Here's the context:
+
+BACKGROUND:
+- I have a Supabase project: https://mgdgovkyomfkcljutcsj.supabase.co
+- My question pool has 85 questions but shows "No questions found" in admin dashboard
+- RLS policies have been successfully applied to the database
+- Code has been updated to use a service role key for admin operations
+- The app is currently running but shows this warning: "No service role key found - admin operations may fail due to RLS"
+
+WHAT I NEED TO DO:
+Add my Supabase Service Role Key to the .env file so admin operations can bypass RLS policies.
+
+MY PROJECT SETUP:
+- Project ID: mgdgovkyomfkcljutcsj
+- Environment file: /workspaces/mockexamify/.env
+- The .env file already has these working:
+  * SUPABASE_URL=https://mgdgovkyomfkcljutcsj.supabase.co
+  * SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1nZGdvdmt5b21ma2NsanV0Y3NqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk5MzY2NzYsImV4cCI6MjA3NTUxMjY3Nn0.a1ZAzp1QKS_Rr0IJmdANbypzFBGOCOqcLl4-_Oi1LOc
+- There's a commented line: # SUPABASE_SERVICE_KEY=your-service-key-here
+
+CODE UPDATES ALREADY MADE:
+The application code has been updated to:
+1. Load SUPABASE_SERVICE_KEY from environment (config.py line 55)
+2. Create an admin_client using the service role key (db.py lines 114-119)
+3. Use admin_client for all question pool operations to bypass RLS
+
+WHAT I NEED YOU TO DO:
+Please guide me step-by-step to:
+
+1. Navigate to the correct Supabase settings page to find my service role key
+   - The URL should be: https://app.supabase.com/project/mgdgovkyomfkcljutcsj/settings/api
+   - Tell me exactly what section to look in
+   - Help me identify which key is the service_role key (not the anon key)
+
+2. Show me exactly how to edit my .env file
+   - The exact line to add or modify
+   - The correct format (with or without quotes, etc.)
+   - Any security warnings I should know
+
+3. Tell me how to restart the application
+   - The command to stop it (if needed)
+   - The command to start it: bash run_all.sh
+   - What log message to look for to confirm it worked
+
+4. Help me verify it's working
+   - What URL to visit: http://localhost:8501
+   - Where to navigate in the admin dashboard
+   - What I should see (all 85 questions)
+
+5. Troubleshooting steps if something goes wrong
+   - How to check if the key was loaded correctly
+   - What log messages indicate success vs failure
+   - Common mistakes to avoid
+
+IMPORTANT SECURITY NOTES:
+- The service_role key has full database access and bypasses all RLS
+- It should never be committed to git (already in .gitignore)
+- It should only be used server-side
+- I understand this is sensitive and will keep it secure
+
+EXPECTED OUTCOME:
+After adding the service role key and restarting:
+- App logs should show: "Admin client initialized with service role key"
+- Admin dashboard → Question Pool Management → View "CACS Paper 2" should show all 85 questions
+- No more "No questions found" error
+
+Please start with step 1 and guide me through this process clearly and carefully. Use screenshots or detailed descriptions where helpful.

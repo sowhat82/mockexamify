@@ -1,0 +1,173 @@
+ROLE: You are a Supabase expert helping me complete the final step to fix my application's admin dashboard.
+
+===== SITUATION SUMMARY =====
+
+PROJECT: MockExamify - Online exam platform
+SUPABASE PROJECT: mgdgovkyomfkcljutcsj
+ISSUE: Admin dashboard shows "No questions found in this pool" but database has 85 questions
+ROOT CAUSE: Row Level Security (RLS) policies + missing service role key
+
+===== WHAT'S BEEN COMPLETED =====
+
+✅ Step 1: RLS Policies Applied (via previous ChatGPT session)
+   - Dropped old "pool_questions_read" policy
+   - Created "pool_questions_users_read" for regular users
+   - Created "pool_questions_admin_read_all" for admin users
+   - Policies are live and visible in Supabase dashboard
+
+✅ Step 2: Code Updated (by Claude AI assistant)
+   - config.py: Added SUPABASE_SERVICE_KEY = get_secret("SUPABASE_SERVICE_KEY", "")
+   - db.py: Created admin_client with service role key
+   - db.py: Updated these methods to use admin_client:
+     * get_all_question_pools()
+     * get_pool_questions()
+     * get_random_pool_questions()
+
+✅ Step 3: App Restarted
+   - Currently running at http://localhost:8501
+   - Logs show: "WARNING:db:No service role key found - admin operations may fail due to RLS"
+   - This confirms code is looking for the key but can't find it
+
+===== WHAT I NEED TO DO NOW =====
+
+Add the Supabase Service Role Key to my .env file so the admin_client can bypass RLS policies.
+
+===== MY CURRENT ENVIRONMENT =====
+
+File: /workspaces/mockexamify/.env
+Current relevant contents:
+```
+SUPABASE_URL=https://mgdgovkyomfkcljutcsj.supabase.co
+SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1nZGdvdmt5b21ma2NsanV0Y3NqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk5MzY2NzYsImV4cCI6MjA3NTUxMjY3Nn0.a1ZAzp1QKS_Rr0IJmdANbypzFBGOCOqcLl4-_Oi1LOc
+
+# For service-level operations (if you have a service key, add it here)
+# SUPABASE_SERVICE_KEY=your-service-key-here
+```
+
+===== DETAILED TASK BREAKDOWN =====
+
+I need you to guide me through these steps with extreme detail:
+
+STEP 1: GET THE SERVICE ROLE KEY FROM SUPABASE
+- Direct URL: https://app.supabase.com/project/mgdgovkyomfkcljutcsj/settings/api
+- Tell me:
+  * Exactly what I'll see on that page
+  * Which section contains the service_role key
+  * How to distinguish it from the anon key (which I already have)
+  * Whether there's a "reveal" or "copy" button I need to click
+  * What the key should start with (format validation)
+  * Approximate length of the key
+
+STEP 2: EDIT THE .ENV FILE
+- Show me the exact line to modify
+- Should I:
+  * Uncomment the existing line and replace "your-service-key-here"?
+  * Add a new line?
+  * Use quotes around the key or not?
+- Show me a before/after example:
+  BEFORE:
+  # SUPABASE_SERVICE_KEY=your-service-key-here
+
+  AFTER:
+  SUPABASE_SERVICE_KEY=??? (show me the exact format)
+
+STEP 3: SAVE AND VERIFY THE FILE
+- How to save the .env file
+- How to verify the line is correct (no syntax errors)
+- Common mistakes to avoid:
+  * Extra spaces
+  * Wrong quotes
+  * Commented out by mistake
+  * Missing equals sign
+
+STEP 4: RESTART THE APPLICATION
+- Current status: App running in background (started with: bash run_all.sh)
+- Do I need to stop it first? If yes, how?
+- What command to restart: bash run_all.sh
+- How long should I wait for it to start?
+- Where to see the startup logs
+
+STEP 5: VERIFY IT WORKED
+- What log message confirms success?
+  Expected: "INFO:db:Admin client initialized with service role key"
+  vs
+  Failure: "WARNING:db:No service role key found - admin operations may fail due to RLS"
+
+- Where these logs appear (terminal output, file, etc.)
+
+STEP 6: TEST IN THE BROWSER
+- URL: http://localhost:8501
+- Navigation path:
+  1. Log in as admin (admin@mockexamify.com / admin123)
+  2. Click "Question Pool Management" (or tell me where to find it)
+  3. Find "CACS Paper 2" pool
+  4. Click "View Questions"
+- What I should see:
+  * Before fix: "No questions found in this pool"
+  * After fix: List of 85 questions with question text, choices, etc.
+
+STEP 7: TROUBLESHOOTING (if it doesn't work)
+- If still seeing "No service role key found":
+  * How to verify the .env file was saved correctly
+  * How to check if the app actually restarted
+  * How to manually check if the key is valid
+
+- If seeing different error messages:
+  * "Invalid JWT" - what does this mean?
+  * "Unauthorized" - what does this mean?
+  * Other common errors and solutions
+
+- How to verify the key is correct:
+  * Format check
+  * Can I test it somehow?
+
+===== SECURITY CONSIDERATIONS =====
+
+Please remind me:
+- The service_role key has FULL database access (bypasses all RLS)
+- It should NEVER be committed to git (confirm .gitignore has .env)
+- It should NEVER be exposed to the frontend/browser
+- It's safe in this case because it's only used server-side in the db.py module
+- I should treat this key like a password
+
+===== SUCCESS CRITERIA =====
+
+I'll know this is complete when:
+1. ✅ App logs show "Admin client initialized with service role key"
+2. ✅ No warning about missing service key
+3. ✅ Admin dashboard shows all 85 questions in "CACS Paper 2" pool
+4. ✅ Questions are clickable and show full details
+
+===== ADDITIONAL CONTEXT =====
+
+Tech Stack:
+- Backend: Supabase (PostgreSQL with RLS)
+- Frontend: Streamlit (Python)
+- App Structure: Streamlit UI + FastAPI backend
+- Environment: GitHub Codespaces (Linux)
+
+Files Modified:
+- config.py (line 55): Loads SUPABASE_SERVICE_KEY
+- db.py (lines 114-119): Creates admin_client
+- db.py (multiple methods): Use admin_client for question pool operations
+
+Documentation Available:
+- ADD_SERVICE_KEY.md - detailed instructions
+- SOLUTION_SUMMARY.md - overall summary
+- diagnose_pool_questions.py - diagnostic script
+
+===== YOUR TASK =====
+
+Please provide a step-by-step walkthrough with:
+1. Clear, numbered steps
+2. Exact commands to run
+3. Expected outputs at each step
+4. Screenshots or detailed descriptions of what I'll see
+5. Validation checks after each step
+6. Troubleshooting for common issues
+
+Start with Step 1 (getting the service role key from Supabase) and guide me through to completion.
+
+Be extremely detailed - assume I've never done this before. Include every click, every character to type, and how to verify each step worked.
+
+BEGIN NOW!

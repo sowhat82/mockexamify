@@ -411,16 +411,17 @@ def display_question(question: Dict[str, Any], question_index: int, user: Dict[s
     if answer_choice is not None:
         st.session_state.answers[question_index] = answer_choice
 
-    # Show answer confidence (optional)
-    with st.expander("💡 Answer Confidence (Optional)", expanded=False):
-        confidence = st.slider(
-            "How confident are you in this answer?",
-            0,
-            100,
-            50,
-            help="This helps us understand your learning progress",
-            key=f"confidence_{question_index}",
-        )
+    # FEATURE HIDDEN: Answer confidence tracking
+    # Hiding for future release - uncomment to enable
+    # with st.expander("💡 Answer Confidence (Optional)", expanded=False):
+    #     confidence = st.slider(
+    #         "How confident are you in this answer?",
+    #         0,
+    #         100,
+    #         50,
+    #         help="This helps us understand your learning progress",
+    #         key=f"confidence_{question_index}",
+    #     )
 
 
 def show_exam_navigation(user: Dict[str, Any], total_questions: int):

@@ -522,6 +522,41 @@ header {visibility: hidden;}
     text-align: center;
 }
 
+/* Fix dropdown arrows - make them visible and black */
+/* Selectbox dropdown arrow */
+.stSelectbox > div > div > div > div[data-baseweb="select"] > div {
+    color: #000000 !important;
+}
+
+.stSelectbox [data-baseweb="select"] svg {
+    fill: #000000 !important;
+    color: #000000 !important;
+}
+
+/* Number input arrows/spinners */
+.stNumberInput > div > div > input[type="number"] {
+    color: #000000 !important;
+}
+
+.stNumberInput > div > div > div > button {
+    color: #000000 !important;
+}
+
+.stNumberInput > div > div > div > button svg {
+    fill: #000000 !important;
+    color: #000000 !important;
+}
+
+/* All select dropdown indicators */
+[data-baseweb="select"] svg {
+    fill: #000000 !important;
+}
+
+/* Ensure dropdown arrow is visible */
+select::-ms-expand {
+    color: #000000 !important;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
     .main-header {

@@ -458,8 +458,8 @@ def display_question(question: Dict[str, Any], question_index: int, user: Dict[s
                     # User's answer is correct
                     st.markdown(
                         f"""
-                        <div style="background: #d4edda; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; border-left: 4px solid #28a745;">
-                            <strong>✅ {chr(65 + i)}. {choice}</strong> <span style="color: #28a745;">(Your Answer - Correct)</span>
+                        <div style="background: #d4edda; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; border-left: 4px solid #28a745; color: #000000;">
+                            <strong style="color: #000000;">✅ {chr(65 + i)}. {choice}</strong> <span style="color: #28a745;">(Your Answer - Correct)</span>
                         </div>
                         """,
                         unsafe_allow_html=True,
@@ -468,8 +468,8 @@ def display_question(question: Dict[str, Any], question_index: int, user: Dict[s
                     # User's answer is incorrect
                     st.markdown(
                         f"""
-                        <div style="background: #f8d7da; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; border-left: 4px solid #dc3545;">
-                            <strong>❌ {chr(65 + i)}. {choice}</strong> <span style="color: #dc3545;">(Your Answer - Incorrect)</span>
+                        <div style="background: #f8d7da; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; border-left: 4px solid #dc3545; color: #000000;">
+                            <strong style="color: #000000;">❌ {chr(65 + i)}. {choice}</strong> <span style="color: #dc3545;">(Your Answer - Incorrect)</span>
                         </div>
                         """,
                         unsafe_allow_html=True,
@@ -478,8 +478,8 @@ def display_question(question: Dict[str, Any], question_index: int, user: Dict[s
                 # Show correct answer
                 st.markdown(
                     f"""
-                    <div style="background: #d1ecf1; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; border-left: 4px solid #17a2b8;">
-                        <strong>✓ {chr(65 + i)}. {choice}</strong> <span style="color: #17a2b8;">(Correct Answer)</span>
+                    <div style="background: #d1ecf1; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; border-left: 4px solid #17a2b8; color: #000000;">
+                        <strong style="color: #000000;">✓ {chr(65 + i)}. {choice}</strong> <span style="color: #17a2b8;">(Correct Answer)</span>
                     </div>
                     """,
                     unsafe_allow_html=True,

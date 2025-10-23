@@ -450,6 +450,17 @@ def show_exam_navigation(user: Dict[str, Any], total_questions: int):
 
     # Question navigator
     with col3:
+        # CSS to make expander text black
+        st.markdown(
+            """
+            <style>
+            [data-testid="stExpander"] summary p {
+                color: #000000 !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
         with st.expander("🗺️ Question Navigator", expanded=False):
             cols = st.columns(5)
             for i in range(total_questions):

@@ -497,6 +497,8 @@ class DatabaseManager:
         time_taken: int = None,
         detailed_results: List[Dict] = None,
         status: str = "completed",
+        credits_paid: int = 0,
+        questions_submitted: int = 0,
     ) -> Optional[AttemptResponse]:
         """Create a new attempt with enhanced parameters"""
         try:
@@ -567,6 +569,8 @@ class DatabaseManager:
                         ),
                         "status": status,
                         "explanation_unlocked": False,
+                        "credits_paid": credits_paid,
+                        "questions_submitted": questions_submitted,
                         "created_at": datetime.now(timezone.utc).isoformat(),
                     }
                 )
@@ -643,6 +647,101 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error getting attempt: {e}")
             return None
+
+    async def update_attempt_progress(
+        self, attempt_id: str, questions_submitted: int, user_answers: Dict[int, int] = None
+    ) -> bool:
+        """Update the progress of an in-progress attempt"""
+        try:
+            update_data = {"questions_submitted": questions_submitted}
+            if user_answers is not None:
+                update_data["user_answers"] = json.dumps(user_answers)
+
+            result = (
+                self.client.table("attempts")
+                .update(update_data)
+                .eq("id", attempt_id)
+                .execute()
+            )
+            return bool(result.data)
+        except Exception as e:
+            logger.error(f"Error updating attempt progress: {e}")
+            return False
+
+    async def update_attempt_status(
+        self, attempt_id: str, status: str, score: float = None, correct_answers: int = None
+    ) -> bool:
+        """Update attempt status and optionally score/correct_answers"""
+        try:
+            update_data = {"status": status}
+            if score is not None:
+                update_data["score"] = score
+            if correct_answers is not None:
+                update_data["correct_answers"] = correct_answers
+
+            result = (
+                self.client.table("attempts")
+                .update(update_data)
+                .eq("id", attempt_id)
+                .execute()
+            )
+            return bool(result.data)
+        except Exception as e:
+            logger.error(f"Error updating attempt status: {e}")
+            return False
+
+    async def get_abandoned_attempts(self, user_id: str) -> List[Dict[str, Any]]:
+        """Get all in-progress attempts for a user that should be considered abandoned"""
+        try:
+            result = (
+                self.client.table("attempts")
+                .select("*")
+                .eq("user_id", user_id)
+                .eq("status", "in_progress")
+                .execute()
+            )
+            return result.data if result.data else []
+        except Exception as e:
+            logger.error(f"Error getting abandoned attempts: {e}")
+            return []
+
+    async def process_abandoned_attempt_refund(self, attempt_data: Dict[str, Any]) -> bool:
+        """Process pro-rata refund for an abandoned attempt"""
+        try:
+            attempt_id = attempt_data["id"]
+            user_id = attempt_data["user_id"]
+            credits_paid = attempt_data.get("credits_paid", 0)
+            questions_submitted = attempt_data.get("questions_submitted", 0)
+            total_questions = attempt_data.get("total_questions", 1)
+
+            # Calculate pro-rata refund
+            # Refund = credits_paid * (1 - submitted/total)
+            refund_ratio = 1 - (questions_submitted / total_questions)
+            refund_amount = credits_paid * refund_ratio
+
+            logger.info(
+                f"Processing refund for attempt {attempt_id}: "
+                f"{questions_submitted}/{total_questions} submitted, "
+                f"refunding {refund_amount:.2f} credits (paid {credits_paid})"
+            )
+
+            # Only process refund if amount is significant (> 0.01 credits)
+            if refund_amount > 0.01:
+                # Add credits back to user
+                success = await self.add_credits_to_user(user_id, int(round(refund_amount)))
+                if not success:
+                    logger.error(f"Failed to refund credits for attempt {attempt_id}")
+                    return False
+
+            # Mark attempt as abandoned
+            await self.update_attempt_status(attempt_id, "abandoned")
+
+            logger.info(f"Successfully processed refund for attempt {attempt_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error processing abandoned attempt refund: {e}")
+            return False
 
     # Support Tickets
     async def create_ticket(self, user_id: str, subject: str, message: str) -> Optional[Ticket]:

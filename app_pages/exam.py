@@ -29,6 +29,23 @@ def show_exam():
 
     user = auth.get_current_user()
 
+    # Check for abandoned attempts and process pro-rata refunds
+    if "refund_check_done" not in st.session_state:
+        abandoned_attempts = run_async(db.get_abandoned_attempts(user["id"]))
+        if abandoned_attempts:
+            refund_count = 0
+            for attempt in abandoned_attempts:
+                success = run_async(db.process_abandoned_attempt_refund(attempt))
+                if success:
+                    refund_count += 1
+
+            if refund_count > 0:
+                st.info(
+                    f"💰 We've processed {refund_count} pro-rata refund(s) for your incomplete exam(s). "
+                    f"Credits have been returned to your account."
+                )
+        st.session_state.refund_check_done = True
+
     # Initialize session state for exam
     if "exam_state" not in st.session_state:
         st.session_state.exam_state = "not_started"
@@ -219,6 +236,27 @@ def start_exam(mock: Dict[str, Any], user: Dict[str, Any]):
             st.error("Failed to process payment. Please check your credits balance.")
             return
 
+        # Create attempt record immediately with status='in_progress'
+        attempt = run_async(
+            db.create_attempt(
+                user_id=user["id"],
+                mock_id=mock["id"],
+                user_answers={},
+                score=0,
+                correct_answers=0,
+                total_questions=len(questions),
+                status="in_progress",
+                credits_paid=credits_needed,
+                questions_submitted=0,
+            )
+        )
+
+        if not attempt:
+            st.error("Failed to create exam session. Please try again.")
+            # Refund credits
+            run_async(db.add_credits_to_user(user["id"], credits_needed))
+            return
+
         # Initialize exam session
         st.session_state.current_mock = mock
         st.session_state.questions = questions
@@ -226,6 +264,7 @@ def start_exam(mock: Dict[str, Any], user: Dict[str, Any]):
         st.session_state.current_question = 0
         st.session_state.start_time = datetime.now()
         st.session_state.exam_id = str(uuid.uuid4())
+        st.session_state.attempt_id = attempt.id  # Store attempt ID
         st.session_state.time_limit = mock.get("time_limit_minutes", 60)
         st.session_state.flagged_questions = set()
         st.session_state.submitted_questions = set()
@@ -267,6 +306,30 @@ def start_pool_exam(pool_exam_config: Dict[str, Any], user: Dict[str, Any]):
                 del st.session_state.pool_exam
             return
 
+        # Create attempt record immediately with status='in_progress'
+        attempt = run_async(
+            db.create_attempt(
+                user_id=user["id"],
+                mock_id=pool_id,  # Use pool_id as mock_id
+                user_answers={},
+                score=0,
+                correct_answers=0,
+                total_questions=len(questions),
+                status="in_progress",
+                credits_paid=credits_needed,
+                questions_submitted=0,
+            )
+        )
+
+        if not attempt:
+            st.error("Failed to create exam session. Please try again.")
+            # Refund credits
+            run_async(db.add_credits_to_user(user["id"], credits_needed))
+            # Clear pool_exam from session state
+            if "pool_exam" in st.session_state:
+                del st.session_state.pool_exam
+            return
+
         # Update user's credits in session state
         if "current_user" in st.session_state:
             st.session_state.current_user["credits_balance"] -= credits_needed
@@ -288,6 +351,7 @@ def start_pool_exam(pool_exam_config: Dict[str, Any], user: Dict[str, Any]):
         st.session_state.current_question = 0
         st.session_state.start_time = datetime.now()
         st.session_state.exam_id = str(uuid.uuid4())
+        st.session_state.attempt_id = attempt.id  # Store attempt ID
         st.session_state.time_limit = 60  # Default 60 minutes for pool exams
         st.session_state.flagged_questions = set()
         st.session_state.submitted_questions = set()
@@ -396,6 +460,17 @@ def submit_single_question(question_index: int):
 
     # Mark as submitted
     st.session_state.submitted_questions.add(question_index)
+
+    # Update attempt progress in database
+    if "attempt_id" in st.session_state:
+        questions_submitted = len(st.session_state.submitted_questions)
+        run_async(
+            db.update_attempt_progress(
+                attempt_id=st.session_state.attempt_id,
+                questions_submitted=questions_submitted,
+                user_answers=st.session_state.answers,
+            )
+        )
 
 
 def display_question(question: Dict[str, Any], question_index: int, user: Dict[str, Any]):
@@ -751,24 +826,47 @@ def finish_exam(user: Dict[str, Any]):
             st.session_state.current_mock.get("pool_id") or st.session_state.current_mock["id"]
         )
 
-        attempt_data = {
-            "user_id": user["id"],
-            "mock_id": mock_id,
-            "user_answers": st.session_state.answers,
-            "score": score,
-            "correct_answers": correct_answers,
-            "total_questions": total_questions,
-            "time_taken": int(time_taken) if time_taken else None,
-            "detailed_results": detailed_results,
-            "status": "completed",
-        }
+        # Update existing attempt with final results
+        if "attempt_id" in st.session_state:
+            # Update the existing in-progress attempt to completed
+            update_success = run_async(
+                db.update_attempt_status(
+                    attempt_id=st.session_state.attempt_id,
+                    status="completed",
+                    score=score,
+                    correct_answers=correct_answers,
+                )
+            )
+            # Also update with final data
+            run_async(
+                db.update_attempt_progress(
+                    attempt_id=st.session_state.attempt_id,
+                    questions_submitted=total_questions,
+                    user_answers=st.session_state.answers,
+                )
+            )
+            attempt_id = st.session_state.attempt_id
+        else:
+            # Fallback: create new attempt if no attempt_id found (shouldn't happen)
+            attempt_data = {
+                "user_id": user["id"],
+                "mock_id": mock_id,
+                "user_answers": st.session_state.answers,
+                "score": score,
+                "correct_answers": correct_answers,
+                "total_questions": total_questions,
+                "time_taken": int(time_taken) if time_taken else None,
+                "detailed_results": detailed_results,
+                "status": "completed",
+            }
+            attempt = run_async(db.create_attempt(**attempt_data))
+            attempt_id = attempt.id if attempt else None
+            update_success = bool(attempt)
 
-        attempt = run_async(db.create_attempt(**attempt_data))
-
-        if attempt:
+        if update_success and attempt_id:
             # Store results in session state
             st.session_state.exam_results = {
-                "attempt_id": attempt.id,
+                "attempt_id": attempt_id,
                 "score": score,
                 "correct_answers": correct_answers,
                 "total_questions": total_questions,

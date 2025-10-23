@@ -32,7 +32,11 @@
       "Bash(env)",
       "Bash(pkill:*)",
       "Bash(chmod:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: Add service role key support and fix admin question pool access\n\nMajor improvements to admin functionality and mobile workflow:\n\nBackend Changes:\n- Add SUPABASE_SERVICE_KEY support to config.py for admin operations\n- Create admin_client in db.py that bypasses RLS policies\n- Update question pool methods to use admin_client for proper access\n- Fix admin dashboard to display all pool questions correctly\n\nDatabase & RLS:\n- Applied RLS migration for admin access to pool_questions table\n- Separate policies for regular users (active pools only) and admins (all pools)\n- Bulk deleted 36 corrupted questions (Q50-Q85) from CACS Paper 2 pool\n- Pool now has 49 clean, working questions\n\nMobile Workflow Fixes:\n- Update devcontainer.json port forwarding for better mobile experience\n- Change port 8501 to openBrowser mode for external Chrome access\n- Add helpful scripts: get_app_url.sh, open_app.html for mobile bookmarking\n- Fix white screen issues on mobile Codespaces\n\nDocumentation & Tools:\n- Comprehensive fix guides: ADD_SERVICE_KEY.md, MOBILE_CODESPACE_FIX.md\n- Investigation tools: diagnose_pool_questions.py, investigate_question_choices.py\n- Bulk management: bulk_delete_corrupted_questions.py, check_upload_batch.py\n- ChatGPT agent prompts for guided fixes\n- Mobile Chrome guide for seamless mobile workflow\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git commit:*)",
+      "Bash(python3:*)",
+      "Bash(SQL_FILE=migrations/add_attempt_pro_rata_fields.sql python apply_supabase_sql.py:*)"
     ],
     "deny": [],
     "ask": []

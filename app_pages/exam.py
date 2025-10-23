@@ -488,7 +488,7 @@ def display_question(question: Dict[str, Any], question_index: int, user: Dict[s
                 # Other choices
                 st.markdown(
                     f"""
-                    <div style="background: #f8f9fa; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem;">
+                    <div style="background: #f8f9fa; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; color: #000000;">
                         {chr(65 + i)}. {choice}
                     </div>
                     """,

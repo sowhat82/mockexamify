@@ -48,6 +48,10 @@ def show_exam():
         st.session_state.time_limit = 60  # minutes
     if "flagged_questions" not in st.session_state:
         st.session_state.flagged_questions = set()
+    if "submitted_questions" not in st.session_state:
+        st.session_state.submitted_questions = set()
+    if "question_results" not in st.session_state:
+        st.session_state.question_results = {}
 
     # Check if this is a pool-based exam (coming from dashboard)
     if "pool_exam" in st.session_state and st.session_state.exam_state == "not_started":
@@ -224,6 +228,8 @@ def start_exam(mock: Dict[str, Any], user: Dict[str, Any]):
         st.session_state.exam_id = str(uuid.uuid4())
         st.session_state.time_limit = mock.get("time_limit_minutes", 60)
         st.session_state.flagged_questions = set()
+        st.session_state.submitted_questions = set()
+        st.session_state.question_results = {}
         st.session_state.exam_state = "in_progress"
 
         st.success(f"Exam started! You have {st.session_state.time_limit} minutes.")
@@ -284,6 +290,8 @@ def start_pool_exam(pool_exam_config: Dict[str, Any], user: Dict[str, Any]):
         st.session_state.exam_id = str(uuid.uuid4())
         st.session_state.time_limit = 60  # Default 60 minutes for pool exams
         st.session_state.flagged_questions = set()
+        st.session_state.submitted_questions = set()
+        st.session_state.question_results = {}
         st.session_state.exam_state = "in_progress"
 
         # Clear pool_exam from session state
@@ -333,13 +341,13 @@ def show_exam_interface(user: Dict[str, Any]):
         st.progress(progress, text=f"Question {current_q + 1} of {len(questions)}")
 
     with col2:
-        answered_count = len(st.session_state.answers)
+        submitted_count = len(st.session_state.submitted_questions)
         flagged_count = len(st.session_state.flagged_questions)
 
         st.markdown(
             f"""
         <div style="background: #f0f8ff; padding: 1rem; border-radius: 0.5rem;">
-            <p style="margin: 0; color: #000000;"><strong style="color: #000000;">✅ Answered:</strong> {answered_count}/{len(questions)}</p>
+            <p style="margin: 0; color: #000000;"><strong style="color: #000000;">✅ Submitted:</strong> {submitted_count}/{len(questions)}</p>
             <p style="margin: 0; color: #000000;"><strong style="color: #000000;">🚩 Flagged:</strong> {flagged_count}</p>
         </div>
         """,
@@ -358,8 +366,42 @@ def show_exam_interface(user: Dict[str, Any]):
     show_exam_navigation(user, len(questions))
 
 
+def submit_single_question(question_index: int):
+    """Submit and grade a single question, providing instant feedback"""
+    if question_index in st.session_state.submitted_questions:
+        return  # Already submitted
+
+    # Get user's answer
+    user_answer = st.session_state.answers.get(question_index)
+    if user_answer is None:
+        st.error("Please select an answer before submitting")
+        return
+
+    # Get correct answer
+    question = st.session_state.questions[question_index]
+    correct_index = question.get("correct_index")
+
+    # Check if correct
+    is_correct = user_answer == correct_index
+
+    # Store result
+    st.session_state.question_results[question_index] = {
+        "is_correct": is_correct,
+        "user_answer": user_answer,
+        "correct_answer": correct_index,
+        "question": question.get("question", ""),
+        "choices": question.get("choices", []),
+    }
+
+    # Mark as submitted
+    st.session_state.submitted_questions.add(question_index)
+
+
 def display_question(question: Dict[str, Any], question_index: int, user: Dict[str, Any]):
     """Display a single question with answer choices"""
+
+    # Check if question is already submitted
+    is_submitted = question_index in st.session_state.submitted_questions
 
     # Question header
     col1, col2 = st.columns([4, 1])
@@ -395,21 +437,89 @@ def display_question(question: Dict[str, Any], question_index: int, user: Dict[s
         st.error("No choices available for this question")
         return
 
-    # Get current answer
-    current_answer = st.session_state.answers.get(question_index)
+    # If question is already submitted, show feedback
+    if is_submitted:
+        result = st.session_state.question_results[question_index]
+        is_correct = result["is_correct"]
+        user_answer = result["user_answer"]
+        correct_answer = result["correct_answer"]
 
-    # Display radio buttons for choices
-    answer_choice = st.radio(
-        "Select your answer:",
-        options=range(len(choices)),
-        format_func=lambda x: f"{chr(65 + x)}. {choices[x]}",
-        index=current_answer if current_answer is not None else None,
-        key=f"answer_{question_index}",
-    )
+        # Show feedback banner
+        if is_correct:
+            st.success("✅ Correct! Well done!")
+        else:
+            st.error("❌ Incorrect")
 
-    # Save answer when selected
-    if answer_choice is not None:
-        st.session_state.answers[question_index] = answer_choice
+        # Show all choices with indicators
+        st.markdown("**Your answer:**")
+        for i, choice in enumerate(choices):
+            if i == user_answer:
+                if i == correct_answer:
+                    # User's answer is correct
+                    st.markdown(
+                        f"""
+                        <div style="background: #d4edda; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; border-left: 4px solid #28a745;">
+                            <strong>✅ {chr(65 + i)}. {choice}</strong> <span style="color: #28a745;">(Your Answer - Correct)</span>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    # User's answer is incorrect
+                    st.markdown(
+                        f"""
+                        <div style="background: #f8d7da; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; border-left: 4px solid #dc3545;">
+                            <strong>❌ {chr(65 + i)}. {choice}</strong> <span style="color: #dc3545;">(Your Answer - Incorrect)</span>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+            elif i == correct_answer:
+                # Show correct answer
+                st.markdown(
+                    f"""
+                    <div style="background: #d1ecf1; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; border-left: 4px solid #17a2b8;">
+                        <strong>✓ {chr(65 + i)}. {choice}</strong> <span style="color: #17a2b8;">(Correct Answer)</span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            else:
+                # Other choices
+                st.markdown(
+                    f"""
+                    <div style="background: #f8f9fa; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem;">
+                        {chr(65 + i)}. {choice}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+    else:
+        # Question not yet submitted - show interactive form
+        # Get current answer
+        current_answer = st.session_state.answers.get(question_index)
+
+        # Display radio buttons for choices
+        answer_choice = st.radio(
+            "Select your answer:",
+            options=range(len(choices)),
+            format_func=lambda x: f"{chr(65 + x)}. {choices[x]}",
+            index=current_answer if current_answer is not None else None,
+            key=f"answer_{question_index}",
+        )
+
+        # Save answer when selected
+        if answer_choice is not None:
+            st.session_state.answers[question_index] = answer_choice
+
+        # Submit button for this question
+        st.markdown("<br>", unsafe_allow_html=True)
+        col1, col2, col3 = st.columns([2, 1, 2])
+        with col2:
+            if st.button("Submit Answer", key=f"submit_{question_index}", type="primary", use_container_width=True):
+                submit_single_question(question_index)
+                st.rerun()
 
     # FEATURE HIDDEN: Answer confidence tracking
     # Hiding for future release - uncomment to enable
@@ -466,15 +576,19 @@ def show_exam_navigation(user: Dict[str, Any], total_questions: int):
             for i in range(total_questions):
                 col_index = i % 5
                 with cols[col_index]:
-                    # Determine button style
-                    if i in st.session_state.answers:
-                        if i in st.session_state.flagged_questions:
-                            button_text = f"🚩{i+1}"
-                            button_type = "secondary"
-                        else:
-                            button_text = f"✅{i+1}"
+                    # Determine button style based on submission status
+                    if i in st.session_state.submitted_questions:
+                        # Question has been submitted
+                        result = st.session_state.question_results.get(i, {})
+                        is_correct = result.get("is_correct", False)
+                        if is_correct:
+                            button_text = f"✅{i+1}"  # Submitted and correct
                             button_type = "primary"
+                        else:
+                            button_text = f"❌{i+1}"  # Submitted but incorrect
+                            button_type = "secondary"
                     else:
+                        # Question not yet submitted
                         if i in st.session_state.flagged_questions:
                             button_text = f"🚩{i+1}"
                             button_type = "secondary"
@@ -486,41 +600,137 @@ def show_exam_navigation(user: Dict[str, Any], total_questions: int):
                         st.session_state.current_question = i
                         st.rerun()
 
-    # Review and Submit buttons
+    # Review and Finish buttons
     with col4:
         if st.button("📋 Review", use_container_width=True):
             show_review_modal()
 
     with col5:
-        if st.button("✅ Submit", type="primary", use_container_width=True):
-            submit_exam(user)
+        # Only show Finish Exam button when all questions are submitted
+        all_submitted = len(st.session_state.submitted_questions) == total_questions
+        if all_submitted:
+            if st.button("🏁 Finish Exam", type="primary", use_container_width=True):
+                finish_exam(user)
+        else:
+            remaining = total_questions - len(st.session_state.submitted_questions)
+            st.button(f"⏳ {remaining} left", disabled=True, use_container_width=True)
 
 
 def show_review_modal():
     """Show exam review in a modal"""
     with st.expander("📋 Exam Review", expanded=True):
-        st.markdown("### Review Your Answers")
+        st.markdown("### Review Your Progress")
 
-        answered = len(st.session_state.answers)
+        submitted = len(st.session_state.submitted_questions)
         total = len(st.session_state.questions)
         flagged = len(st.session_state.flagged_questions)
 
-        col1, col2, col3 = st.columns(3)
+        # Calculate current score from submitted questions
+        correct = sum(1 for result in st.session_state.question_results.values() if result.get("is_correct", False))
+
+        col1, col2, col3, col4 = st.columns(4)
 
         with col1:
-            st.metric("Answered", f"{answered}/{total}")
+            st.metric("Submitted", f"{submitted}/{total}")
 
         with col2:
-            st.metric("Unanswered", total - answered)
+            st.metric("Remaining", total - submitted)
 
         with col3:
+            st.metric("Correct So Far", correct)
+
+        with col4:
             st.metric("Flagged", flagged)
 
-        if answered < total:
-            st.warning(f"⚠️ You have {total - answered} unanswered questions")
+        if submitted < total:
+            st.warning(f"⚠️ You have {total - submitted} questions remaining to submit")
 
         if flagged > 0:
             st.info(f"🚩 You have {flagged} flagged questions to review")
+
+        if submitted > 0:
+            current_score = (correct / submitted) * 100
+            st.info(f"📊 Current Score: {current_score:.1f}% ({correct}/{submitted} correct)")
+
+
+def finish_exam(user: Dict[str, Any]):
+    """Finish the exam and save aggregated results from individual question submissions"""
+    try:
+        if not st.session_state.current_mock or not st.session_state.questions:
+            st.error("Exam data not found")
+            return
+
+        # All questions should be submitted by this point
+        total_questions = len(st.session_state.questions)
+        if len(st.session_state.submitted_questions) < total_questions:
+            st.error("Please submit all questions before finishing the exam")
+            return
+
+        # Aggregate results from individual question submissions
+        correct_answers = sum(
+            1 for result in st.session_state.question_results.values() if result.get("is_correct", False)
+        )
+
+        # Build detailed results in the expected format
+        detailed_results = []
+        for i in range(total_questions):
+            result = st.session_state.question_results[i]
+            detailed_results.append({
+                "question_index": i,
+                "question": result["question"],
+                "user_answer": result["user_answer"],
+                "correct_answer": result["correct_answer"],
+                "is_correct": result["is_correct"],
+                "choices": result["choices"],
+            })
+
+        # Calculate score
+        score = (correct_answers / total_questions) * 100 if total_questions > 0 else 0
+
+        # Calculate time taken
+        time_taken = None
+        if st.session_state.start_time:
+            time_taken = (datetime.now() - st.session_state.start_time).total_seconds()
+
+        # Save attempt to database
+        mock_id = (
+            st.session_state.current_mock.get("pool_id") or st.session_state.current_mock["id"]
+        )
+
+        attempt_data = {
+            "user_id": user["id"],
+            "mock_id": mock_id,
+            "user_answers": st.session_state.answers,
+            "score": score,
+            "correct_answers": correct_answers,
+            "total_questions": total_questions,
+            "time_taken": int(time_taken) if time_taken else None,
+            "detailed_results": detailed_results,
+            "status": "completed",
+        }
+
+        attempt = run_async(db.create_attempt(**attempt_data))
+
+        if attempt:
+            # Store results in session state
+            st.session_state.exam_results = {
+                "attempt_id": attempt.id,
+                "score": score,
+                "correct_answers": correct_answers,
+                "total_questions": total_questions,
+                "time_taken": time_taken,
+                "detailed_results": detailed_results,
+                "auto_submit": False,
+            }
+
+            st.session_state.exam_state = "completed"
+            st.success("🎉 Exam finished! Showing your results...")
+            st.rerun()
+        else:
+            st.error("Failed to save exam results. Please try again.")
+
+    except Exception as e:
+        st.error(f"Error finishing exam: {e}")
 
 
 def submit_exam(user: Dict[str, Any], auto_submit: bool = False):
@@ -756,6 +966,8 @@ def reset_exam_state():
         "questions",
         "time_limit",
         "flagged_questions",
+        "submitted_questions",
+        "question_results",
         "exam_results",
     ]
 

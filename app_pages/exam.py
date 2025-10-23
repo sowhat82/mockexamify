@@ -384,13 +384,14 @@ def submit_single_question(question_index: int):
     # Check if correct
     is_correct = user_answer == correct_index
 
-    # Store result
+    # Store result with explanation
     st.session_state.question_results[question_index] = {
         "is_correct": is_correct,
         "user_answer": user_answer,
         "correct_answer": correct_index,
         "question": question.get("question", ""),
         "choices": question.get("choices", []),
+        "explanation": question.get("explanation_template", ""),  # AI-generated explanation
     }
 
     # Mark as submitted
@@ -508,6 +509,19 @@ def display_question(question: Dict[str, Any], question_index: int, user: Dict[s
                     """,
                     unsafe_allow_html=True,
                 )
+
+        # Show AI-generated explanation for incorrect answers
+        if not is_correct and result.get("explanation"):
+            st.markdown("---")
+            st.markdown("### 💡 Explanation")
+            st.markdown(
+                f"""
+                <div style="background: #e7f3ff; padding: 1.5rem; border-radius: 0.5rem; border-left: 4px solid #2196F3; color: #000000;">
+                    {result["explanation"]}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
     else:
         # Question not yet submitted - show interactive form

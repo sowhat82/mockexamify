@@ -11,6 +11,7 @@ import bcrypt
 
 import config
 from models import AttemptResponse, Mock, QuestionSchema, Ticket, User
+from openrouter_utils import generate_explanation
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -1322,7 +1323,7 @@ class DatabaseManager:
     async def add_questions_to_pool(
         self, pool_id: str, questions: List[Dict[str, Any]], source_file: str, batch_id: str
     ) -> bool:
-        """Add questions to pool with duplicate tracking"""
+        """Add questions to pool with duplicate tracking and AI explanation generation"""
         try:
             if self.demo_mode:
                 # Demo mode - just return success
@@ -1331,13 +1332,34 @@ class DatabaseManager:
             # Prepare questions for insertion
             questions_to_insert = []
 
-            for q in questions:
+            logger.info(f"Generating AI explanations for {len(questions)} questions...")
+
+            for idx, q in enumerate(questions):
+                # Generate AI explanation if not already present
+                explanation = q.get("explanation")
+
+                if not explanation or explanation == q.get("explanation_seed"):
+                    try:
+                        logger.info(f"Generating explanation for question {idx + 1}/{len(questions)}")
+                        explanation = await generate_explanation(
+                            question=q["question"],
+                            choices=q["choices"],
+                            correct_index=q["correct_index"],
+                            scenario=q.get("scenario", ""),
+                            explanation_seed=q.get("explanation_seed", "")
+                        )
+                    except Exception as e:
+                        logger.error(f"Error generating explanation for question {idx + 1}: {e}")
+                        # Use fallback explanation
+                        correct_choice = q["choices"][q["correct_index"]]
+                        explanation = f"The correct answer is: {correct_choice}"
+
                 question_data = {
                     "pool_id": pool_id,
                     "question_text": q["question"],
                     "choices": json.dumps(q["choices"]),
                     "correct_answer": q["correct_index"],
-                    "explanation": q.get("explanation_seed"),
+                    "explanation": explanation,  # Store full AI-generated explanation
                     "source_file": source_file,
                     "upload_batch_id": batch_id,
                     "is_duplicate": q.get("is_duplicate", False),
@@ -1351,6 +1373,8 @@ class DatabaseManager:
                     question_data["topic_tags"] = json.dumps([{"scenario": q["scenario"]}])
 
                 questions_to_insert.append(question_data)
+
+            logger.info(f"AI explanation generation complete for {len(questions)} questions")
 
             # Batch insert all questions
             if questions_to_insert:

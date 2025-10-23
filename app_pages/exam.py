@@ -541,6 +541,7 @@ def show_exam_navigation(user: Dict[str, Any], total_questions: int):
     """Display navigation controls for the exam"""
     current_q = st.session_state.current_question
 
+    # Updated layout: Question Navigator hidden, so using 4 columns instead of 5
     col1, col2, col3, col4, col5 = st.columns([1, 1, 2, 1, 1])
 
     # Previous button
@@ -561,47 +562,48 @@ def show_exam_navigation(user: Dict[str, Any], total_questions: int):
         else:
             st.button("Next ➡️", disabled=True, use_container_width=True)
 
-    # Question navigator
-    with col3:
-        # CSS to make expander text black
-        st.markdown(
-            """
-            <style>
-            [data-testid="stExpander"] summary p {
-                color: #000000 !important;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-        with st.expander("🗺️ Question Navigator", expanded=False):
-            cols = st.columns(5)
-            for i in range(total_questions):
-                col_index = i % 5
-                with cols[col_index]:
-                    # Determine button style based on submission status
-                    if i in st.session_state.submitted_questions:
-                        # Question has been submitted
-                        result = st.session_state.question_results.get(i, {})
-                        is_correct = result.get("is_correct", False)
-                        if is_correct:
-                            button_text = f"✅{i+1}"  # Submitted and correct
-                            button_type = "primary"
-                        else:
-                            button_text = f"❌{i+1}"  # Submitted but incorrect
-                            button_type = "secondary"
-                    else:
-                        # Question not yet submitted
-                        if i in st.session_state.flagged_questions:
-                            button_text = f"🚩{i+1}"
-                            button_type = "secondary"
-                        else:
-                            button_text = f"⚪{i+1}"
-                            button_type = "primary"
-
-                    if st.button(button_text, key=f"nav_{i}", use_container_width=True):
-                        st.session_state.current_question = i
-                        st.rerun()
+    # FEATURE HIDDEN: Question navigator
+    # Hiding for future release - uncomment to enable
+    # with col3:
+    #     # CSS to make expander text black
+    #     st.markdown(
+    #         """
+    #         <style>
+    #         [data-testid="stExpander"] summary p {
+    #             color: #000000 !important;
+    #         }
+    #         </style>
+    #         """,
+    #         unsafe_allow_html=True,
+    #     )
+    #     with st.expander("🗺️ Question Navigator", expanded=False):
+    #         cols = st.columns(5)
+    #         for i in range(total_questions):
+    #             col_index = i % 5
+    #             with cols[col_index]:
+    #                 # Determine button style based on submission status
+    #                 if i in st.session_state.submitted_questions:
+    #                     # Question has been submitted
+    #                     result = st.session_state.question_results.get(i, {})
+    #                     is_correct = result.get("is_correct", False)
+    #                     if is_correct:
+    #                         button_text = f"✅{i+1}"  # Submitted and correct
+    #                         button_type = "primary"
+    #                     else:
+    #                         button_text = f"❌{i+1}"  # Submitted but incorrect
+    #                         button_type = "secondary"
+    #                 else:
+    #                     # Question not yet submitted
+    #                     if i in st.session_state.flagged_questions:
+    #                         button_text = f"🚩{i+1}"
+    #                         button_type = "secondary"
+    #                     else:
+    #                         button_text = f"⚪{i+1}"
+    #                         button_type = "primary"
+    #
+    #                 if st.button(button_text, key=f"nav_{i}", use_container_width=True):
+    #                     st.session_state.current_question = i
+    #                     st.rerun()
 
     # Review and Finish buttons
     with col4:

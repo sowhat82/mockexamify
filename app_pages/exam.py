@@ -1151,29 +1151,34 @@ def show_exit_confirmation_modal(user: Dict[str, Any]):
     else:
         estimated_refund = 0
 
-    # Display warning with white text
+    # Add CSS to force white text in warning box
     st.markdown(
-        f"""
-        <div style="background-color: #856404; padding: 1.5rem; border-radius: 0.5rem; border-left: 4px solid #ffc107; color: #ffffff;">
-            <h3 style="color: #ffffff; margin-top: 0;">Are you sure you want to exit this exam?</h3>
-
-            <p style="color: #ffffff;"><strong>Current Progress:</strong></p>
-            <ul style="color: #ffffff;">
-                <li>✅ Questions submitted: {questions_submitted}/{total_questions}</li>
-                <li>❌ Questions remaining: {unattempted}</li>
-            </ul>
-
-            <p style="color: #ffffff;"><strong>Refund Policy:</strong></p>
-            <ul style="color: #ffffff;">
-                <li>Credits are refunded for unattempted questions in blocks of 10 (rounded down)</li>
-                <li>Unattempted blocks: <strong>{unattempted_blocks}</strong> blocks of 10</li>
-                <li>Estimated refund: <strong>{estimated_refund}</strong> credits</li>
-            </ul>
-
-            <p style="color: #ffffff;"><strong>⚠️ Warning:</strong> Your submitted answers will be marked as abandoned and you cannot resume this exam.</p>
-        </div>
+        """
+        <style>
+        .stAlert p, .stAlert div, .stAlert ul, .stAlert li, .stAlert strong {
+            color: #ffffff !important;
+        }
+        </style>
         """,
         unsafe_allow_html=True,
+    )
+
+    # Display warning with white text
+    st.warning(
+        f"""
+        ### Are you sure you want to exit this exam?
+
+        **Current Progress:**
+        - ✅ Questions submitted: {questions_submitted}/{total_questions}
+        - ❌ Questions remaining: {unattempted}
+
+        **Refund Policy:**
+        - Credits are refunded for unattempted questions in blocks of 10 (rounded down)
+        - Unattempted blocks: **{unattempted_blocks}** blocks of 10
+        - Estimated refund: **{estimated_refund}** credits
+
+        **⚠️ Warning:** Your submitted answers will be marked as abandoned and you cannot resume this exam.
+        """
     )
 
     col1, col2, col3 = st.columns([1, 1, 1])

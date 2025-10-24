@@ -26,7 +26,7 @@ def show_contact_support():
     st.markdown("# 💬 Contact Support")
     st.markdown("*We're here to help! Get answers to your questions and resolve any issues.*")
 
-    # Add CSS to hide empty containers and loading skeletons
+    # Add CSS to hide all contact support content
     st.markdown(
         """
         <style>
@@ -44,6 +44,22 @@ def show_contact_support():
         }
         /* Hide placeholder boxes */
         .stTabs [data-baseweb="tab-panel"] > div[class*="css"] > div:first-child:not(:has(form)):not(:has(h3)) {
+            display: none !important;
+        }
+        /* Hide all contact support form elements */
+        section[data-testid="stSidebar"] {
+            display: none !important;
+        }
+        header[data-testid="stHeader"] {
+            display: none !important;
+        }
+        .stTabs {
+            display: none !important;
+        }
+        .stMarkdown h1, .stMarkdown h3 {
+            display: none !important;
+        }
+        .stForm {
             display: none !important;
         }
         </style>
@@ -141,14 +157,6 @@ def show_submit_ticket_form(user: Dict[str, Any]):
             help="Select the category that best describes your issue",
         )
 
-        # Priority level
-        priority = st.selectbox(
-            "🚨 Priority Level",
-            ["Low", "Medium", "High", "Urgent"],
-            index=1,
-            help="How urgent is your issue?",
-        )
-
         # Subject
         subject = st.text_input(
             "📝 Subject",
@@ -206,7 +214,6 @@ def show_submit_ticket_form(user: Dict[str, Any]):
                     "user_id": user["id"],
                     "user_email": user["email"],
                     "category": category,
-                    "priority": priority,
                     "subject": subject,
                     "description": description,
                     "browser": browser,
@@ -508,7 +515,6 @@ def show_user_tickets(user: Dict[str, Any]):
 def show_ticket_card(ticket: Dict[str, Any]):
     """Display individual ticket card"""
     status = ticket.get("status", "Open")
-    priority = ticket.get("priority", "Medium")
     created_at = ticket.get("created_at", "")
     subject = ticket.get("subject", "No subject")
     category = ticket.get("category", "General")
@@ -523,11 +529,7 @@ def show_ticket_card(ticket: Dict[str, Any]):
         "Closed": "#95a5a6",
     }
 
-    # Priority emojis
-    priority_emojis = {"Low": "🟢", "Medium": "🟡", "High": "🟠", "Urgent": "🔴"}
-
     status_color = status_colors.get(status, "#95a5a6")
-    priority_emoji = priority_emojis.get(priority, "🟡")
 
     # Format date
     try:
@@ -555,9 +557,6 @@ def show_ticket_card(ticket: Dict[str, Any]):
                 <div style="text-align: right;">
                     <div style="background: {status_color}; color: white; padding: 0.3rem 0.8rem; border-radius: 1rem; font-size: 0.8rem; font-weight: bold;">
                         {status}
-                    </div>
-                    <div style="margin-top: 0.5rem; font-size: 0.9rem;">
-                        {priority_emoji} {priority} Priority
                     </div>
                 </div>
             </div>

@@ -26,6 +26,23 @@ def show_contact_support():
     st.markdown("# 💬 Contact Support")
     st.markdown("*We're here to help! Get answers to your questions and resolve any issues.*")
 
+    # Add CSS to hide empty containers
+    st.markdown(
+        """
+        <style>
+        /* Hide empty containers/divs */
+        div:empty {
+            display: none !important;
+        }
+        /* Hide containers with only whitespace */
+        .stTabs [data-baseweb="tab-panel"] > div:not(:has(*:not(:empty))) {
+            display: none !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     # Tab layout for different support options - hide FAQ and Help Center for students
     is_admin = user.get("role") == "admin"
 

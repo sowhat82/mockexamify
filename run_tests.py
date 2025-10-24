@@ -79,30 +79,30 @@ def check_dependencies():
     print_section("Dependency Check")
     
     required_packages = [
-        "pytest",
-        "pytest-asyncio", 
-        "fastapi",
-        "streamlit",
-        "supabase",
-        "stripe",
-        "httpx",
-        "pydantic",
-        "psutil",
-        "scipy",
-        "bleach",
-        "PyPDF2",
-        "python-docx"
+        ("pytest", "pytest"),
+        ("pytest-asyncio", "pytest_asyncio"),
+        ("fastapi", "fastapi"),
+        ("streamlit", "streamlit"),
+        ("supabase", "supabase"),
+        ("stripe", "stripe"),
+        ("httpx", "httpx"),
+        ("pydantic", "pydantic"),
+        ("psutil", "psutil"),
+        ("scipy", "scipy"),
+        ("bleach", "bleach"),
+        ("PyPDF2", "PyPDF2"),
+        ("python-docx", "docx")
     ]
-    
+
     missing_packages = []
-    
-    for package in required_packages:
+
+    for package_name, import_name in required_packages:
         try:
-            __import__(package.replace("-", "_"))
-            print(f"✅ {package}")
+            __import__(import_name)
+            print(f"✅ {package_name}")
         except ImportError:
-            print(f"❌ {package} - Not installed")
-            missing_packages.append(package)
+            print(f"❌ {package_name} - Not installed")
+            missing_packages.append(package_name)
     
     if missing_packages:
         print(f"\n📦 Install missing packages:")

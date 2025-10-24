@@ -502,7 +502,10 @@ class DatabaseManager:
     ) -> Optional[AttemptResponse]:
         """Create a new attempt with enhanced parameters"""
         try:
-            if self.demo_mode:
+            # Check if this is a demo user (even in production mode)
+            is_demo_user = any(user_data["id"] == user_id for user_data in DEMO_USERS.values())
+
+            if self.demo_mode or is_demo_user:
                 # Demo mode - add to demo attempts
                 attempt_id = f"demo-attempt-{len(DEMO_ATTEMPTS)}"
                 attempt_data = {
@@ -524,7 +527,7 @@ class DatabaseManager:
                     id=attempt_id,
                     user_id=user_id,
                     mock_id=mock_id,
-                    user_answers=user_answers,
+                    user_answers=list(user_answers.values()) if user_answers else [],
                     score=score or 0,
                     total_questions=total_questions or 0,
                     correct_answers=correct_answers or 0,
@@ -693,6 +696,12 @@ class DatabaseManager:
     async def get_abandoned_attempts(self, user_id: str) -> List[Dict[str, Any]]:
         """Get all in-progress attempts for a user that should be considered abandoned"""
         try:
+            # Check if this is a demo user - demo users don't have database attempts
+            is_demo_user = any(user_data["id"] == user_id for user_data in DEMO_USERS.values())
+            if is_demo_user:
+                # Demo users use in-memory attempts
+                return [a for a in DEMO_ATTEMPTS if a.get("user_id") == user_id and a.get("status") == "in_progress"]
+
             result = (
                 self.client.table("attempts")
                 .select("*")

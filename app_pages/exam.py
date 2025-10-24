@@ -124,8 +124,8 @@ def show_exam_selection(user: Dict[str, Any]):
         user_data = run_async(db.get_user_by_id(user["id"]))
         credits = user_data.credits_balance if user_data else 0
 
-        # Credits display
-        col1, col2, col3 = st.columns([2, 1, 1])
+        # Credits display and navigation buttons
+        col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
         with col1:
             st.markdown(
                 f"""
@@ -138,11 +138,16 @@ def show_exam_selection(user: Dict[str, Any]):
             )
 
         with col2:
+            if st.button("🏠 Dashboard", use_container_width=True, type="primary"):
+                st.session_state.page = "dashboard"
+                st.rerun()
+
+        with col3:
             if st.button("💳 Buy Credits", use_container_width=True):
                 st.session_state.page = "purchase_credits"
                 st.rerun()
 
-        with col3:
+        with col4:
             if st.button("📈 Past Attempts", use_container_width=True):
                 st.session_state.page = "past_attempts"
                 st.rerun()
@@ -218,6 +223,9 @@ def show_exam_selection(user: Dict[str, Any]):
 def start_exam(mock: Dict[str, Any], user: Dict[str, Any]):
     """Initialize and start an exam"""
     try:
+        # Clear any existing exam state to prevent bugs from previous sessions
+        reset_exam_state()
+
         # Parse questions
         if isinstance(mock.get("questions"), str):
             questions = json.loads(mock["questions"])
@@ -281,6 +289,9 @@ def start_exam(mock: Dict[str, Any], user: Dict[str, Any]):
 def start_pool_exam(pool_exam_config: Dict[str, Any], user: Dict[str, Any]):
     """Initialize and start a pool-based exam"""
     try:
+        # Clear any existing exam state to prevent bugs from previous sessions
+        reset_exam_state()
+
         pool_id = pool_exam_config.get("pool_id")
         pool_name = pool_exam_config.get("pool_name")
         question_count = pool_exam_config.get("question_count")
@@ -377,6 +388,11 @@ def show_exam_interface(user: Dict[str, Any]):
     if not st.session_state.current_mock or not st.session_state.questions:
         st.error("Exam data not found")
         reset_exam_state()
+        return
+
+    # Handle exit confirmation modal
+    if st.session_state.get("show_exit_confirmation", False):
+        show_exit_confirmation_modal(user)
         return
 
     mock = st.session_state.current_mock
@@ -644,8 +660,8 @@ def show_exam_navigation(user: Dict[str, Any], total_questions: int):
     """Display navigation controls for the exam"""
     current_q = st.session_state.current_question
 
-    # Updated layout: Question Navigator hidden, so using 4 columns instead of 5
-    col1, col2, col3, col4, col5 = st.columns([1, 1, 2, 1, 1])
+    # Updated layout: Question Navigator hidden, Exit button added
+    col1, col2, col3, col4, col5 = st.columns([1, 1, 1.5, 1, 1])
 
     # Previous button
     with col1:
@@ -665,9 +681,16 @@ def show_exam_navigation(user: Dict[str, Any], total_questions: int):
         else:
             st.button("Next ➡️", disabled=True, use_container_width=True)
 
+    # Exit Exam button
+    with col3:
+        if st.button("🚪 Exit Exam", type="secondary", use_container_width=True):
+            # Show confirmation dialog
+            st.session_state.show_exit_confirmation = True
+            st.rerun()
+
     # FEATURE HIDDEN: Question navigator
     # Hiding for future release - uncomment to enable
-    # with col3:
+    # with col_unused:
     #     # CSS to make expander text black
     #     st.markdown(
     #         """
@@ -1106,6 +1129,101 @@ def show_exam_results(user: Dict[str, Any]):
             )
 
 
+def show_exit_confirmation_modal(user: Dict[str, Any]):
+    """Show confirmation modal when student wants to exit exam"""
+    st.markdown("# ⚠️ Exit Exam Confirmation")
+
+    # Calculate refund information
+    total_questions = len(st.session_state.questions)
+    questions_submitted = len(st.session_state.submitted_questions)
+    unattempted = total_questions - questions_submitted
+    unattempted_blocks = unattempted // 10
+
+    # Get credits info
+    mock = st.session_state.current_mock
+    credits_paid = 1  # Default, will be updated from attempt record
+    if "attempt_id" in st.session_state:
+        # Try to get from demo attempts or calculate
+        credits_paid = 1  # For now, assume 1 credit per exam
+
+    st.warning(
+        f"""
+        ### Are you sure you want to exit this exam?
+
+        **Current Progress:**
+        - ✅ Questions submitted: {questions_submitted}/{total_questions}
+        - ❌ Questions remaining: {unattempted}
+
+        **Refund Policy:**
+        - Credits are refunded for unattempted questions in blocks of 10 (rounded down)
+        - Unattempted blocks: **{unattempted_blocks}** blocks of 10
+        - Estimated refund: **{unattempted_blocks * credits_paid // (total_questions // 10) if total_questions >= 10 else 0}** credits
+
+        **⚠️ Warning:** Your submitted answers will be marked as abandoned and you cannot resume this exam.
+        """
+    )
+
+    col1, col2, col3 = st.columns([1, 1, 1])
+
+    with col1:
+        if st.button("← Go Back to Exam", type="primary", use_container_width=True):
+            st.session_state.show_exit_confirmation = False
+            st.rerun()
+
+    with col2:
+        st.write("")  # Spacing
+
+    with col3:
+        if st.button("🚪 Confirm Exit", type="secondary", use_container_width=True):
+            exit_exam(user)
+
+
+def exit_exam(user: Dict[str, Any]):
+    """Exit exam and process refund"""
+    try:
+        total_questions = len(st.session_state.questions)
+        questions_submitted = len(st.session_state.submitted_questions)
+
+        # Get attempt info
+        attempt_id = st.session_state.get("attempt_id")
+        credits_paid = 1  # Default
+
+        if attempt_id:
+            # Process refund
+            refund_result = run_async(
+                db.process_exit_exam_refund(
+                    attempt_id=attempt_id,
+                    user_id=user["id"],
+                    credits_paid=credits_paid,
+                    questions_submitted=questions_submitted,
+                    total_questions=total_questions,
+                )
+            )
+
+            if refund_result.get("success"):
+                refund_amount = refund_result.get("refund_amount", 0)
+                unattempted_blocks = refund_result.get("unattempted_blocks", 0)
+
+                st.success(
+                    f"✅ Exam exited successfully!\n\n"
+                    f"📊 Progress: {questions_submitted}/{total_questions} questions submitted\n\n"
+                    f"💰 Refund: {refund_amount} credits ({unattempted_blocks} blocks of 10 unattempted questions)"
+                )
+            else:
+                st.warning("Exam exited, but refund processing failed. Please contact support.")
+
+        # Clear exam state and navigate to dashboard
+        reset_exam_state()
+        st.session_state.page = "dashboard"
+        st.rerun()
+
+    except Exception as e:
+        st.error(f"Error exiting exam: {e}")
+        reset_exam_state()
+        st.session_state.page = "dashboard"
+        st.rerun()
+
+
 def reset_exam_state():
     """Reset all exam-related session state"""
     keys_to_reset = [
@@ -1115,12 +1233,14 @@ def reset_exam_state():
         "current_question",
         "start_time",
         "exam_id",
+        "attempt_id",
         "questions",
         "time_limit",
         "flagged_questions",
         "submitted_questions",
         "question_results",
         "exam_results",
+        "show_exit_confirmation",  # Clear exit confirmation modal flag
     ]
 
     for key in keys_to_reset:

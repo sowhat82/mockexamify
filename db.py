@@ -676,6 +676,24 @@ class DatabaseManager:
     ) -> bool:
         """Update attempt status and optionally score/correct_answers"""
         try:
+            # Check if this is a demo attempt
+            is_demo_attempt = attempt_id.startswith("demo-attempt-")
+
+            if is_demo_attempt:
+                # Update in-memory demo attempts
+                for attempt in DEMO_ATTEMPTS:
+                    if attempt.get("id") == attempt_id:
+                        attempt["status"] = status
+                        if score is not None:
+                            attempt["score"] = score
+                        if correct_answers is not None:
+                            attempt["correct_answers"] = correct_answers
+                        logger.info(f"Demo attempt {attempt_id} status updated to {status}")
+                        return True
+                logger.warning(f"Demo attempt {attempt_id} not found in DEMO_ATTEMPTS")
+                return True  # Still return success for demo mode
+
+            # Production mode: update in database
             update_data = {"status": status}
             if score is not None:
                 update_data["score"] = score
@@ -751,6 +769,61 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error processing abandoned attempt refund: {e}")
             return False
+
+    async def process_exit_exam_refund(
+        self, attempt_id: str, user_id: str, credits_paid: int, questions_submitted: int, total_questions: int
+    ) -> Dict[str, Any]:
+        """Process block-of-10 refund when student exits exam voluntarily
+
+        Refund logic: Refund credits for unattempted questions in blocks of 10, rounded down
+        Example: 40 questions, 15 submitted → 25 unattempted → 2 blocks of 10 → refund 2/4 = 0.5 credits
+        """
+        try:
+            # Calculate unattempted questions
+            unattempted_questions = total_questions - questions_submitted
+
+            # Calculate blocks of 10 (round down)
+            unattempted_blocks = unattempted_questions // 10
+            total_blocks = total_questions // 10
+
+            # Calculate refund amount
+            if total_blocks > 0 and unattempted_blocks > 0:
+                refund_amount = (credits_paid * unattempted_blocks) / total_blocks
+            else:
+                refund_amount = 0
+
+            logger.info(
+                f"Exit exam refund for attempt {attempt_id}: "
+                f"{questions_submitted}/{total_questions} submitted, "
+                f"{unattempted_questions} unattempted, "
+                f"{unattempted_blocks} blocks of 10, "
+                f"refunding {refund_amount:.2f} credits (paid {credits_paid})"
+            )
+
+            # Process refund if amount is significant
+            refund_processed = False
+            if refund_amount > 0.01:
+                success = await self.add_credits_to_user(user_id, int(round(refund_amount)))
+                if success:
+                    refund_processed = True
+                    logger.info(f"Refunded {int(round(refund_amount))} credits to user {user_id}")
+                else:
+                    logger.error(f"Failed to refund credits for attempt {attempt_id}")
+
+            # Mark attempt as abandoned
+            await self.update_attempt_status(attempt_id, "abandoned")
+
+            return {
+                "success": True,
+                "refund_processed": refund_processed,
+                "refund_amount": int(round(refund_amount)),
+                "unattempted_questions": unattempted_questions,
+                "unattempted_blocks": unattempted_blocks,
+            }
+
+        except Exception as e:
+            logger.error(f"Error processing exit exam refund: {e}")
+            return {"success": False, "error": str(e)}
 
     # Support Tickets
     async def create_ticket(self, user_id: str, subject: str, message: str) -> Optional[Ticket]:
@@ -1033,14 +1106,16 @@ class DatabaseManager:
     async def add_credits_to_user(self, user_id: str, credits_to_add: int) -> bool:
         """Add credits to user account"""
         try:
-            if self.demo_mode:
-                # Update demo user data
-                for email, user_data in DEMO_USERS.items():
-                    if user_data["id"] == user_id:
-                        user_data["credits_balance"] += credits_to_add
-                        return True
-                return False
+            # Check if this is a demo user (even in production mode)
+            for email, user_data in DEMO_USERS.items():
+                if user_data["id"] == user_id:
+                    user_data["credits_balance"] += credits_to_add
+                    logger.info(
+                        f"Demo user {email} credits added: +{credits_to_add}, new balance: {user_data['credits_balance']}"
+                    )
+                    return True
 
+            # Production user - update in database
             # Get current user credits
             result = (
                 self.client.table("users").select("credits_balance").eq("id", user_id).execute()

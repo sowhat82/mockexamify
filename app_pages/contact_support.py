@@ -60,7 +60,7 @@ def show_contact_support():
 def show_submit_ticket_form(user: Dict[str, Any]):
     """Display ticket submission form"""
 
-    # Add CSS to ensure all text is black
+    # Add CSS to ensure all text is black except buttons
     st.markdown(
         """
         <style>
@@ -88,6 +88,10 @@ def show_submit_ticket_form(user: Dict[str, Any]):
         }
         .stForm label {
             color: #000000 !important;
+        }
+        /* Keep file upload button text white */
+        .stFileUploader button {
+            color: #ffffff !important;
         }
         </style>
         """,

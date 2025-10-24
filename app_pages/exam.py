@@ -1144,6 +1144,13 @@ def show_exit_confirmation_modal(user: Dict[str, Any]):
     mock = st.session_state.current_mock
     credits_paid = mock.get("price_credits", 1) if isinstance(mock, dict) else getattr(mock, "price_credits", 1)
 
+    # Calculate refund using same formula as backend
+    if total_questions > 0 and unattempted_blocks > 0:
+        cost_per_question = credits_paid / total_questions
+        estimated_refund = int(round(cost_per_question * 10 * unattempted_blocks))
+    else:
+        estimated_refund = 0
+
     st.warning(
         f"""
         ### Are you sure you want to exit this exam?
@@ -1155,7 +1162,7 @@ def show_exit_confirmation_modal(user: Dict[str, Any]):
         **Refund Policy:**
         - Credits are refunded for unattempted questions in blocks of 10 (rounded down)
         - Unattempted blocks: **{unattempted_blocks}** blocks of 10
-        - Estimated refund: **{unattempted_blocks * credits_paid // (total_questions // 10) if total_questions >= 10 else 0}** credits
+        - Estimated refund: **{estimated_refund}** credits
 
         **⚠️ Warning:** Your submitted answers will be marked as abandoned and you cannot resume this exam.
         """

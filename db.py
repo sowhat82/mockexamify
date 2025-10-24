@@ -776,7 +776,9 @@ class DatabaseManager:
         """Process block-of-10 refund when student exits exam voluntarily
 
         Refund logic: Refund credits for unattempted questions in blocks of 10, rounded down
-        Example: 40 questions, 15 submitted → 25 unattempted → 2 blocks of 10 → refund 2/4 = 0.5 credits
+        Cost per question × 10 questions per block × number of unattempted blocks
+        Example: 49 questions (5 credits), 1 submitted → 48 unattempted → 4 blocks of 10
+                 → refund: (5/49) × 10 × 4 = 4.08 credits → rounds to 4 credits
         """
         try:
             # Calculate unattempted questions
@@ -784,11 +786,12 @@ class DatabaseManager:
 
             # Calculate blocks of 10 (round down)
             unattempted_blocks = unattempted_questions // 10
-            total_blocks = total_questions // 10
 
-            # Calculate refund amount
-            if total_blocks > 0 and unattempted_blocks > 0:
-                refund_amount = (credits_paid * unattempted_blocks) / total_blocks
+            # Calculate refund: cost per question × 10 questions per block × number of blocks
+            # This correctly handles exams with question counts not divisible by 10
+            if total_questions > 0 and unattempted_blocks > 0:
+                cost_per_question = credits_paid / total_questions
+                refund_amount = cost_per_question * 10 * unattempted_blocks
             else:
                 refund_amount = 0
 

@@ -353,6 +353,7 @@ def start_pool_exam(pool_exam_config: Dict[str, Any], user: Dict[str, Any]):
             "is_pool_exam": True,  # Flag to identify pool-based exams
             "pool_id": pool_id,
             "category": pool_exam_config.get("category", "General"),
+            "price_credits": credits_needed,  # Store actual credits paid for refund calculation
         }
 
         # Initialize exam session
@@ -1139,12 +1140,9 @@ def show_exit_confirmation_modal(user: Dict[str, Any]):
     unattempted = total_questions - questions_submitted
     unattempted_blocks = unattempted // 10
 
-    # Get credits info
+    # Get credits info from current mock
     mock = st.session_state.current_mock
-    credits_paid = 1  # Default, will be updated from attempt record
-    if "attempt_id" in st.session_state:
-        # Try to get from demo attempts or calculate
-        credits_paid = 1  # For now, assume 1 credit per exam
+    credits_paid = mock.get("price_credits", 1) if isinstance(mock, dict) else getattr(mock, "price_credits", 1)
 
     st.warning(
         f"""
@@ -1184,9 +1182,10 @@ def exit_exam(user: Dict[str, Any]):
         total_questions = len(st.session_state.questions)
         questions_submitted = len(st.session_state.submitted_questions)
 
-        # Get attempt info
+        # Get attempt info and actual credits paid
         attempt_id = st.session_state.get("attempt_id")
-        credits_paid = 1  # Default
+        mock = st.session_state.current_mock
+        credits_paid = mock.get("price_credits", 1) if isinstance(mock, dict) else getattr(mock, "price_credits", 1)
 
         if attempt_id:
             # Process refund
@@ -1203,6 +1202,10 @@ def exit_exam(user: Dict[str, Any]):
             if refund_result.get("success"):
                 refund_amount = refund_result.get("refund_amount", 0)
                 unattempted_blocks = refund_result.get("unattempted_blocks", 0)
+
+                # Update session state credits balance for UI display
+                if "current_user" in st.session_state and refund_amount > 0:
+                    st.session_state.current_user["credits_balance"] += refund_amount
 
                 st.success(
                     f"✅ Exam exited successfully!\n\n"

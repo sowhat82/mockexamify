@@ -26,22 +26,35 @@ def show_contact_support():
     st.markdown("# 💬 Contact Support")
     st.markdown("*We're here to help! Get answers to your questions and resolve any issues.*")
 
-    # Tab layout for different support options
-    tab1, tab2, tab3, tab4 = st.tabs(
-        ["🎫 Submit Ticket", "❓ FAQ", "📚 Help Center", "🎤 My Tickets"]
-    )
+    # Tab layout for different support options - hide FAQ and Help Center for students
+    is_admin = user.get("role") == "admin"
 
-    with tab1:
-        show_submit_ticket_form(user)
+    if is_admin:
+        # Admin sees all tabs
+        tab1, tab2, tab3, tab4 = st.tabs(
+            ["🎫 Submit Ticket", "❓ FAQ", "📚 Help Center", "🎤 My Tickets"]
+        )
 
-    with tab2:
-        show_faq_section()
+        with tab1:
+            show_submit_ticket_form(user)
 
-    with tab3:
-        show_help_center()
+        with tab2:
+            show_faq_section()
 
-    with tab4:
-        show_user_tickets(user)
+        with tab3:
+            show_help_center()
+
+        with tab4:
+            show_user_tickets(user)
+    else:
+        # Students only see Submit Ticket and My Tickets
+        tab1, tab2 = st.tabs(["🎫 Submit Ticket", "🎤 My Tickets"])
+
+        with tab1:
+            show_submit_ticket_form(user)
+
+        with tab2:
+            show_user_tickets(user)
 
 
 def show_submit_ticket_form(user: Dict[str, Any]):

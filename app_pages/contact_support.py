@@ -116,7 +116,6 @@ def show_submit_ticket_form(user: Dict[str, Any]):
     )
 
     st.markdown("### 🎫 Submit a Support Ticket")
-    st.markdown("*Fill out the form below and we'll get back to you within 24 hours.*")
 
     with st.form("support_ticket_form"):
         # Ticket category

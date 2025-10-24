@@ -26,7 +26,7 @@ def show_contact_support():
     st.markdown("# 💬 Contact Support")
     st.markdown("*We're here to help! Get answers to your questions and resolve any issues.*")
 
-    # Add CSS to hide empty containers
+    # Add CSS to hide empty containers and loading skeletons
     st.markdown(
         """
         <style>
@@ -36,6 +36,14 @@ def show_contact_support():
         }
         /* Hide containers with only whitespace */
         .stTabs [data-baseweb="tab-panel"] > div:not(:has(*:not(:empty))) {
+            display: none !important;
+        }
+        /* Hide loading skeletons in contact support */
+        [data-testid="stSkeleton"] {
+            display: none !important;
+        }
+        /* Hide placeholder boxes */
+        .stTabs [data-baseweb="tab-panel"] > div[class*="css"] > div:first-child:not(:has(form)):not(:has(h3)) {
             display: none !important;
         }
         </style>

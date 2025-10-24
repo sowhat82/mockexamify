@@ -59,6 +59,41 @@ def show_contact_support():
 
 def show_submit_ticket_form(user: Dict[str, Any]):
     """Display ticket submission form"""
+
+    # Add CSS to ensure all text is black
+    st.markdown(
+        """
+        <style>
+        /* Force all form text to black */
+        .stMarkdown h3, .stMarkdown p, .stMarkdown em {
+            color: #000000 !important;
+        }
+        .stTextInput label, .stTextArea label, .stSelectbox label, .stFileUploader label {
+            color: #000000 !important;
+        }
+        .stTextInput input, .stTextArea textarea {
+            color: #000000 !important;
+        }
+        .stTextInput input::placeholder, .stTextArea textarea::placeholder {
+            color: #666666 !important;
+        }
+        .stCheckbox label {
+            color: #000000 !important;
+        }
+        .stCheckbox label p {
+            color: #000000 !important;
+        }
+        .stForm {
+            color: #000000 !important;
+        }
+        .stForm label {
+            color: #000000 !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     st.markdown("### 🎫 Submit a Support Ticket")
     st.markdown("*Fill out the form below and we'll get back to you within 24 hours.*")
 

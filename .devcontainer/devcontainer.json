@@ -34,7 +34,8 @@
         "ms-python.black-formatter",
         "charliermarsh.ruff",
         "github.copilot",
-        "github.copilot-chat"
+        "github.copilot-chat",
+        "genieai.chatgpt-vscode"
       ],
       "settings": {
         "python.defaultInterpreterPath": "${workspaceFolder}/venv/bin/python",

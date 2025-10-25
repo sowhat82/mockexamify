@@ -105,7 +105,7 @@ class StripeUtils:
             
             return True, session.url, None
             
-        except stripe.error.StripeError as e:
+        except stripe.StripeError as e:
             logger.error(f"Stripe error creating session: {e}")
             return False, None, f"Payment error: {str(e)}"
         except Exception as e:
@@ -132,7 +132,7 @@ class StripeUtils:
             else:
                 return False, None, f"Payment not completed. Status: {session.payment_status}"
                 
-        except stripe.error.StripeError as e:
+        except stripe.StripeError as e:
             logger.error(f"Stripe error verifying session: {e}")
             return False, None, f"Payment verification error: {str(e)}"
         except Exception as e:
@@ -179,7 +179,7 @@ class StripeUtils:
                 # Unhandled event type
                 return True, {'type': 'unhandled', 'event_type': event['type']}, None
                 
-        except stripe.error.SignatureVerificationError as e:
+        except stripe.SignatureVerificationError as e:
             logger.error(f"Webhook signature verification failed: {e}")
             return False, None, "Invalid webhook signature"
         except Exception as e:

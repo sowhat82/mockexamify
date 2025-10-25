@@ -209,7 +209,7 @@ def display_package_card(
         st.markdown(
             f"""
         <div style="border: 3px solid {border_color}; border-radius: 1rem; padding: 1.5rem;
-                    margin-bottom: 1rem; background: white; text-align: center;
+                    margin-bottom: 0.5rem; background: white; text-align: center;
                     box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
             <h3 style="color: {border_color}; margin-top: 0;">{package['name']}</h3>
             <div style="font-size: 2.5rem; font-weight: bold; color: #333; margin: 1rem 0;">
@@ -234,7 +234,7 @@ def display_package_card(
             st.markdown(
                 f"""
             <div style="background: #28a745; color: white; padding: 0.5rem; border-radius: 0.5rem;
-                       margin-top: -0.5rem; margin-bottom: 1rem; font-weight: bold; text-align: center;">
+                       margin-bottom: 0.75rem; font-weight: bold; text-align: center;">
                 {savings}
             </div>
             """,
@@ -289,6 +289,9 @@ def display_package_card(
                 st.success("Redirecting to secure payment...")
             else:
                 st.error("Failed to initiate payment. Please try again.")
+
+        # Add large spacing after button to clearly separate from next card
+        st.markdown('<div style="height: 2.5rem;"></div>', unsafe_allow_html=True)
 
 
 def handle_payment_callback():

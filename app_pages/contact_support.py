@@ -436,16 +436,12 @@ def show_user_tickets(user: Dict[str, Any]):
             """
         <div style="text-align: center; padding: 2rem;">
             <div style="font-size: 3rem; margin-bottom: 1rem;">🎫</div>
-            <h4>No Support Tickets</h4>
-            <p style="color: #666;">You haven't submitted any support tickets yet.</p>
+            <h4 style="color: #000000;">No Support Tickets</h4>
+            <p style="color: #000000;">You haven't submitted any support tickets yet.</p>
         </div>
         """,
             unsafe_allow_html=True,
         )
-
-        if st.button("🎫 Submit Your First Ticket", use_container_width=True, type="primary"):
-            st.session_state.support_tab = 0
-            st.rerun()
         return
 
     # Display tickets

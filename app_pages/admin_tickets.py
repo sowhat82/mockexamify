@@ -12,13 +12,38 @@ import config
 from auth_utils import AuthUtils, run_async
 
 
-def show_ticket_detail_modal(ticket=None):
+def show_ticket_detail_modal(ticket=None, key_suffix=""):
     """Display detailed view of a single ticket"""
     if ticket is None:
         ticket = st.session_state.get('viewing_ticket', {})
 
     st.markdown(
         """
+        <style>
+        /* Force all text to black in ticket details */
+        .stMarkdown, .stMarkdown p, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3,
+        .stMarkdown h4, .stMarkdown h5, .stMarkdown h6, .stMarkdown span,
+        .stMarkdown strong, .stMarkdown em, .stMarkdown li, .stMarkdown div {
+            color: #000000 !important;
+        }
+        /* Info boxes text */
+        .stAlert p, .stAlert div, .stAlert span {
+            color: #000000 !important;
+        }
+        /* Expander styling - white background, black text */
+        .streamlit-expanderHeader, .streamlit-expanderContent p {
+            color: #000000 !important;
+        }
+        .streamlit-expanderContent {
+            background-color: #ffffff !important;
+        }
+        [data-testid="stExpander"] {
+            background-color: #ffffff !important;
+        }
+        [data-testid="stExpanderDetails"] {
+            background-color: #ffffff !important;
+        }
+        </style>
         <h2 style="color: black;">🎫 Ticket Details</h2>
         """,
         unsafe_allow_html=True,
@@ -83,24 +108,29 @@ def show_ticket_detail_modal(ticket=None):
     # Action buttons
     col1, col2, col3 = st.columns(3)
 
+    ticket_id = ticket.get("id", "unknown")
+
     with col1:
-        if st.button("💬 Respond to Ticket", use_container_width=True, type="primary"):
+        if st.button("💬 Respond to Ticket", key=f"respond_{ticket_id}_{key_suffix}", use_container_width=True, type="primary"):
             st.session_state.responding_to_ticket = ticket
-            del st.session_state.viewing_ticket
+            if "viewing_ticket" in st.session_state:
+                del st.session_state.viewing_ticket
             st.rerun()
 
     with col2:
         if ticket.get("status") not in ["Resolved", "Closed"]:
-            if st.button("✅ Mark as Resolved", use_container_width=True):
+            if st.button("✅ Mark as Resolved", key=f"resolve_{ticket_id}_{key_suffix}", use_container_width=True):
                 success = run_async(update_ticket_status(ticket.get("id"), "Resolved"))
                 if success:
                     st.success("Ticket marked as resolved!")
-                    del st.session_state.viewing_ticket
+                    if "viewing_ticket" in st.session_state:
+                        del st.session_state.viewing_ticket
                     st.rerun()
 
     with col3:
-        if st.button("🔙 Back to List", use_container_width=True):
-            del st.session_state.viewing_ticket
+        if st.button("🔙 Back to List", key=f"back_{ticket_id}_{key_suffix}", use_container_width=True):
+            if "viewing_ticket" in st.session_state:
+                del st.session_state.viewing_ticket
             st.rerun()
 
 
@@ -200,6 +230,34 @@ def show_admin_tickets():
     if "responding_to_ticket" in st.session_state:
         show_ticket_response_modal()
         return
+
+    # Add global CSS to ensure all text is black
+    st.markdown(
+        """
+        <style>
+        /* Force all text to black globally in admin tickets */
+        .stMarkdown, .stMarkdown p, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3,
+        .stMarkdown h4, .stMarkdown h5, .stMarkdown h6, .stMarkdown span,
+        .stMarkdown strong, .stMarkdown em, .stMarkdown li, .stMarkdown div,
+        .stMarkdown code {
+            color: #000000 !important;
+        }
+        /* Selectbox and input labels */
+        .stSelectbox > label, .stTextInput > label, .stTextArea > label {
+            color: #000000 !important;
+        }
+        /* Tab labels */
+        .stTabs [data-baseweb="tab"] {
+            color: #000000 !important;
+        }
+        /* Info boxes */
+        .stAlert p, .stAlert div, .stAlert span {
+            color: #000000 !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
     # Back button
     if st.button("⬅️ Back to Dashboard", key="back_to_dashboard"):
@@ -523,7 +581,7 @@ def display_ticket_card(
             expanded_key = f"expanded_{ticket_id}"
             if st.session_state.get(expanded_key, False):
                 with st.expander("Ticket Details", expanded=True):
-                    show_ticket_detail_modal(ticket)
+                    show_ticket_detail_modal(ticket, key_suffix=key_prefix)
             if st.button("👁️ View", key=f"{key_prefix}view_{ticket_id}", use_container_width=True):
                 st.session_state[expanded_key] = not st.session_state.get(expanded_key, False)
                 st.rerun()

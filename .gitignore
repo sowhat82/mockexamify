@@ -73,6 +73,9 @@ logs/
 *.db
 *.sqlite3
 
+# Demo data persistence
+.demo_tickets.json
+
 # API keys and secrets
 secrets.json
 credentials.json

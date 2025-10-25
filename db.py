@@ -24,8 +24,29 @@ else:
     logger.info("Running in production mode - connecting to Supabase")
 
 # Demo data for testing
-# In-memory storage for demo tickets
-DEMO_TICKETS = []
+# Persistent storage file for demo tickets
+DEMO_TICKETS_FILE = ".demo_tickets.json"
+
+def load_demo_tickets():
+    """Load demo tickets from persistent storage"""
+    try:
+        with open(DEMO_TICKETS_FILE, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+def save_demo_tickets():
+    """Save demo tickets to persistent storage"""
+    try:
+        with open(DEMO_TICKETS_FILE, 'w') as f:
+            json.dump(DEMO_TICKETS, f, indent=2)
+        logger.info(f"Saved {len(DEMO_TICKETS)} demo tickets to {DEMO_TICKETS_FILE}")
+    except Exception as e:
+        logger.error(f"Error saving demo tickets: {e}")
+
+# Load existing demo tickets on startup
+DEMO_TICKETS = load_demo_tickets()
+logger.info(f"Loaded {len(DEMO_TICKETS)} demo tickets from persistent storage")
 
 DEMO_USERS = {
     "admin@wantamock.com": {
@@ -62,7 +83,7 @@ DEMO_USERS = {
         "password_hash": bcrypt.hashpw("password".encode("utf-8"), bcrypt.gensalt()).decode(
             "utf-8"
         ),
-        "credits_balance": 10,
+        "credits_balance": 3,
         "role": "user",
         "created_at": datetime.now(timezone.utc).isoformat(),
     },
@@ -203,7 +224,7 @@ class DatabaseManager:
                     {
                         "email": email,
                         "password_hash": hashed_password.decode("utf-8"),
-                        "credits_balance": 5,  # Give new users 5 free credits
+                        "credits_balance": 1,  # Give new users 1 free trial credit
                         "role": "user",
                         "created_at": datetime.now(timezone.utc).isoformat(),
                     }
@@ -276,6 +297,19 @@ class DatabaseManager:
             result = self.client.table("users").select("*").eq("email", email).execute()
 
             if not result.data:
+                # Check if this is a demo user (hybrid mode)
+                if email in DEMO_USERS:
+                    user_data = DEMO_USERS[email]
+                    if bcrypt.checkpw(
+                        password.encode("utf-8"), user_data["password_hash"].encode("utf-8")
+                    ):
+                        return User(
+                            id=user_data["id"],
+                            email=user_data["email"],
+                            credits_balance=user_data["credits_balance"],
+                            role=user_data["role"],
+                            created_at=user_data["created_at"],
+                        )
                 return None
 
             user_data = result.data[0]
@@ -295,6 +329,17 @@ class DatabaseManager:
 
     async def get_user_by_id(self, user_id: str) -> Optional[User]:
         """Get user by ID"""
+        # Check if this is a demo user first (hybrid mode)
+        for email, user_data in DEMO_USERS.items():
+            if user_data["id"] == user_id:
+                return User(
+                    id=user_data["id"],
+                    email=user_data["email"],
+                    credits_balance=user_data["credits_balance"],
+                    role=user_data["role"],
+                    created_at=user_data["created_at"],
+                )
+
         try:
             result = self.client.table("users").select("*").eq("id", user_id).execute()
 
@@ -903,6 +948,7 @@ class DatabaseManager:
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
                 DEMO_TICKETS.append(ticket)
+                save_demo_tickets()  # Save to persistent storage
                 logger.info(f"Demo user ticket created: {fake_id} from {user_email}")
                 return fake_id
 
@@ -990,6 +1036,7 @@ class DatabaseManager:
                 for ticket in DEMO_TICKETS:
                     if ticket["id"] == ticket_id:
                         ticket["status"] = new_status
+                        save_demo_tickets()  # Save to persistent storage
                         logger.info(f"Updated demo ticket {ticket_id} status to {new_status}")
                         return True
                 logger.warning(f"Demo ticket {ticket_id} not found")
@@ -1030,6 +1077,7 @@ class DatabaseManager:
                                 "created_at": datetime.now(timezone.utc).isoformat(),
                             }
                         )
+                        save_demo_tickets()  # Save to persistent storage
                         logger.info(f"Added response to demo ticket {ticket_id}")
                         return True
                 logger.warning(f"Demo ticket {ticket_id} not found")

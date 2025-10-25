@@ -53,6 +53,15 @@ except ImportError:
         pass
 
 
+# Import exam page
+try:
+    from app_pages.exam import show_exam
+except ImportError:
+
+    def show_exam():
+        st.error("Exam functionality temporarily unavailable")
+
+
 # Import supporting pages
 try:
     from app_pages.contact_support import show_contact_support
@@ -724,6 +733,19 @@ def show_authentication_page(auth: AuthUtils):
 
     st.markdown("---")
 
+    # Free trial announcement with white text
+    st.markdown(
+        """
+        <style>
+        .stAlert p, .stAlert div, .stAlert span, .stAlert strong {
+            color: #ffffff !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.info("🎁 **New users receive 1 FREE trial credit!** Sign up now to test our platform and experience AI-powered mock exams.")
+
     # Enhanced Login/Register tabs
     tab1, tab2 = st.tabs(["🔑 Sign In", "✨ Create Account"])
 
@@ -779,7 +801,7 @@ def show_enhanced_login_form(auth: AuthUtils):
                         "id": "student-demo-id",
                         "email": "student@test.com",
                         "role": "user",
-                        "credits_balance": 10,
+                        "credits_balance": 3,
                     }
                     st.session_state.page = "dashboard"
                     st.rerun()
@@ -853,7 +875,7 @@ def show_enhanced_register_form(auth: AuthUtils):
     """Enhanced registration form with better UX"""
     st.markdown('<h3 style="color: #000000;">Join WantAMock Today!</h3>', unsafe_allow_html=True)
     st.markdown(
-        '<p style="color: #333333;">Create your account and get <strong>5 free credits</strong> to start practicing!</p>',
+        '<p style="color: #333333;">Create your account and get <strong>1 free trial credit</strong> to start practicing!</p>',
         unsafe_allow_html=True,
     )
 

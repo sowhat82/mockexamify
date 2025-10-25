@@ -189,13 +189,13 @@ def display_package_card(
     # Calculate value savings
     savings = stripe_utils.calculate_value_savings(package_key)
 
-    # Create a custom styled container that looks like one unified card
+    # Create the card with button outside
     with st.container():
         # Add top badge if applicable
         if badge:
             st.markdown(
                 f"""
-            <div style="text-align: center; margin-bottom: -10px; position: relative; z-index: 1;">
+            <div style="text-align: center; margin-bottom: -10px;">
                 <span style="background: {badge_color}; color: white; padding: 0.3rem 1rem;
                            border-radius: 1rem; font-size: 0.8rem; font-weight: bold;">
                     {badge}
@@ -205,24 +205,13 @@ def display_package_card(
                 unsafe_allow_html=True,
             )
 
-        # Complete card with all content (no button in HTML)
-        savings_badge = ""
-        if savings:
-            savings_badge = f"""
-            <div style="background: #28a745; color: white; padding: 0.5rem; border-radius: 0.5rem;
-                       margin-bottom: 1rem; font-weight: bold; text-align: center;">
-                {savings}
-            </div>
-            """
-
+        # Main card content
         st.markdown(
             f"""
-        <div style="border: 3px solid {border_color}; border-radius: 1rem 1rem 0 0;
-                    padding: 1.5rem 1.5rem 1rem 1.5rem;
-                    background: white; text-align: center;
-                    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-                    border-bottom: none;">
-            <h3 style="color: {border_color}; margin-top: 0; margin-bottom: 1rem;">{package['name']}</h3>
+        <div style="border: 3px solid {border_color}; border-radius: 1rem; padding: 1.5rem;
+                    margin-bottom: 1rem; background: white; text-align: center;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+            <h3 style="color: {border_color}; margin-top: 0;">{package['name']}</h3>
             <div style="font-size: 2.5rem; font-weight: bold; color: #333; margin: 1rem 0;">
                 {package['credits']} Credits
             </div>
@@ -235,19 +224,45 @@ def display_package_card(
             <div style="color: #666; font-size: 0.9rem; margin-bottom: 1rem;">
                 {package['description']}
             </div>
-            {savings_badge}
         </div>
         """,
             unsafe_allow_html=True,
         )
 
-        # Button section styled to look like bottom of card
+        # Add savings badge if applicable (separate from card, above button)
+        if savings:
+            st.markdown(
+                f"""
+            <div style="background: #28a745; color: white; padding: 0.5rem; border-radius: 0.5rem;
+                       margin-top: -0.5rem; margin-bottom: 1rem; font-weight: bold; text-align: center;">
+                {savings}
+            </div>
+            """,
+                unsafe_allow_html=True,
+            )
+
+        # Custom styled button to match card border color
         st.markdown(
             f"""
-        <div style="border: 3px solid {border_color}; border-top: 1px solid #e0e0e0;
-                    border-radius: 0 0 1rem 1rem; padding: 0 1.5rem 1.5rem 1.5rem;
-                    background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-                    margin-top: -1rem; margin-bottom: 1rem;">
+        <style>
+        button[kind="secondary"][data-testid*="baseButton-secondary"] p {{
+            color: white !important;
+        }}
+        div[data-testid="column"]:has(button[key="purchase_{package_key}"]) button {{
+            background-color: {border_color} !important;
+            color: white !important;
+            border: 2px solid {border_color} !important;
+        }}
+        div[data-testid="column"]:has(button[key="purchase_{package_key}"]) button:hover {{
+            background-color: {border_color}dd !important;
+            border-color: {border_color}dd !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
+        }}
+        div[data-testid="column"]:has(button[key="purchase_{package_key}"]) button p {{
+            color: white !important;
+        }}
+        </style>
         """,
             unsafe_allow_html=True,
         )
@@ -258,7 +273,6 @@ def display_package_card(
             f"🛒 Purchase {package['name']}",
             key=button_key,
             use_container_width=True,
-            type=button_type,
         ):
             # Create checkout session
             base_url = "https://mockexamify.streamlit.app"  # Update with your actual URL
@@ -275,9 +289,6 @@ def display_package_card(
                 st.success("Redirecting to secure payment...")
             else:
                 st.error("Failed to initiate payment. Please try again.")
-
-        # Close button container
-        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def handle_payment_callback():

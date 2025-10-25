@@ -1,5 +1,5 @@
 """
-Admin Support Tickets Management for MockExamify
+Admin Support Tickets Management for WantAMock
 Complete ticket viewing and response system
 """
 
@@ -12,11 +12,17 @@ import config
 from auth_utils import AuthUtils, run_async
 
 
-def show_ticket_detail_modal():
+def show_ticket_detail_modal(ticket=None):
     """Display detailed view of a single ticket"""
-    ticket = st.session_state.viewing_ticket
+    if ticket is None:
+        ticket = st.session_state.get('viewing_ticket', {})
 
-    st.markdown("## 🎫 Ticket Details")
+    st.markdown(
+        """
+        <h2 style="color: black;">🎫 Ticket Details</h2>
+        """,
+        unsafe_allow_html=True,
+    )
     st.markdown("---")
 
     # Ticket header
@@ -513,8 +519,14 @@ def display_ticket_card(
             col1, col2, col3, col4 = st.columns(4)
 
         with col1:
+            # Expandable ticket details
+            expanded_key = f"expanded_{ticket_id}"
+            if st.session_state.get(expanded_key, False):
+                with st.expander("Ticket Details", expanded=True):
+                    show_ticket_detail_modal(ticket)
             if st.button("👁️ View", key=f"{key_prefix}view_{ticket_id}", use_container_width=True):
-                view_ticket_details(ticket)
+                st.session_state[expanded_key] = not st.session_state.get(expanded_key, False)
+                st.rerun()
 
         with col2:
             if status not in ["Resolved", "Closed"]:

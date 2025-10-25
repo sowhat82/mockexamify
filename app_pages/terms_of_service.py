@@ -31,27 +31,22 @@ def show_terms_page():
         st.markdown(
             """
             <style>
-            .legal-content {
-                background: white;
-                padding: 2rem;
-                border-radius: 12px;
-                border: 1px solid #e2e8f0;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                color: #000000;
+            /* Force all text in stMarkdown to black */
+            .stMarkdown, .stMarkdown * {
+                color: #000000 !important;
             }
-            .legal-content h1, .legal-content h2, .legal-content h3 {
-                color: #000000;
+            .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4, .stMarkdown h5, .stMarkdown h6 {
+                color: #000000 !important;
             }
-            .legal-content p, .legal-content li {
-                color: #333333;
+            .stMarkdown p, .stMarkdown li, .stMarkdown span, .stMarkdown div {
+                color: #000000 !important;
             }
             </style>
         """,
             unsafe_allow_html=True,
         )
 
-        with st.container():
-            st.markdown(tos_content, unsafe_allow_html=True)
+        st.markdown(tos_content, unsafe_allow_html=True)
 
         # Back button at bottom
         st.markdown("---")

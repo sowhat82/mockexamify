@@ -10,6 +10,7 @@ import streamlit as st
 
 import config
 from auth_utils import AuthUtils, run_async
+from db import db
 
 
 def show_contact_support():
@@ -584,13 +585,25 @@ def show_ticket_details(ticket: Dict[str, Any]):
 
 def show_user_ticket_reply_form(ticket: Dict[str, Any]):
     """Show reply form for user to add a reply to their ticket"""
+    # Add CSS to make button text white
+    st.markdown(
+        """
+        <style>
+        /* Make form submit button text white */
+        .stFormSubmitButton button {
+            color: white !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     st.markdown("<h2 style='color: black;'>💬 Add Reply to Ticket</h2>", unsafe_allow_html=True)
 
     if st.button("⬅️ Back to My Tickets"):
         del st.session_state.reply_ticket
         st.rerun()
 
-    st.markdown("---")
     st.markdown(f"**Ticket:** #{ticket.get('id')} - {ticket.get('subject')}")
     st.markdown("---")
 
@@ -634,13 +647,24 @@ def show_user_ticket_reply_form(ticket: Dict[str, Any]):
 def show_ticket_reply_form(ticket: Dict[str, Any]):
     """Show reply form for ticket"""
     st.session_state.reply_ticket = ticket
+    st.rerun()
+
+
+def close_ticket(ticket_id: str):
+    """Close a support ticket"""
+    from db import db
+
+    success = run_async(db.update_support_ticket_status(ticket_id, "Closed"))
+    if success:
+        st.success("✅ Ticket closed successfully")
+        st.rerun()
+    else:
+        st.error("❌ Failed to close ticket")
 
 
 async def add_user_reply_to_ticket(ticket_id: str, message: str) -> bool:
     """Add a user's reply to their ticket"""
     try:
-        from db import db
-
         # Add reply using the same function but with "user" as responder
         return await db.add_ticket_response(ticket_id, message, responder="user")
     except Exception as e:
@@ -650,8 +674,6 @@ async def add_user_reply_to_ticket(ticket_id: str, message: str) -> bool:
 async def create_support_ticket(ticket_data: Dict[str, Any], uploaded_file=None) -> Optional[str]:
     """Create a new support ticket"""
     try:
-        from db import db
-
         # Handle file upload if present
         file_url = None
         if uploaded_file:
@@ -685,8 +707,6 @@ async def upload_support_file(uploaded_file) -> Optional[str]:
 async def load_user_tickets(user_id: str) -> List[Dict[str, Any]]:
     """Load user's support tickets"""
     try:
-        from db import db
-
         return await db.get_user_support_tickets(user_id)
     except Exception as e:
         return []
@@ -695,8 +715,6 @@ async def load_user_tickets(user_id: str) -> List[Dict[str, Any]]:
 async def update_ticket_status(ticket_id: str, status: str) -> bool:
     """Update ticket status"""
     try:
-        from db import db
-
         return await db.update_support_ticket_status(ticket_id, status)
     except Exception as e:
         return False

@@ -28,6 +28,13 @@ def show_purchase_credits():
     # Initialize Stripe utils
     stripe_utils = init_stripe_utils()
 
+    # Back to Dashboard button
+    col_back, col_spacer = st.columns([1, 9])
+    with col_back:
+        if st.button("← Back to Dashboard", use_container_width=True):
+            st.session_state.page = "dashboard"
+            st.rerun()
+
     # Header with enhanced styling
     st.markdown("# 💳 Purchase Credits")
     st.markdown("*Unlock your full exam potential with our credit packages*")
@@ -75,7 +82,7 @@ def show_purchase_credits():
     st.markdown("---")
     st.markdown("## 🌟 Why Choose Our Credits?")
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
 
     with col1:
         st.markdown(
@@ -98,14 +105,6 @@ def show_purchase_credits():
             """
         ### ♾️ Never Expire
         Use your credits whenever you're ready
-        """
-        )
-
-    with col4:
-        st.markdown(
-            """
-        ### 🎯 Best Value
-        More credits = better price per exam
         """
         )
 
@@ -177,7 +176,7 @@ def display_package_card(
         badge_color = "#ff7f0e"
     elif package_key == "premium":
         border_color = "#d62728"
-        badge = "💎 BEST VALUE"
+        badge = ""
         badge_color = "#d62728"
     else:
         border_color = "#1f77b4"

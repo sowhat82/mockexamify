@@ -340,6 +340,21 @@ python -m locust -f tests/load_test.py
 - [ ] PDF generation service
 - [ ] Email notifications
 
+## 🔄 Backup & Restore
+
+**Need to restore a previous working version?** See [BACKUP_RESTORE.md](BACKUP_RESTORE.md) for complete instructions.
+
+Quick restore commands:
+```bash
+# Restore to last known good state (Oct 11, 2025)
+git checkout backup-working-state-2025-10-11
+
+# Or restore specific files only
+git checkout backup-working-state-2025-10-11 -- path/to/file.py
+```
+
+The backup includes the complete working admin dashboard, user management, and all core features before any major upgrades.
+
 ## 🐛 Troubleshooting
 
 ### Common Issues

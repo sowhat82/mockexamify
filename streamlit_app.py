@@ -71,6 +71,14 @@ except ImportError:
         st.error("Contact support functionality temporarily unavailable")
 
 
+try:
+    from app_pages.purchase_credits import show_purchase_credits
+except ImportError:
+
+    def show_purchase_credits():
+        st.error("Purchase credits functionality temporarily unavailable")
+
+
 # Import legal pages
 try:
     from app_pages.privacy_policy import show_privacy_page

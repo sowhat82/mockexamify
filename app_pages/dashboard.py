@@ -89,8 +89,8 @@ def show_dashboard():
     # Quick stats overview
     show_quick_stats(user)
 
-    # Action buttons section removed - duplicates main navigation
-    # show_quick_actions()
+    # Action buttons section - essential navigation for students
+    show_quick_actions()
 
     # Admin panel (if user is admin)
     if auth.is_admin():

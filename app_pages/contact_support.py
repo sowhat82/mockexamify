@@ -14,6 +14,7 @@ from auth_utils import AuthUtils, run_async
 
 def show_contact_support():
     """Display the comprehensive support page"""
+
     auth = AuthUtils(config.API_BASE_URL)
 
     if not auth.is_authenticated():
@@ -24,48 +25,6 @@ def show_contact_support():
 
     # Header
     st.markdown("# 💬 Contact Support")
-    st.markdown("*We're here to help! Get answers to your questions and resolve any issues.*")
-
-    # Add CSS to hide all contact support content
-    st.markdown(
-        """
-        <style>
-        /* Hide empty containers/divs */
-        div:empty {
-            display: none !important;
-        }
-        /* Hide containers with only whitespace */
-        .stTabs [data-baseweb="tab-panel"] > div:not(:has(*:not(:empty))) {
-            display: none !important;
-        }
-        /* Hide loading skeletons in contact support */
-        [data-testid="stSkeleton"] {
-            display: none !important;
-        }
-        /* Hide placeholder boxes */
-        .stTabs [data-baseweb="tab-panel"] > div[class*="css"] > div:first-child:not(:has(form)):not(:has(h3)) {
-            display: none !important;
-        }
-        /* Hide all contact support form elements */
-        section[data-testid="stSidebar"] {
-            display: none !important;
-        }
-        header[data-testid="stHeader"] {
-            display: none !important;
-        }
-        .stTabs {
-            display: none !important;
-        }
-        .stMarkdown h1, .stMarkdown h3 {
-            display: none !important;
-        }
-        .stForm {
-            display: none !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
 
     # Tab layout for different support options - hide FAQ and Help Center for students
     is_admin = user.get("role") == "admin"
@@ -101,15 +60,18 @@ def show_contact_support():
 def show_submit_ticket_form(user: Dict[str, Any]):
     """Display ticket submission form"""
 
-    # Add CSS to ensure all text is black except buttons
+    # Combine CSS with heading to avoid empty white bar
     st.markdown(
         """
         <style>
         /* Force all form text to black */
-        .stMarkdown h3, .stMarkdown p, .stMarkdown em {
+        .stMarkdown h3, .stMarkdown p, .stMarkdown em, .stMarkdown strong {
             color: #000000 !important;
         }
         .stTextInput label, .stTextArea label, .stSelectbox label, .stFileUploader label {
+            color: #000000 !important;
+        }
+        .stTextInput label span, .stTextArea label span, .stSelectbox label span {
             color: #000000 !important;
         }
         .stTextInput input, .stTextArea textarea {
@@ -134,28 +96,18 @@ def show_submit_ticket_form(user: Dict[str, Any]):
         .stFileUploader button {
             color: #ffffff !important;
         }
+        /* Hide empty markdown containers */
+        .stMarkdown:empty {
+            display: none !important;
+        }
         </style>
+        <h3>🎫 Submit a Support Ticket</h3>
         """,
         unsafe_allow_html=True,
     )
 
-    st.markdown("### 🎫 Submit a Support Ticket")
-
     with st.form("support_ticket_form"):
-        # Ticket category
-        category = st.selectbox(
-            "📋 Issue Category",
-            [
-                "Technical Issue",
-                "Payment & Billing",
-                "Account & Login",
-                "Exam Content",
-                "Feature Request",
-                "Bug Report",
-                "Other",
-            ],
-            help="Select the category that best describes your issue",
-        )
+        # Issue Category fully removed
 
         # Subject
         subject = st.text_input(
@@ -172,33 +124,13 @@ def show_submit_ticket_form(user: Dict[str, Any]):
             help="The more details you provide, the faster we can help you",
         )
 
-        # Additional information
-        st.markdown("**📎 Additional Information (Optional)**")
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            browser = st.text_input("🌐 Browser", placeholder="e.g., Chrome 96.0")
-            device = st.text_input("📱 Device", placeholder="e.g., Windows 10, iPhone 13")
-
-        with col2:
-            error_message = st.text_input(
-                "⚠️ Error Message", placeholder="Any error messages you received"
-            )
-            affected_exam = st.text_input(
-                "📝 Affected Exam", placeholder="Name of exam if issue is exam-specific"
-            )
-
-        # File upload
-        uploaded_file = st.file_uploader(
-            "📎 Attach File (Optional)",
-            type=["png", "jpg", "jpeg", "gif", "pdf", "txt"],
-            help="Upload screenshots or relevant files (max 10MB)",
-        )
-
-        # Contact preferences
-        st.markdown("**📞 Contact Preferences**")
-        email_updates = st.checkbox("📧 Email me updates on this ticket", value=True)
+        # Hidden fields - set to empty/default values
+        browser = ""
+        device = ""
+        error_message = ""
+        affected_exam = ""
+        uploaded_file = None
+        email_updates = True
 
         # Submit button
         submitted = st.form_submit_button(
@@ -213,7 +145,7 @@ def show_submit_ticket_form(user: Dict[str, Any]):
                 ticket_data = {
                     "user_id": user["id"],
                     "user_email": user["email"],
-                    "category": category,
+                    # 'category' removed
                     "subject": subject,
                     "description": description,
                     "browser": browser,
@@ -230,9 +162,6 @@ def show_submit_ticket_form(user: Dict[str, Any]):
                 if ticket_id:
                     st.success(
                         f"✅ Ticket submitted successfully! Your ticket ID is: **{ticket_id}**"
-                    )
-                    st.info(
-                        "We'll review your ticket and respond within 24 hours. You can track its status in the 'My Tickets' tab."
                     )
                     st.balloons()
                 else:
@@ -371,9 +300,9 @@ def show_faq_section():
                 filtered_faqs.append(filtered_category)
         faqs = filtered_faqs
 
-    # Display FAQs
-    for category in faqs:
-        st.markdown(f"#### {category['icon']} {category['category']}")
+        # Display FAQs
+        for faq_group in faqs:
+            st.markdown(f"#### {faq_group['icon']}")
 
         for faq in category["questions"]:
             with st.expander(f"**{faq['q']}**"):
@@ -485,6 +414,17 @@ def show_help_center():
 
 def show_user_tickets(user: Dict[str, Any]):
     """Display user's support tickets"""
+
+    # Check if viewing ticket details
+    if "view_ticket" in st.session_state:
+        show_ticket_detail_view(st.session_state.view_ticket)
+        return
+
+    # Check if replying to ticket
+    if "reply_ticket" in st.session_state:
+        show_user_ticket_reply_form(st.session_state.reply_ticket)
+        return
+
     st.markdown("### 🎤 My Support Tickets")
 
     # Load user tickets
@@ -539,35 +479,34 @@ def show_ticket_card(ticket: Dict[str, Any]):
         formatted_date = "Unknown date"
 
     with st.container():
-        st.markdown(
+        st.html(
             f"""
-        <div style="
-            border: 1px solid #e1e5e9;
-            border-left: 4px solid {status_color};
-            border-radius: 0.5rem;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            background: white;
-        ">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <div>
-                    <h4 style="margin: 0; color: #2c3e50;">#{ticket_id} - {subject}</h4>
-                    <p style="margin: 0.5rem 0 0 0; color: #7f8c8d;">📂 {category}</p>
-                </div>
-                <div style="text-align: right;">
-                    <div style="background: {status_color}; color: white; padding: 0.3rem 0.8rem; border-radius: 1rem; font-size: 0.8rem; font-weight: bold;">
-                        {status}
+            <div style="
+                border: 1px solid #e1e5e9;
+                border-left: 4px solid {status_color};
+                border-radius: 0.5rem;
+                padding: 1.5rem;
+                margin-bottom: 1rem;
+                background: white;
+            ">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <div>
+                        <h4 style="margin: 0; color: #2c3e50;">#{ticket_id} - {subject}</h4>
+                        <p style="margin: 0.5rem 0 0 0; color: #7f8c8d;">📂 {category}</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="background: {status_color}; color: white; padding: 0.3rem 0.8rem; border-radius: 1rem; font-size: 0.8rem; font-weight: bold;">
+                            {status}
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="color: #7f8c8d;">📅 Created: {formatted_date}</span>
-                <span style="color: #7f8c8d;">💬 Last updated: {formatted_date}</span>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: #7f8c8d;">📅 Created: {formatted_date}</span>
+                    <span style="color: #7f8c8d;">💬 Last updated: {formatted_date}</span>
+                </div>
             </div>
-        </div>
-        """,
-            unsafe_allow_html=True,
+        """
         )
 
         # Action buttons
@@ -596,7 +535,100 @@ def show_ticket_card(ticket: Dict[str, Any]):
 
 def show_ticket_details(ticket: Dict[str, Any]):
     """Show detailed ticket view"""
-    st.session_state.view_ticket = ticket
+    st.markdown(
+        """
+        <h2 style="color: black;">🎫 Ticket Details</h2>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if st.button("⬅️ Back to My Tickets"):
+        del st.session_state.view_ticket
+        st.rerun()
+
+    # Status info
+    status = ticket.get("status", "Open")
+    status_colors = {
+        "open": "🔴 Open",
+        "Open": "🔴 Open",
+        "In Progress": "🟡 In Progress",
+        "Pending": "🔵 Pending",
+        "Resolved": "🟢 Resolved",
+        "Closed": "⚪ Closed",
+    }
+
+    # All ticket info in a single markdown block to avoid extra containers
+    st.markdown(
+        f"""
+### {ticket.get('subject', 'No subject')}
+
+**Ticket ID:** #{ticket.get('id', 'Unknown')}
+**Category:** {ticket.get('category', 'General')}
+**Created:** {ticket.get('created_at', 'Unknown')}
+**Status:** {status_colors.get(status, status)}
+"""
+    )
+
+    # Message
+    st.markdown("### 📄 Description")
+    st.info(ticket.get("message") or ticket.get("description", "No description provided"))
+
+    # Responses
+    if ticket.get("responses"):
+        st.markdown("### 💬 Responses")
+        for idx, response in enumerate(ticket.get("responses", [])):
+            with st.expander(f"Response {idx + 1} - {response.get('created_at', '')}"):
+                st.markdown(f"**From:** {response.get('responder', 'Admin')}")
+                st.markdown(response.get("message", ""))
+
+
+def show_user_ticket_reply_form(ticket: Dict[str, Any]):
+    """Show reply form for user to add a reply to their ticket"""
+    st.markdown("<h2 style='color: black;'>💬 Add Reply to Ticket</h2>", unsafe_allow_html=True)
+
+    if st.button("⬅️ Back to My Tickets"):
+        del st.session_state.reply_ticket
+        st.rerun()
+
+    st.markdown("---")
+    st.markdown(f"**Ticket:** #{ticket.get('id')} - {ticket.get('subject')}")
+    st.markdown("---")
+
+    with st.form("user_ticket_reply_form"):
+        reply_message = st.text_area(
+            "Your Reply",
+            height=200,
+            placeholder="Type your reply here...",
+            help="Add additional information or updates to your ticket",
+        )
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            submit_reply = st.form_submit_button(
+                "📤 Send Reply", type="primary", use_container_width=True
+            )
+
+        with col2:
+            cancel_reply = st.form_submit_button("❌ Cancel", use_container_width=True)
+
+        if submit_reply:
+            if reply_message:
+                # Add user's reply to the ticket
+                success = run_async(add_user_reply_to_ticket(ticket.get("id"), reply_message))
+
+                if success:
+                    st.success("✅ Reply sent successfully!")
+                    del st.session_state.reply_ticket
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to send reply")
+            else:
+                st.error("⚠️ Please enter a reply message")
+
+        if cancel_reply:
+            del st.session_state.reply_ticket
+            st.rerun()
 
 
 def show_ticket_reply_form(ticket: Dict[str, Any]):
@@ -604,62 +636,15 @@ def show_ticket_reply_form(ticket: Dict[str, Any]):
     st.session_state.reply_ticket = ticket
 
 
-def close_ticket(ticket_id: str):
-    """Close a support ticket"""
-    success = run_async(update_ticket_status(ticket_id, "Closed"))
-    if success:
-        st.success("✅ Ticket closed successfully")
-        st.rerun()
-    else:
-        st.error("❌ Failed to close ticket")
+async def add_user_reply_to_ticket(ticket_id: str, message: str) -> bool:
+    """Add a user's reply to their ticket"""
+    try:
+        from db import db
 
-
-def get_guide_content(guide_title: str) -> str:
-    """Get content for help guides"""
-    guides_content = {
-        "Creating Your Account": """
-        **Step 1:** Go to the MockExamify homepage
-        **Step 2:** Click "Sign Up" in the top right corner
-        **Step 3:** Enter your email and create a strong password
-        **Step 4:** Verify your email address
-        **Step 5:** Complete your profile setup
-
-        🎉 **You're ready to start taking exams!**
-        """,
-        "Taking Your First Exam": """
-        **Before You Start:**
-        - Ensure you have sufficient credits
-        - Find a quiet environment
-        - Check your internet connection
-
-        **During the Exam:**
-        1. Read each question carefully
-        2. Use the review function to check answers
-        3. Watch the timer in the top right
-        4. Submit when ready or when time expires
-
-        **After Submission:**
-        - Review your results immediately
-        - Consider unlocking explanations
-        - Download your PDF report
-        """,
-        "Understanding the Dashboard": """
-        **Dashboard Overview:**
-        - **Available Exams:** Browse and filter mock exams
-        - **Credit Balance:** Your current available credits
-        - **Recent Attempts:** Quick access to recent exam results
-        - **Progress Stats:** Your overall performance metrics
-
-        **Quick Actions:**
-        - Purchase credits
-        - View exam history
-        - Access support
-        - Update profile settings
-        """,
-        # Add more guide content as needed
-    }
-
-    return guides_content.get(guide_title, "Guide content coming soon!")
+        # Add reply using the same function but with "user" as responder
+        return await db.add_ticket_response(ticket_id, message, responder="user")
+    except Exception as e:
+        return False
 
 
 async def create_support_ticket(ticket_data: Dict[str, Any], uploaded_file=None) -> Optional[str]:
@@ -715,3 +700,52 @@ async def update_ticket_status(ticket_id: str, status: str) -> bool:
         return await db.update_support_ticket_status(ticket_id, status)
     except Exception as e:
         return False
+
+
+def show_ticket_detail_view(ticket: Dict[str, Any]):
+    """Show detailed view of a ticket"""
+    st.markdown(
+        """
+        <h2 style="color: black;">🎫 Ticket Details</h2>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if st.button("⬅️ Back to My Tickets"):
+        del st.session_state.view_ticket
+        st.rerun()
+
+    # Status info
+    status = ticket.get("status", "Open")
+    status_colors = {
+        "open": "🔴 Open",
+        "Open": "🔴 Open",
+        "In Progress": "🟡 In Progress",
+        "Pending": "🔵 Pending",
+        "Resolved": "🟢 Resolved",
+        "Closed": "⚪ Closed",
+    }
+
+    # All ticket info in a single markdown block to avoid extra containers
+    st.markdown(
+        f"""
+### {ticket.get('subject', 'No subject')}
+
+**Ticket ID:** #{ticket.get('id', 'Unknown')}
+**Category:** {ticket.get('category', 'General')}
+**Created:** {ticket.get('created_at', 'Unknown')}
+**Status:** {status_colors.get(status, status)}
+"""
+    )
+
+    # Message
+    st.markdown("### 📄 Description")
+    st.info(ticket.get("message") or ticket.get("description", "No description provided"))
+
+    # Responses
+    if ticket.get("responses"):
+        st.markdown("### 💬 Responses")
+        for idx, response in enumerate(ticket.get("responses", [])):
+            with st.expander(f"Response {idx + 1} - {response.get('created_at', '')}"):
+                st.markdown(f"**From:** {response.get('responder', 'Admin')}")
+                st.markdown(response.get("message", ""))

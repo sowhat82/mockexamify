@@ -1,3 +1,3 @@
 """
-Pages module for MockExamify
+Pages module for wantamock
 """

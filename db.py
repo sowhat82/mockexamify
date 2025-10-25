@@ -1,5 +1,5 @@
 """
-Database operations and Supabase integration for MockExamify
+Database operations and Supabase integration for WantAMock
 """
 
 import json
@@ -24,10 +24,13 @@ else:
     logger.info("Running in production mode - connecting to Supabase")
 
 # Demo data for testing
+# In-memory storage for demo tickets
+DEMO_TICKETS = []
+
 DEMO_USERS = {
-    "admin@mockexamify.com": {
+    "admin@wantamock.com": {
         "id": "demo-admin-001",
-        "email": "admin@mockexamify.com",
+        "email": "admin@wantamock.com",
         "password_hash": bcrypt.hashpw("admin123".encode("utf-8"), bcrypt.gensalt()).decode(
             "utf-8"
         ),
@@ -661,10 +664,7 @@ class DatabaseManager:
                 update_data["user_answers"] = json.dumps(user_answers)
 
             result = (
-                self.client.table("attempts")
-                .update(update_data)
-                .eq("id", attempt_id)
-                .execute()
+                self.client.table("attempts").update(update_data).eq("id", attempt_id).execute()
             )
             return bool(result.data)
         except Exception as e:
@@ -701,10 +701,7 @@ class DatabaseManager:
                 update_data["correct_answers"] = correct_answers
 
             result = (
-                self.client.table("attempts")
-                .update(update_data)
-                .eq("id", attempt_id)
-                .execute()
+                self.client.table("attempts").update(update_data).eq("id", attempt_id).execute()
             )
             return bool(result.data)
         except Exception as e:
@@ -718,7 +715,11 @@ class DatabaseManager:
             is_demo_user = any(user_data["id"] == user_id for user_data in DEMO_USERS.values())
             if is_demo_user:
                 # Demo users use in-memory attempts
-                return [a for a in DEMO_ATTEMPTS if a.get("user_id") == user_id and a.get("status") == "in_progress"]
+                return [
+                    a
+                    for a in DEMO_ATTEMPTS
+                    if a.get("user_id") == user_id and a.get("status") == "in_progress"
+                ]
 
             result = (
                 self.client.table("attempts")
@@ -771,7 +772,12 @@ class DatabaseManager:
             return False
 
     async def process_exit_exam_refund(
-        self, attempt_id: str, user_id: str, credits_paid: int, questions_submitted: int, total_questions: int
+        self,
+        attempt_id: str,
+        user_id: str,
+        credits_paid: int,
+        questions_submitted: int,
+        total_questions: int,
     ) -> Dict[str, Any]:
         """Process block-of-10 refund when student exits exam voluntarily
 
@@ -868,29 +874,47 @@ class DatabaseManager:
         Returns ticket id on success
         """
         try:
-            if self.demo_mode:
-                # Return a fake UUID-like string
-                fake_id = f"demo-support-{len(DEMO_ATTEMPTS) + 1}"
+            # Check if this is a demo user (hybrid mode with demo user ID)
+            user_id = ticket_data.get("user_id")
+            is_demo_user = user_id in [user_data["id"] for user_data in DEMO_USERS.values()]
+
+            if self.demo_mode or is_demo_user:
+                # Store demo ticket in memory
+                fake_id = f"demo-support-{len(DEMO_TICKETS) + 1}"
+
+                # Get user email from DEMO_USERS
+                user_email = "Unknown user"
+                for demo_user_data in DEMO_USERS.values():
+                    if demo_user_data["id"] == user_id:
+                        user_email = demo_user_data["email"]
+                        break
+
+                description = ticket_data.get("description") or ticket_data.get("message")
+                ticket = {
+                    "id": fake_id,
+                    "user_id": user_id,
+                    "user_email": user_email,
+                    "subject": ticket_data.get("subject"),
+                    "message": description,
+                    "description": description,
+                    "status": "open",
+                    "priority": "Medium",
+                    "category": "General",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+                DEMO_TICKETS.append(ticket)
+                logger.info(f"Demo user ticket created: {fake_id} from {user_email}")
                 return fake_id
 
+            # Basic tickets table only has: user_id, subject, message, status, created_at
             payload = {
-                "user_id": ticket_data.get("user_id"),
-                "user_email": ticket_data.get("user_email"),
+                "user_id": user_id,
                 "subject": ticket_data.get("subject"),
                 "message": ticket_data.get("description") or ticket_data.get("message"),
-                "browser": ticket_data.get("browser"),
-                "device": ticket_data.get("device"),
-                "error_message": ticket_data.get("error_message"),
-                "affected_exam": ticket_data.get("affected_exam"),
-                # Store status in Title Case to match UI expectations (e.g., 'Open', 'Resolved')
-                "status": ticket_data.get("status", "Open"),
-                "priority": ticket_data.get("priority", "Medium"),
-                "category": ticket_data.get("category", "Other"),
-                "attachment_url": ticket_data.get("attachment_url"),
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "status": ticket_data.get("status", "open"),
             }
 
-            result = self.client.table("support_tickets").insert(payload).execute()
+            result = self.client.table("tickets").insert(payload).execute()
             if result.data and len(result.data) > 0:
                 return result.data[0].get("id")
             return None
@@ -902,48 +926,77 @@ class DatabaseManager:
         """Retrieve all support tickets (admins can view all)"""
         try:
             if self.demo_mode:
-                # Build demo list from fallback tickets
-                demo_list = []
-                # Convert DEMO_ATTEMPTS or DEMO_MOCKS if necessary; keep empty for demo
-                return demo_list
+                # Return demo tickets stored in memory
+                return DEMO_TICKETS
 
+            # Also return DEMO_TICKETS in hybrid mode (for admin viewing demo user tickets)
             result = (
-                self.client.table("support_tickets")
-                .select("*")
-                .order("created_at", desc=True)
-                .execute()
+                self.client.table("tickets").select("*").order("created_at", desc=True).execute()
             )
-            return result.data if result.data else []
+            all_tickets = result.data if result.data else []
+
+            # Combine real tickets with demo tickets
+            all_tickets.extend(DEMO_TICKETS)
+
+            # Sort by created_at descending
+            all_tickets.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+
+            return all_tickets
         except Exception as e:
             logger.error(f"Error getting all support tickets: {e}")
-            return []
+            return DEMO_TICKETS  # Return demo tickets on error
 
     async def get_user_support_tickets(self, user_id: str) -> List[Dict[str, Any]]:
         """Get support tickets submitted by a specific user"""
         try:
-            if self.demo_mode:
-                return []
+            # Check if this is a demo user
+            is_demo_user = user_id in [user_data["id"] for user_data in DEMO_USERS.values()]
+
+            if self.demo_mode or is_demo_user:
+                # Return demo tickets for this user only
+                return [ticket for ticket in DEMO_TICKETS if ticket["user_id"] == user_id]
 
             result = (
-                self.client.table("support_tickets")
+                self.client.table("tickets")
                 .select("*")
                 .eq("user_id", user_id)
                 .order("created_at", desc=True)
                 .execute()
             )
-            return result.data if result.data else []
+
+            user_tickets = result.data if result.data else []
+
+            # Also include demo tickets for this user in hybrid mode
+            demo_user_tickets = [ticket for ticket in DEMO_TICKETS if ticket["user_id"] == user_id]
+            user_tickets.extend(demo_user_tickets)
+
+            # Sort by created_at descending
+            user_tickets.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+
+            return user_tickets
         except Exception as e:
             logger.error(f"Error getting user support tickets: {e}")
-            return []
+            # Return demo tickets for this user on error
+            return [ticket for ticket in DEMO_TICKETS if ticket["user_id"] == user_id]
 
     async def update_support_ticket_status(self, ticket_id: str, new_status: str) -> bool:
         """Update status of a support ticket"""
         try:
-            if self.demo_mode:
-                return True
+            # Check if this is a demo ticket
+            is_demo_ticket = ticket_id.startswith("demo-support-")
+
+            if self.demo_mode or is_demo_ticket:
+                # Update status in DEMO_TICKETS
+                for ticket in DEMO_TICKETS:
+                    if ticket["id"] == ticket_id:
+                        ticket["status"] = new_status
+                        logger.info(f"Updated demo ticket {ticket_id} status to {new_status}")
+                        return True
+                logger.warning(f"Demo ticket {ticket_id} not found")
+                return False
 
             result = (
-                self.client.table("support_tickets")
+                self.client.table("tickets")
                 .update({"status": new_status})
                 .eq("id", ticket_id)
                 .execute()
@@ -961,8 +1014,26 @@ class DatabaseManager:
         Tries to insert into support_ticket_responses; if not available, appends to a 'responses' JSONB field on support_tickets.
         """
         try:
-            if self.demo_mode:
-                return True
+            # Check if this is a demo ticket
+            is_demo_ticket = ticket_id.startswith("demo-support-")
+
+            if self.demo_mode or is_demo_ticket:
+                # Add response to demo ticket
+                for ticket in DEMO_TICKETS:
+                    if ticket["id"] == ticket_id:
+                        if "responses" not in ticket:
+                            ticket["responses"] = []
+                        ticket["responses"].append(
+                            {
+                                "responder": responder,
+                                "message": message,
+                                "created_at": datetime.now(timezone.utc).isoformat(),
+                            }
+                        )
+                        logger.info(f"Added response to demo ticket {ticket_id}")
+                        return True
+                logger.warning(f"Demo ticket {ticket_id} not found")
+                return False
 
             # Prefer a dedicated responses table if present
             try:
@@ -985,7 +1056,7 @@ class DatabaseManager:
                 try:
                     # Get existing responses
                     ticket = (
-                        self.client.table("support_tickets")
+                        self.client.table("tickets")
                         .select("responses")
                         .eq("id", ticket_id)
                         .execute()
@@ -1003,7 +1074,7 @@ class DatabaseManager:
                     )
 
                     update = (
-                        self.client.table("support_tickets")
+                        self.client.table("tickets")
                         .update({"responses": existing})
                         .eq("id", ticket_id)
                         .execute()
@@ -1414,9 +1485,7 @@ class DatabaseManager:
             # Even in demo mode, we want to access real question pools
             # Use admin client to bypass RLS policies
             client = self.admin_client if self.admin_client else self.client
-            result = (
-                client.table("pool_questions").select("*").eq("pool_id", pool_id).execute()
-            )
+            result = client.table("pool_questions").select("*").eq("pool_id", pool_id).execute()
             return result.data if result.data else []
 
         except Exception as e:
@@ -1526,13 +1595,15 @@ class DatabaseManager:
 
                 if not explanation or explanation == q.get("explanation_seed"):
                     try:
-                        logger.info(f"Generating explanation for question {idx + 1}/{len(questions)}")
+                        logger.info(
+                            f"Generating explanation for question {idx + 1}/{len(questions)}"
+                        )
                         explanation = await generate_explanation(
                             question=q["question"],
                             choices=q["choices"],
                             correct_index=q["correct_index"],
                             scenario=q.get("scenario", ""),
-                            explanation_seed=q.get("explanation_seed", "")
+                            explanation_seed=q.get("explanation_seed", ""),
                         )
                     except Exception as e:
                         logger.error(f"Error generating explanation for question {idx + 1}: {e}")

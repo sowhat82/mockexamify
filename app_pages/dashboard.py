@@ -1,5 +1,5 @@
 """
-Enhanced Dashboard page for MockExamify
+Enhanced Dashboard page for WantAMock
 Comprehensive user dashboard with statistics, quick actions, and exam management
 """
 
@@ -54,7 +54,13 @@ def show_dashboard():
         st.error("User data not found")
         st.stop()
 
-    # Dashboard header with personalized greeting
+
+    # Large app name header
+    st.markdown(
+        '<div style="font-size:4rem; font-weight:900; color:#fff; margin-bottom:1.5rem;">🎯 WantAMock</div>',
+        unsafe_allow_html=True,
+    )
+
     current_hour = datetime.now().hour
     if current_hour < 12:
         greeting = "Good morning"
@@ -64,7 +70,6 @@ def show_dashboard():
         greeting = "Good evening"
 
     user_name = user.get("name", user.get("email", "User")).split("@")[0]
-    # Use Streamlit's default styling - no custom colors
     st.title("📊 Dashboard")
     st.write(f"*{greeting}, **{user_name}**! Ready to boost your exam performance?*")
 
@@ -77,6 +82,7 @@ def show_dashboard():
             help="Open support center",
             use_container_width=True,
         ):
+            st.toast("[DEBUG] Header Contact Support button clicked")
             st.session_state.page = "contact_support"
             st.rerun()
 
@@ -199,21 +205,25 @@ def show_quick_actions():
 
     with col1:
         if st.button("💳 Purchase Credits", use_container_width=True, type="primary"):
+            st.toast("[DEBUG] Purchase Credits button clicked")
             st.session_state.page = "purchase_credits"
             st.rerun()
 
     with col2:
         if st.button("📈 View Progress", use_container_width=True):
+            st.toast("[DEBUG] View Progress button clicked")
             st.session_state.page = "past_attempts"
             st.rerun()
 
     with col3:
         if st.button("💬 Contact Support", use_container_width=True):
+            st.toast("[DEBUG] Contact Support button clicked (Quick Actions)")
             st.session_state.page = "contact_support"
             st.rerun()
 
     with col4:
         if st.button("⚙️ Settings", use_container_width=True):
+            st.toast("[DEBUG] Settings button clicked")
             st.session_state.show_settings = True
 
 
@@ -226,21 +236,25 @@ def show_admin_panel():
 
     with admin_col1:
         if st.button("📤 Upload Mock Exam", use_container_width=True):
+            st.toast("[DEBUG] Upload Mock Exam button clicked")
             st.session_state.page = "admin_upload"
             st.rerun()
 
     with admin_col2:
         if st.button("💼 Manage Pools", use_container_width=True):
+            st.toast("[DEBUG] Manage Pools button clicked")
             st.session_state.page = "admin_question_pools"
             st.rerun()
 
     with admin_col3:
         if st.button("🎫 Support Tickets", use_container_width=True):
+            st.toast("[DEBUG] Support Tickets button clicked")
             st.session_state.page = "admin_tickets"
             st.rerun()
 
     with admin_col4:
         if st.button("📊 Analytics Dashboard", use_container_width=True, type="primary"):
+            st.toast("[DEBUG] Analytics Dashboard button clicked")
             st.session_state.page = "admin_dashboard"
             st.rerun()
 
@@ -622,7 +636,7 @@ def show_enhanced_mock_card(mock_obj: Any, container, user: Dict[str, Any]):
                 button_text,
                 key=f"start_{mock.get('id')}",
                 disabled=not can_afford,
-                use_container_width=True,
+               
                 type=button_type,
             ):
                 st.session_state.current_mock_id = mock.get("id")

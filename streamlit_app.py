@@ -1,14 +1,3 @@
-"""
-MockExamify - Enhanced Streamlit Application
-Interactive Mock Exam Platform with Credit System
-"""
-
-import streamlit as st
-
-import config
-from auth_utils import AuthUtils, run_async, validate_email, validate_password
-
-# Import enhanced pages
 try:
     from app_pages.dashboard import handle_dashboard_modals, show_dashboard
 except ImportError:
@@ -20,26 +9,37 @@ except ImportError:
         pass
 
 
-try:
-    from app_pages.exam import show_exam
-except ImportError:
+import streamlit as st
 
-    def show_exam():
-        st.error("Exam functionality temporarily unavailable")
+# Aggressive sidebar hiding CSS injected before anything else
+st.markdown(
+    """
+<style>
+section[data-testid="stSidebar"] {
+    display: none !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    overflow: hidden !important;
+}
+[data-testid="collapsedControl"] {
+    display: none !important;
+    visibility: hidden !important;
+}
+[data-testid="stSidebarNav"] {
+    display: none !important;
+    visibility: hidden !important;
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
 
+import config
+from auth_utils import AuthUtils, run_async, validate_email, validate_password
 
-try:
-    from app_pages.purchase_credits import (
-        handle_payment_callback,
-        show_purchase_credits,
-    )
-except ImportError:
-
-    def show_purchase_credits():
-        st.error("Purchase functionality temporarily unavailable")
-
-    def handle_payment_callback():
-        pass
+# ...existing code...
 
 
 try:
@@ -143,7 +143,7 @@ section[data-testid="stSidebar"] {
 
 /* Main header styling */
 .main-header {
-    font-size: 3rem;
+    font-size: 4.5rem;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -152,6 +152,12 @@ section[data-testid="stSidebar"] {
     margin-bottom: 2rem;
     font-weight: 700;
     text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+}
+/* Enlarge top-left app name/logo in header bar (robust selector) */
+header .st-emotion-cache-1v0mbdj, header .st-emotion-cache-10trblm, header [data-testid="stHeader"] div, header [data-testid^="stApp"] div:first-child {
+    font-size: 2.5rem !important;
+    font-weight: 900 !important;
+    color: #fff !important;
 }
 
 .sub-header {
@@ -662,7 +668,7 @@ def show_authentication_page(auth: AuthUtils):
     st.markdown(
         """
     <div class="welcome-section">
-        <h2>🎯 MockExamify</h2>
+            <!-- Removed large header -->
         <p>Master Your Exams with AI-Powered Mock Tests</p>
     </div>
     """,
@@ -670,7 +676,7 @@ def show_authentication_page(auth: AuthUtils):
     )
 
     # Features showcase with enhanced cards
-    st.markdown("## Why Choose MockExamify?")
+    st.markdown("## Why Choose WantAMock?")
 
     col1, col2, col3 = st.columns(3)
 
@@ -845,7 +851,7 @@ def show_enhanced_login_form(auth: AuthUtils):
 
 def show_enhanced_register_form(auth: AuthUtils):
     """Enhanced registration form with better UX"""
-    st.markdown('<h3 style="color: #000000;">Join MockExamify Today!</h3>', unsafe_allow_html=True)
+    st.markdown('<h3 style="color: #000000;">Join WantAMock Today!</h3>', unsafe_allow_html=True)
     st.markdown(
         '<p style="color: #333333;">Create your account and get <strong>5 free credits</strong> to start practicing!</p>',
         unsafe_allow_html=True,
@@ -916,7 +922,7 @@ def show_enhanced_register_form(auth: AuthUtils):
                     st.session_state.last_email = email
                     st.session_state.page = "dashboard"
 
-                    st.success("🎉 Account created successfully! Welcome to MockExamify!")
+                    st.success("🎉 Account created successfully! Welcome to WantAMock!")
                     st.balloons()
                     st.rerun()
                 else:
@@ -973,33 +979,18 @@ def show_authenticated_app(auth: AuthUtils):
     col1, col2, col3 = st.columns([2, 1, 1])
 
     with col1:
-        st.markdown(
-            f"""
-        <div style="padding: 10px 0;">
-            <h3 style="margin: 0;">🎯 MockExamify</h3>
-        </div>
-        """,
-            unsafe_allow_html=True,
+        st.html(
+            f'<div style="padding: 10px 0;"><h3 style="margin: 0; color: white;">🎯 WantAMock</h3></div>'
         )
 
     with col2:
-        st.markdown(
-            f"""
-        <div style="padding: 10px; text-align: right;">
-            <p style="margin: 0;"><strong>💰 Credits:</strong> {credits}</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
+        st.html(
+            f'<div style="padding: 10px; text-align: right;"><p style="margin: 0; color: white;"><strong style="color: white;">💰 Credits:</strong> {credits}</p></div>'
         )
 
     with col3:
-        st.markdown(
-            f"""
-        <div style="padding: 10px; text-align: right;">
-            <p style="margin: 0;"><strong>👤</strong> {user.get('email', 'User')}</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
+        st.html(
+            f'<div style="padding: 10px; text-align: right;"><p style="margin: 0; color: white;"><strong style="color: white;">👤</strong> {user.get("email", "User")}</p></div>'
         )
 
     st.markdown("---")
@@ -1017,6 +1008,7 @@ def show_authenticated_app(auth: AuthUtils):
 
     # Enhanced main content area with better routing
     page = st.session_state.get("page", "dashboard")
+    print(f"DEBUG: Routing to page: {page}")
 
     # Route to appropriate page (each page handles its own header)
     if page == "dashboard":

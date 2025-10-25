@@ -202,7 +202,16 @@ def display_package_card(
                 unsafe_allow_html=True,
             )
 
-        # Main card content
+        # Main card content with button inside
+        savings_html = ""
+        if savings:
+            savings_html = f"""
+            <div style="background: #28a745; color: white; padding: 0.5rem; border-radius: 0.5rem;
+                       margin-bottom: 1rem; font-weight: bold;">
+                {savings}
+            </div>
+            """
+
         st.markdown(
             f"""
         <div style="border: 3px solid {border_color}; border-radius: 1rem; padding: 1.5rem;
@@ -221,25 +230,13 @@ def display_package_card(
             <div style="color: #666; font-size: 0.9rem; margin-bottom: 1rem;">
                 {package['description']}
             </div>
+            {savings_html}
+        </div>
         """,
             unsafe_allow_html=True,
         )
 
-        # Add savings badge if applicable
-        if savings:
-            st.markdown(
-                f"""
-            <div style="background: #28a745; color: white; padding: 0.5rem; border-radius: 0.5rem;
-                       margin-bottom: 1rem; font-weight: bold;">
-                {savings}
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # Purchase button
+        # Purchase button inside the card's container
         button_key = f"purchase_{package_key}"
         if st.button(
             f"🛒 Purchase {package['name']}",

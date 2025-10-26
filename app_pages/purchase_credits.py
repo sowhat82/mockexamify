@@ -275,7 +275,9 @@ def display_package_card(
             use_container_width=True,
         ):
             # Create checkout session
-            base_url = "https://mockexamify.streamlit.app"  # Update with your actual URL
+            import os
+            # Use environment variable or default to production URL
+            base_url = os.getenv('APP_BASE_URL') or os.getenv('CODESPACE_NAME') and f"https://{os.getenv('CODESPACE_NAME')}-8501.app.github.dev" or "https://mockexamify.streamlit.app"
 
             success = create_payment_button(
                 stripe_utils=stripe_utils,

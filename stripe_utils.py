@@ -79,11 +79,11 @@ class StripeUtils:
                 line_items=[
                     {
                         'price_data': {
-                            'currency': 'usd',
+                            'currency': 'sgd',
                             'product_data': {
                                 'name': package['name'],
                                 'description': package['description'],
-                                'images': ['https://mockexamify.com/logo.png'],  # Add your logo URL
+                                'images': ['https://wantamock.streamlit.app/logo.png'],  # Add your logo URL
                             },
                             'unit_amount': package['price'],
                         },
@@ -237,8 +237,8 @@ class StripeUtils:
         return self.credit_packages.get(package_key)
     
     def format_price(self, price_cents: int) -> str:
-        """Format price in cents to dollar string"""
-        return f"${price_cents / 100:.2f}"
+        """Format price in cents to SGD string"""
+        return f"S${price_cents / 100:.2f}"
     
     def calculate_value_savings(self, package_key: str) -> Optional[str]:
         """Calculate savings compared to base price"""

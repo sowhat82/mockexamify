@@ -72,11 +72,14 @@ except ImportError:
 
 
 try:
-    from app_pages.purchase_credits import show_purchase_credits
+    from app_pages.purchase_credits import show_purchase_credits, handle_payment_callback
 except ImportError:
 
     def show_purchase_credits():
         st.error("Purchase credits functionality temporarily unavailable")
+
+    def handle_payment_callback():
+        pass
 
 
 # Import legal pages

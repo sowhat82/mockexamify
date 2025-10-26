@@ -276,8 +276,21 @@ def display_package_card(
         ):
             # Create checkout session
             import os
-            # Use environment variable or default to production URL
-            base_url = os.getenv('APP_BASE_URL') or os.getenv('CODESPACE_NAME') and f"https://{os.getenv('CODESPACE_NAME')}-8501.app.github.dev" or "https://mockexamify.streamlit.app"
+            import config
+
+            # Determine base URL based on environment
+            if os.getenv('APP_BASE_URL'):
+                # Manual override via environment variable
+                base_url = os.getenv('APP_BASE_URL')
+            elif config.ENVIRONMENT == 'production':
+                # Production environment - use production URL
+                base_url = os.getenv('PRODUCTION_URL', 'https://wantamock.streamlit.app')
+            elif os.getenv('CODESPACE_NAME'):
+                # Development in Codespaces
+                base_url = f"https://{os.getenv('CODESPACE_NAME')}-8501.app.github.dev"
+            else:
+                # Fallback to localhost for local development
+                base_url = "http://localhost:8501"
 
             success = create_payment_button(
                 stripe_utils=stripe_utils,

@@ -307,8 +307,8 @@ def create_payment_button(
     )
     
     if success and session_url:
-        # Redirect to Stripe checkout
-        st.markdown(f'<script>window.open("{session_url}", "_self");</script>', unsafe_allow_html=True)
+        # Store the checkout URL and redirect using Streamlit's method
+        st.markdown(f'<meta http-equiv="refresh" content="0; url={session_url}">', unsafe_allow_html=True)
         return True
     else:
         st.error(f"Payment error: {error}")

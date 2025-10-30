@@ -1148,8 +1148,12 @@ class DatabaseManager:
     ) -> Optional[Dict]:
         """Create a payment record"""
         try:
-            if self.demo_mode:
-                # Demo mode - just return a mock payment
+            # Check if this is a demo user (even in production mode for testing)
+            is_demo_user = user_id in ["student-demo-id", "admin-demo-id", "demo-user-id"]
+
+            if self.demo_mode or is_demo_user:
+                # Demo mode or demo user - just return a mock payment
+                logger.info(f"Creating mock payment for demo user: {user_id}")
                 return {
                     "id": f"demo-payment-{len(DEMO_ATTEMPTS)}",
                     "user_id": user_id,
@@ -1183,8 +1187,12 @@ class DatabaseManager:
     async def get_payment_by_session_id(self, session_id: str) -> Optional[Dict]:
         """Get payment by Stripe session ID"""
         try:
-            if self.demo_mode:
-                # Demo mode - return None (no existing payments)
+            # Check if this is a demo/test session
+            is_demo_session = session_id.startswith('cs_test_') or self.demo_mode
+
+            if is_demo_session:
+                # Demo mode or test session - return None (no existing payments)
+                logger.info(f"Demo/test session detected: {session_id}")
                 return None
 
             result = (

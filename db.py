@@ -221,8 +221,9 @@ class DatabaseManager:
             # Hash password
             hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
+            # Use admin_client to bypass RLS for user creation
             result = (
-                self.client.table("users")
+                self.admin_client.table("users")
                 .insert(
                     {
                         "email": email,
@@ -263,7 +264,8 @@ class DatabaseManager:
             return None
 
         try:
-            result = self.client.table("users").select("*").eq("email", email).execute()
+            # Use admin_client to bypass RLS for checking existing users
+            result = self.admin_client.table("users").select("*").eq("email", email).execute()
 
             if result.data:
                 user_data = result.data[0]
@@ -297,7 +299,8 @@ class DatabaseManager:
             return None
 
         try:
-            result = self.client.table("users").select("*").eq("email", email).execute()
+            # Use admin_client to bypass RLS for authentication
+            result = self.admin_client.table("users").select("*").eq("email", email).execute()
 
             if not result.data:
                 # Check if this is a demo user (hybrid mode)
@@ -1151,8 +1154,12 @@ class DatabaseManager:
     ) -> Optional[Dict]:
         """Create a payment record"""
         try:
-            if self.demo_mode:
-                # Demo mode - just return a mock payment
+            # Check if this is a demo user (even in production mode for testing)
+            is_demo_user = user_id in ["student-demo-id", "admin-demo-id", "demo-user-id"]
+
+            if self.demo_mode or is_demo_user:
+                # Demo mode or demo user - just return a mock payment
+                logger.info(f"Creating mock payment for demo user: {user_id}")
                 return {
                     "id": f"demo-payment-{len(DEMO_ATTEMPTS)}",
                     "user_id": user_id,
@@ -1190,8 +1197,12 @@ class DatabaseManager:
     async def get_payment_by_session_id(self, session_id: str) -> Optional[Dict]:
         """Get payment by Stripe session ID"""
         try:
-            if self.demo_mode:
-                # Demo mode - return None (no existing payments)
+            # Check if this is a demo/test session
+            is_demo_session = session_id.startswith('cs_test_') or self.demo_mode
+
+            if is_demo_session:
+                # Demo mode or test session - return None (no existing payments)
+                logger.info(f"Demo/test session detected: {session_id}")
                 return None
 
             result = (
@@ -1245,9 +1256,9 @@ class DatabaseManager:
                     return True
 
             # Production user - update in database
-            # Get current user credits
+            # Get current user credits (use admin_client to bypass RLS)
             result = (
-                self.client.table("users").select("credits_balance").eq("id", user_id).execute()
+                self.admin_client.table("users").select("credits_balance").eq("id", user_id).execute()
             )
 
             if not result.data:
@@ -1256,9 +1267,9 @@ class DatabaseManager:
             current_credits = result.data[0]["credits_balance"]
             new_balance = current_credits + credits_to_add
 
-            # Update user credits
+            # Update user credits (use admin_client to bypass RLS)
             update_result = (
-                self.client.table("users")
+                self.admin_client.table("users")
                 .update({"credits_balance": new_balance})
                 .eq("id", user_id)
                 .execute()
@@ -1291,9 +1302,9 @@ class DatabaseManager:
                         return False
 
             # Not a demo user - try real database
-            # Get current user credits from real database
+            # Get current user credits from real database (use admin_client to bypass RLS)
             result = (
-                self.client.table("users").select("credits_balance").eq("id", user_id).execute()
+                self.admin_client.table("users").select("credits_balance").eq("id", user_id).execute()
             )
 
             if not result.data:
@@ -1311,9 +1322,9 @@ class DatabaseManager:
 
             new_balance = current_credits - credits_to_deduct
 
-            # Update user credits
+            # Update user credits (use admin_client to bypass RLS)
             update_result = (
-                self.client.table("users")
+                self.admin_client.table("users")
                 .update({"credits_balance": new_balance})
                 .eq("id", user_id)
                 .execute()

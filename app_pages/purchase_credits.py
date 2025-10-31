@@ -21,16 +21,6 @@ def show_purchase_credits():
         st.stop()
 
     user = auth.get_current_user()
-    # Force refresh from DEMO_USERS in demo mode for student@test.com
-    import config
-
-    if config.DEMO_MODE and user and user.get("email") == "student@test.com":
-        from db import DEMO_USERS
-
-        demo_user = DEMO_USERS.get("student@test.com")
-        if demo_user:
-            user = demo_user.copy()
-            st.session_state["current_user"] = user
     if not user:
         st.error("User data not found")
         st.stop()
@@ -279,47 +269,29 @@ def display_package_card(
 
         # Purchase button
         button_key = f"purchase_{package_key}"
-
         if st.button(
             f"🛒 Purchase {package['name']}",
             key=button_key,
             use_container_width=True,
         ):
+            # Create checkout session
             import os
-
             import config
 
-            # Minimal debug output
-            st.info(f"[DEBUG] Purchase button clicked. user['id']: {user.get('id')}, user: {user}")
-            print(f"[DEBUG] Purchase button clicked. user['id']: {user.get('id')}, user: {user}")
-            st.info(
-                f"[DEBUG] st.session_state['current_user']: {st.session_state.get('current_user')}"
-            )
-            print(
-                f"[DEBUG] st.session_state['current_user']: {st.session_state.get('current_user')}"
-            )
-            # Force refresh from DEMO_USERS in demo mode for student@test.com
-            if config.DEMO_MODE and user and user.get("email") == "student@test.com":
-                from db import DEMO_USERS
-
-                demo_user = DEMO_USERS.get("student@test.com")
-                if demo_user:
-                    user = demo_user.copy()
-                    st.session_state["current_user"] = user
-                    st.info(f"[DEBUG] (REFRESHED) user['id']: {user.get('id')}, user: {user}")
-                    print(f"[DEBUG] (REFRESHED) user['id']: {user.get('id')}, user: {user}")
             # Determine base URL based on environment
-            if os.getenv("APP_BASE_URL"):
-                base_url = os.getenv("APP_BASE_URL")
-            elif config.ENVIRONMENT == "production":
-                base_url = os.getenv("PRODUCTION_URL", "https://wantamock.streamlit.app")
-            elif os.getenv("CODESPACE_NAME"):
+            if os.getenv('APP_BASE_URL'):
+                # Manual override via environment variable
+                base_url = os.getenv('APP_BASE_URL')
+            elif config.ENVIRONMENT == 'production':
+                # Production environment - use production URL
+                base_url = os.getenv('PRODUCTION_URL', 'https://wantamock.streamlit.app')
+            elif os.getenv('CODESPACE_NAME'):
+                # Development in Codespaces
                 base_url = f"https://{os.getenv('CODESPACE_NAME')}-8501.app.github.dev"
             else:
+                # Fallback to localhost for local development
                 base_url = "http://localhost:8501"
 
-            st.info(f"[DEBUG] Calling create_payment_button with base_url: {base_url}")
-            print(f"[DEBUG] Calling create_payment_button with base_url: {base_url}")
             success = create_payment_button(
                 stripe_utils=stripe_utils,
                 package_key=package_key,
@@ -327,8 +299,6 @@ def display_package_card(
                 user_email=user["email"],
                 base_url=base_url,
             )
-            st.info(f"[DEBUG] create_payment_button returned: {success}")
-            print(f"[DEBUG] create_payment_button returned: {success}")
 
             if success:
                 st.success("Redirecting to secure payment...")
@@ -343,65 +313,117 @@ def handle_payment_callback():
     """Handle payment success/failure callbacks"""
     query_params = st.query_params
 
-    st.info("[DEBUG-UNIQUE-XYZ] handle_payment_callback is LIVE and patched.")
-    print("[DEBUG-UNIQUE-XYZ] handle_payment_callback is LIVE and patched.")
+    # Debug logging
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Payment callback received. Query params: {dict(query_params)}")
 
     if "payment" in query_params:
         payment_status = query_params["payment"]
+        logger.info(f"Payment status: {payment_status}")
 
         if payment_status == "success":
             # Handle successful payment
             session_id = query_params.get("session_id")
 
-            # Force refresh from DEMO_USERS in demo mode for student@test.com
-            import config
-
-            user = None
-            if "current_user" in st.session_state:
-                user = st.session_state["current_user"]
-            if config.DEMO_MODE and user and user.get("email") == "student@test.com":
-                from db import DEMO_USERS
-
-                demo_user = DEMO_USERS.get("student@test.com")
-                if demo_user:
-                    user = demo_user.copy()
-                    st.session_state["current_user"] = user
-
             if session_id:
-                stripe_utils = init_stripe_utils()
-                if stripe_utils:
-                    # Verify the session and process payment
-                    success, session_data, error = stripe_utils.verify_session(session_id)
+                # Check if we've already processed this payment in this session
+                processed_key = f"processed_payment_{session_id}"
+                session_data_key = f"session_data_{session_id}"
 
-                    if success and session_data:
-                        # Process the payment (add credits to user)
-                        payment_success, payment_error = run_async(
-                            stripe_utils.process_successful_payment(session_data)
-                        )
+                if not st.session_state.get(processed_key, False):
+                    # First time processing this payment
+                    stripe_utils = init_stripe_utils()
+                    if stripe_utils:
+                        # Verify the session and process payment
+                        success, session_data, error = stripe_utils.verify_session(session_id)
 
-                        if payment_success:
-                            st.success(
-                                "🎉 Payment successful! Your credits have been added to your account."
+                        if success and session_data:
+                            # Restore user authentication from payment session
+                            user_id = session_data.get('user_id')
+                            user_email = session_data.get('customer_email')
+
+                            if user_id and not st.session_state.get('authenticated', False):
+                                # Re-authenticate the user using data from Stripe
+                                from db import db, DEMO_USERS
+
+                                # Check if demo user
+                                demo_user = None
+                                for email, user_data in DEMO_USERS.items():
+                                    if user_data['id'] == user_id:
+                                        demo_user = user_data
+                                        break
+
+                                if demo_user:
+                                    # Restore demo user session
+                                    st.session_state.authenticated = True
+                                    st.session_state.current_user = {
+                                        "id": demo_user["id"],
+                                        "email": demo_user["email"],
+                                        "role": demo_user["role"],
+                                        "credits_balance": demo_user["credits_balance"],
+                                    }
+                                    logger.info(f"Restored demo user session: {demo_user['email']}")
+                                else:
+                                    # Real user - fetch from database
+                                    user_data = run_async(db.get_user_by_id(user_id))
+                                    if user_data:
+                                        st.session_state.authenticated = True
+                                        st.session_state.current_user = {
+                                            "id": user_data["id"],
+                                            "email": user_data["email"],
+                                            "role": user_data.get("role", "user"),
+                                            "credits_balance": user_data.get("credits_balance", 0),
+                                        }
+                                        logger.info(f"Restored user session: {user_data['email']}")
+
+                            # Process the payment (add credits to user)
+                            payment_success, payment_error = run_async(
+                                stripe_utils.process_successful_payment(session_data)
                             )
-                            st.balloons()
 
-                            # Show payment details
-                            with st.expander("Payment Details", expanded=True):
-                                st.write(f"**Credits Purchased:** {session_data['credits']}")
-                                st.write(
-                                    f"**Amount Paid:** ${session_data['amount_paid'] / 100:.2f}"
-                                )
-                                st.write(f"**Transaction ID:** {session_id[:20]}...")
+                            if payment_success:
+                                # Mark as processed and store session data
+                                st.session_state[processed_key] = True
+                                st.session_state[session_data_key] = session_data
 
-                            if st.button("Continue to Dashboard"):
-                                st.session_state.page = "dashboard"
-                                st.rerun()
+                                # Update current user credits in session
+                                if st.session_state.get('current_user'):
+                                    credits_added = session_data.get('credits', 0)
+                                    st.session_state.current_user['credits_balance'] = st.session_state.current_user.get('credits_balance', 0) + credits_added
+
+                                st.balloons()
+                            else:
+                                st.error(f"Payment verification failed: {payment_error}")
+                                return
                         else:
-                            st.error(f"Payment verification failed: {payment_error}")
+                            st.error(f"Payment verification failed: {error}")
+                            return
                     else:
-                        st.error(f"Payment verification failed: {error}")
-                else:
-                    st.error("Payment system unavailable")
+                        st.error("Payment system unavailable")
+                        return
+
+                # Show success message and details (whether just processed or already processed)
+                st.success(
+                    "🎉 Payment successful! Your credits have been added to your account."
+                )
+
+                # Retrieve session data from session state
+                session_data = st.session_state.get(session_data_key)
+                if session_data:
+                    # Show payment details
+                    with st.expander("Payment Details", expanded=True):
+                        st.write(f"**Credits Purchased:** {session_data['credits']}")
+                        st.write(
+                            f"**Amount Paid:** ${session_data['amount_paid'] / 100:.2f}"
+                        )
+                        st.write(f"**Transaction ID:** {session_id[:20]}...")
+
+                if st.button("Continue to Dashboard"):
+                    # Clear query parameters to prevent re-processing
+                    st.query_params.clear()
+                    st.session_state.page = "dashboard"
+                    st.rerun()
             else:
                 st.error("Invalid payment session")
 

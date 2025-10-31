@@ -876,7 +876,7 @@ def show_enhanced_login_form(auth: AuthUtils):
                     st.success("🎉 Welcome back! Redirecting to your dashboard...")
                     st.rerun()
                 else:
-                    st.error(f"❌ {error_msg or 'Login failed. Please check your credentials.'}")
+                    st.markdown(f'<p style="color: black;">❌ {error_msg or "Login failed. Please check your credentials."}</p>', unsafe_allow_html=True)
 
         if forgot_password:
             st.info("🔄 Password reset feature coming soon! Contact support for assistance.")
@@ -923,7 +923,7 @@ def show_enhanced_register_form(auth: AuthUtils):
                 return
 
             if not terms_agreed:
-                st.error("⚠️ Please agree to the Terms of Service to continue")
+                st.markdown('<p style="color: black;">⚠️ Please agree to the Terms of Service to continue</p>', unsafe_allow_html=True)
                 return
 
             # Validate email
@@ -935,7 +935,7 @@ def show_enhanced_register_form(auth: AuthUtils):
             # Validate password
             password_valid, password_error = validate_password(password, confirm_password)
             if not password_valid:
-                st.error(f"⚠️ {password_error}")
+                st.markdown(f'<p style="color: black;">⚠️ {password_error}</p>', unsafe_allow_html=True)
                 return
 
             # Attempt registration with enhanced feedback

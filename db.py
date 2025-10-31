@@ -218,8 +218,9 @@ class DatabaseManager:
             # Hash password
             hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
+            # Use admin_client to bypass RLS for user creation
             result = (
-                self.client.table("users")
+                self.admin_client.table("users")
                 .insert(
                     {
                         "email": email,
@@ -260,7 +261,8 @@ class DatabaseManager:
             return None
 
         try:
-            result = self.client.table("users").select("*").eq("email", email).execute()
+            # Use admin_client to bypass RLS for checking existing users
+            result = self.admin_client.table("users").select("*").eq("email", email).execute()
 
             if result.data:
                 user_data = result.data[0]
@@ -294,7 +296,8 @@ class DatabaseManager:
             return None
 
         try:
-            result = self.client.table("users").select("*").eq("email", email).execute()
+            # Use admin_client to bypass RLS for authentication
+            result = self.admin_client.table("users").select("*").eq("email", email).execute()
 
             if not result.data:
                 # Check if this is a demo user (hybrid mode)
@@ -1246,9 +1249,9 @@ class DatabaseManager:
                     return True
 
             # Production user - update in database
-            # Get current user credits
+            # Get current user credits (use admin_client to bypass RLS)
             result = (
-                self.client.table("users").select("credits_balance").eq("id", user_id).execute()
+                self.admin_client.table("users").select("credits_balance").eq("id", user_id).execute()
             )
 
             if not result.data:
@@ -1257,9 +1260,9 @@ class DatabaseManager:
             current_credits = result.data[0]["credits_balance"]
             new_balance = current_credits + credits_to_add
 
-            # Update user credits
+            # Update user credits (use admin_client to bypass RLS)
             update_result = (
-                self.client.table("users")
+                self.admin_client.table("users")
                 .update({"credits_balance": new_balance})
                 .eq("id", user_id)
                 .execute()
@@ -1292,9 +1295,9 @@ class DatabaseManager:
                         return False
 
             # Not a demo user - try real database
-            # Get current user credits from real database
+            # Get current user credits from real database (use admin_client to bypass RLS)
             result = (
-                self.client.table("users").select("credits_balance").eq("id", user_id).execute()
+                self.admin_client.table("users").select("credits_balance").eq("id", user_id).execute()
             )
 
             if not result.data:
@@ -1312,9 +1315,9 @@ class DatabaseManager:
 
             new_balance = current_credits - credits_to_deduct
 
-            # Update user credits
+            # Update user credits (use admin_client to bypass RLS)
             update_result = (
-                self.client.table("users")
+                self.admin_client.table("users")
                 .update({"credits_balance": new_balance})
                 .eq("id", user_id)
                 .execute()

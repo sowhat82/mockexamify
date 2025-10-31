@@ -3,6 +3,7 @@
     "meta-llama/llama-3.3-70b-instruct:free",
     "mistralai/mistral-7b-instruct:free",
     "mistralai/mixtral-8x7b-instruct",
-    "openai/gpt-4o-mini"
+  "openai/gpt-4o-mini",
+  "openai/gpt-5-mini"
   ]
 }

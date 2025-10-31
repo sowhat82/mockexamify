@@ -51,8 +51,6 @@ def show_dashboard():
 
     user = auth.get_current_user()
     # Force refresh from DEMO_USERS in demo mode for student@test.com
-    import config
-
     if config.DEMO_MODE and user and user.get("email") == "student@test.com":
         from db import DEMO_USERS
 

@@ -42,17 +42,20 @@ def get_secret(key: str, default: str = "") -> str:
     return default
 
 
-# Check if we're in demo mode
-DEMO_MODE = get_secret("DEMO_MODE", "false").lower() == "true"
+# Demo mode: true only if running on localhost and .env sets DEMO_MODE=true
+import socket
 
-# Override demo mode if no secrets are available (force production mode on Streamlit Cloud)
-if not HAS_STREAMLIT or not hasattr(st, "secrets"):
-    DEMO_MODE = False
+hostname = socket.gethostname()
+local_ips = ["127.0.0.1", "localhost"]
+is_localhost = any(host in get_secret("API_BASE_URL", "").lower() for host in local_ips)
+DEMO_MODE = get_secret("DEMO_MODE", "false").lower() == "true" and is_localhost
 
 # Supabase Configuration - always load for hybrid mode (question pools)
 SUPABASE_URL = get_secret("SUPABASE_URL")
 SUPABASE_KEY = get_secret("SUPABASE_KEY")
-SUPABASE_SERVICE_KEY = get_secret("SUPABASE_SERVICE_KEY", "")  # Service role key for admin operations
+SUPABASE_SERVICE_KEY = get_secret(
+    "SUPABASE_SERVICE_KEY", ""
+)  # Service role key for admin operations
 
 # Stripe Configuration - always read from secrets
 STRIPE_SECRET_KEY = get_secret("STRIPE_SECRET_KEY")
@@ -65,7 +68,29 @@ OPENROUTER_API_KEY = get_secret("OPENROUTER_API_KEY")
 # Application Configuration
 SECRET_KEY = get_secret("SECRET_KEY", "your-secret-key-change-this")
 ENVIRONMENT = get_secret("ENVIRONMENT", "development")
-API_BASE_URL = get_secret("API_BASE_URL", "http://localhost:8000")
+import sys
+def get_dynamic_api_base_url():
+    # If running on localhost, try to detect the port Streamlit is running on
+    # Otherwise, use the production URL from secrets or .env
+    import socket
+    import os
+    # Try to get port from Streamlit environment
+    port = os.environ.get("STREAMLIT_SERVER_PORT")
+    if not port:
+        # Try to get from sys.argv (e.g., --server.port 8501)
+        for i, arg in enumerate(sys.argv):
+            if arg in ("--server.port", "--port") and i + 1 < len(sys.argv):
+                port = sys.argv[i + 1]
+                break
+    if not port:
+        port = "8501"  # Default Streamlit port
+    # If running on localhost, use detected port
+    if "localhost" in socket.gethostname().lower() or os.environ.get("LOCAL_DEV", "false").lower() == "true":
+        return f"http://localhost:{port}"
+    # Otherwise, use the configured API_BASE_URL
+    return get_secret("API_BASE_URL", "https://mockexamify.streamlit.app")
+
+API_BASE_URL = get_dynamic_api_base_url()
 
 # Admin credentials
 ADMIN_EMAIL = get_secret("ADMIN_EMAIL", "admin@mockexamify.com")

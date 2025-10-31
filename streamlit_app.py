@@ -820,45 +820,134 @@ def show_enhanced_login_form(auth: AuthUtils):
         # Silently fail if quick login setup fails
         pass
 
-    with st.form("login_form", clear_on_submit=False):
-        email = st.text_input(
-            "📧 Email Address",
-            value=st.session_state.last_email,
-            placeholder="your.email@example.com",
-            help="Enter your registered email address",
-        )
+    # Only show one form at a time: login or forgot password
+    if st.session_state.get("show_forgot_password", False):
+        st.markdown("""
+            <h3 style='color: #000000;'>🔑 Forgot Password</h3>
+            <div style='color: #000000;'>Enter your email address to receive a password reset code.</div>
+        """, unsafe_allow_html=True)
+        # --- DEBUGGER ---
+        # Only show debug info if a submit actually happened
+        import sys
+        # --- END DEBUGGER ---
+        if "reset_stage" not in st.session_state:
+            st.session_state.reset_stage = "request"
 
-        password = st.text_input(
-            "🔒 Password",
-            type="password",
-            placeholder="Enter your password",
-            help="Enter your account password",
-        )
+        if st.session_state.reset_stage == "request":
+            with st.form("forgot_password_form", clear_on_submit=False):
+                reset_email = st.text_input("📧 Email Address")
+                submit = st.form_submit_button("Send Reset Code", use_container_width=True)
+                if submit:
+                    st.info(f"[DEBUG] forgot_password_form submit: {submit}")
+                    print(f"[DEBUG] forgot_password_form submit: {submit}", file=sys.stderr)
+                    st.info(f"[DEBUG] reset_stage: {st.session_state.get('reset_stage')}, reset_email: {st.session_state.get('reset_email')}, reset_code: {st.session_state.get('reset_code')}, show_forgot_password: {st.session_state.get('show_forgot_password')}")
+                    print(f"[DEBUG] reset_stage: {st.session_state.get('reset_stage')}, reset_email: {st.session_state.get('reset_email')}, reset_code: {st.session_state.get('reset_code')}, show_forgot_password: {st.session_state.get('show_forgot_password')}", file=sys.stderr)
+                    email_valid, email_error = validate_email(reset_email)
+                    if not email_valid:
+                        st.error(email_error)
+                    else:
+                        import random, string
+                        code = ''.join(random.choices(string.digits, k=6))
+                        st.session_state.reset_code = code
+                        st.session_state.reset_email = reset_email
+                        st.session_state.reset_stage = "verify"
+                        import config
+                        if config.DEMO_MODE:
+                            print(f"[DEMO] Password reset code for {reset_email}: {code}")
+                            st.info(f"[DEMO] Password reset code: {code}")
+                        else:
+                            st.info("If this email is registered, a reset code has been sent.")
+                        st.info(f"[DEBUG] set reset_stage=verify and rerun")
+                        print(f"[DEBUG] set reset_stage=verify and rerun", file=sys.stderr)
+                        st.rerun()
+                        return
+                        st.rerun()
+                        return
 
-        col1, col2 = st.columns([3, 2])
+        elif st.session_state.reset_stage == "verify":
+            st.write(f"A reset code was sent to {st.session_state.reset_email}. Enter it below with your new password.")
+            with st.form("reset_code_form", clear_on_submit=False):
+                code = st.text_input("Reset Code", key="reset_code_input")
+                new_password = st.text_input("New Password", type="password", key="reset_new_pw")
+                confirm_password = st.text_input("Confirm New Password", type="password", key="reset_confirm_pw")
+                submit = st.form_submit_button("Reset Password", use_container_width=True)
+                st.info(f"[DEBUG] reset_code_form submit: {submit}")
+                print(f"[DEBUG] reset_code_form submit: {submit}", file=sys.stderr)
+                if submit:
+                    if code != st.session_state.get("reset_code"):
+                        st.error("Invalid reset code.")
+                    else:
+                        valid, msg = validate_password(new_password, confirm_password)
+                        if not valid:
+                            st.error(msg)
+                        else:
+                            import config
+                            if config.DEMO_MODE:
+                                from db import DEMO_USERS
+                                if st.session_state.reset_email in DEMO_USERS:
+                                    import bcrypt
+                                    DEMO_USERS[st.session_state.reset_email]["password_hash"] = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                                    st.success("Password reset! You can now log in.")
+                                    st.session_state.reset_stage = "done"
+                                    st.info(f"[DEBUG] set reset_stage=done and rerun")
+                                    print(f"[DEBUG] set reset_stage=done and rerun", file=sys.stderr)
+                                    st.rerun()
+                                    return
+                                else:
+                                    st.error("No account found for this email.")
+                            else:
+                                st.success("If this email is registered, your password has been reset.")
+                                st.session_state.reset_stage = "done"
+                                st.info(f"[DEBUG] set reset_stage=done and rerun")
+                                print(f"[DEBUG] set reset_stage=done and rerun", file=sys.stderr)
+                                st.rerun()
+                                return
 
-        with col1:
-            login_submitted = st.form_submit_button(
-                "🚀 Sign In", use_container_width=True, type="primary"
+        elif st.session_state.reset_stage == "done":
+            st.success("Password reset complete. Please log in with your new password.")
+            if st.button("Back to Login"):
+                st.session_state.reset_stage = "request"
+                st.session_state.show_forgot_password = False
+                st.info(f"[DEBUG] set reset_stage=request, show_forgot_password=False and rerun")
+                print(f"[DEBUG] set reset_stage=request, show_forgot_password=False and rerun", file=sys.stderr)
+                st.rerun()
+                return
+    else:
+        with st.form("login_form", clear_on_submit=False):
+            email = st.text_input(
+                "📧 Email Address",
+                value=st.session_state.last_email,
+                placeholder="your.email@example.com",
+                help="Enter your registered email address",
             )
 
-        with col2:
-            forgot_password = st.form_submit_button("❓ Forgot Password?", use_container_width=True)
+            password = st.text_input(
+                "🔒 Password",
+                type="password",
+                placeholder="Enter your password",
+                help="Enter your password",
+            )
 
-        if login_submitted:
-            if not email or not password:
-                st.error("⚠️ Please fill in both email and password")
-                return
+            cols = st.columns([1, 1])
+            with cols[0]:
+                login_submitted = st.form_submit_button("Sign In", use_container_width=True)
+            with cols[1]:
+                forgot_password = st.form_submit_button("❓ Forgot Password?", use_container_width=True)
 
-            # Validate email format
-            email_valid, email_error = validate_email(email)
-            if not email_valid:
-                st.error(f"⚠️ {email_error}")
-                return
+            if login_submitted:
+                if not email or not password:
+                    st.error("⚠️ Please fill in both email and password")
+                    return
 
-            # Attempt login with enhanced feedback
-            with st.spinner("🔄 Signing you in..."):
-                success, user_data, error_msg = run_async(auth.sign_in(email, password))
+                # Validate email format
+                email_valid, email_error = validate_email(email)
+                if not email_valid:
+                    st.error(f"⚠️ {email_error}")
+                    return
+
+                # Attempt login with enhanced feedback
+                with st.spinner("🔄 Signing you in..."):
+                    success, user_data, error_msg = run_async(auth.sign_in(email, password))
 
                 if success and user_data:
                     # Store user session data
@@ -878,8 +967,10 @@ def show_enhanced_login_form(auth: AuthUtils):
                 else:
                     st.error(f"❌ {error_msg or 'Login failed. Please check your credentials.'}")
 
-        if forgot_password:
-            st.info("🔄 Password reset feature coming soon! Contact support for assistance.")
+            if forgot_password:
+                st.session_state.show_forgot_password = True
+                st.rerun()
+                return
 
 
 def show_enhanced_register_form(auth: AuthUtils):

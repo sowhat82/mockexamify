@@ -320,21 +320,21 @@ async def register(user_data: UserCreate, request: Request):
                 status_code=status.HTTP_409_CONFLICT,
                 detail="User already exists"
             )
-        
+
         # Create user
         user_data.email = sanitized_email
-        user = await db.create_user(user_data)
-        
+        user = await db.create_user(user_data.email, user_data.password)
+
         # Create session token
         token = security_manager.create_session_token(user.id)
-        
+
         # Log registration
         security_manager.log_security_event("user_registration", "low", {
             "user_id": user.id,
             "email": user.email,
             "ip": client_ip
         })
-        
+
         return APIResponse(
             success=True,
             message="Registration successful",
@@ -344,7 +344,6 @@ async def register(user_data: UserCreate, request: Request):
                 "session_expires_at": (datetime.utcnow() + timedelta(hours=1)).isoformat()
             }
         )
-        
     except HTTPException:
         raise
     except Exception as e:

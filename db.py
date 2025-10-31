@@ -27,22 +27,25 @@ else:
 # Persistent storage file for demo tickets
 DEMO_TICKETS_FILE = ".demo_tickets.json"
 
+
 def load_demo_tickets():
     """Load demo tickets from persistent storage"""
     try:
-        with open(DEMO_TICKETS_FILE, 'r') as f:
+        with open(DEMO_TICKETS_FILE, "r") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return []
 
+
 def save_demo_tickets():
     """Save demo tickets to persistent storage"""
     try:
-        with open(DEMO_TICKETS_FILE, 'w') as f:
+        with open(DEMO_TICKETS_FILE, "w") as f:
             json.dump(DEMO_TICKETS, f, indent=2)
         logger.info(f"Saved {len(DEMO_TICKETS)} demo tickets to {DEMO_TICKETS_FILE}")
     except Exception as e:
         logger.error(f"Error saving demo tickets: {e}")
+
 
 # Load existing demo tickets on startup
 DEMO_TICKETS = load_demo_tickets()
@@ -78,12 +81,12 @@ DEMO_USERS = {
         "created_at": datetime.now(timezone.utc).isoformat(),
     },
     "student@test.com": {
-        "id": "student-demo-id",
+        "id": "123e4567-e89b-12d3-a456-426614174000",
         "email": "student@test.com",
         "password_hash": bcrypt.hashpw("password".encode("utf-8"), bcrypt.gensalt()).decode(
             "utf-8"
         ),
-        "credits_balance": 3,
+        "credits_balance": 33,
         "role": "user",
         "created_at": datetime.now(timezone.utc).isoformat(),
     },
@@ -1175,9 +1178,13 @@ class DatabaseManager:
                 .execute()
             )
 
+            if not result.data:
+                logger.error(f"Failed to record payment: Supabase response: {result}")
+                if hasattr(result, "error") and result.error:
+                    logger.error(f"Supabase error: {result.error}")
             return result.data[0] if result.data else None
         except Exception as e:
-            logger.error(f"Error creating payment: {e}")
+            logger.error(f"Error creating payment: {e}", exc_info=True)
             return None
 
     async def get_payment_by_session_id(self, session_id: str) -> Optional[Dict]:

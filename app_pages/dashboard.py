@@ -50,16 +50,25 @@ def show_dashboard():
         st.stop()
 
     user = auth.get_current_user()
+    # Force refresh from DEMO_USERS in demo mode for student@test.com
+    import config
+
+    if config.DEMO_MODE and user and user.get("email") == "student@test.com":
+        from db import DEMO_USERS
+
+        demo_user = DEMO_USERS.get("student@test.com")
+        if demo_user:
+            user = demo_user.copy()
+            st.session_state["current_user"] = user
     if not user:
         st.error("User data not found")
         st.stop()
 
-
     # Large app name header
-    st.markdown(
-        '<div style="font-size:4rem; font-weight:900; color:#fff; margin-bottom:1.5rem;">🎯 WantAMock</div>',
-        unsafe_allow_html=True,
-    )
+    #    st.markdown(
+    #      '<div style="font-size:4rem; font-weight:900; color:#fff; margin-bottom:1.5rem;">🎯 WantAMock</div>',
+    #       unsafe_allow_html=True,
+    #    )
 
     current_hour = datetime.now().hour
     if current_hour < 12:
@@ -89,7 +98,6 @@ def show_dashboard():
     # Quick stats overview
     show_quick_stats(user)
 
-    # Action buttons section - essential navigation for students
     show_quick_actions()
 
     # Admin panel (if user is admin)
@@ -636,7 +644,6 @@ def show_enhanced_mock_card(mock_obj: Any, container, user: Dict[str, Any]):
                 button_text,
                 key=f"start_{mock.get('id')}",
                 disabled=not can_afford,
-               
                 type=button_type,
             ):
                 st.session_state.current_mock_id = mock.get("id")

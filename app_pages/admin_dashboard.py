@@ -155,19 +155,34 @@ def show_admin_dashboard():
         st.markdown("---")
         st.markdown("## ⚙️ Quick Actions")
 
+        # Initialize modal state if not present
+        if "show_users_modal" not in st.session_state:
+            st.session_state.show_users_modal = False
+        if "show_credits_modal" not in st.session_state:
+            st.session_state.show_credits_modal = False
+
         col1, col2, col3 = st.columns(3)
 
         with col1:
             if st.button("👥 Manage Users", use_container_width=True, type="primary"):
-                show_user_management_modal()
+                st.session_state.show_users_modal = True
+                st.session_state.show_credits_modal = False
 
         with col2:
             if st.button("💰 Adjust User Credits", use_container_width=True):
-                show_credits_management_modal()
+                st.session_state.show_credits_modal = True
+                st.session_state.show_users_modal = False
 
         with col3:
             if st.button("📊 Export Analytics", use_container_width=True):
                 export_analytics()
+
+        # Show modals based on session state
+        if st.session_state.show_users_modal:
+            show_user_management_modal()
+
+        if st.session_state.show_credits_modal:
+            show_credits_management_modal()
 
         # System Health
         st.markdown("---")
@@ -209,7 +224,13 @@ def show_admin_dashboard():
 def show_user_management_modal():
     """Show user management in an expander"""
     with st.expander("👥 User Management", expanded=True):
-        st.markdown("### All Users")
+        col1, col2 = st.columns([5, 1])
+        with col1:
+            st.markdown("### All Users")
+        with col2:
+            if st.button("✖️ Close", key="close_users_modal"):
+                st.session_state.show_users_modal = False
+                st.rerun()
 
         # Load real users from database
         try:
@@ -250,7 +271,13 @@ def show_user_management_modal():
 def show_credits_management_modal():
     """Show credits management interface"""
     with st.expander("💰 Credits Management", expanded=True):
-        st.markdown("### Adjust User Credits")
+        col_header1, col_header2 = st.columns([5, 1])
+        with col_header1:
+            st.markdown("### Adjust User Credits")
+        with col_header2:
+            if st.button("✖️ Close", key="close_credits_modal"):
+                st.session_state.show_credits_modal = False
+                st.rerun()
 
         col1, col2 = st.columns(2)
 
@@ -267,16 +294,47 @@ def show_credits_management_modal():
         with col2:
             st.markdown("#### Quick Actions")
             if st.button("➕ Add 5 Credits"):
-                st.success(f"Added 5 credits to {user_email if user_email else '[user]'}")
+                if user_email:
+                    success = run_async(adjust_user_credits(user_email, 5))
+                    if success:
+                        st.success(f"Added 5 credits to {user_email}")
+                        st.rerun()
+                    else:
+                        st.error(f"Failed to add credits to {user_email}")
+                else:
+                    st.error("Please enter a user email")
+
             if st.button("➕ Add 10 Credits"):
-                st.success(f"Added 10 credits to {user_email if user_email else '[user]'}")
+                if user_email:
+                    success = run_async(adjust_user_credits(user_email, 10))
+                    if success:
+                        st.success(f"Added 10 credits to {user_email}")
+                        st.rerun()
+                    else:
+                        st.error(f"Failed to add credits to {user_email}")
+                else:
+                    st.error("Please enter a user email")
+
             if st.button("🔄 Reset to 0"):
-                st.warning(f"Reset credits for {user_email if user_email else '[user]'}")
+                if user_email:
+                    success = run_async(reset_user_credits(user_email))
+                    if success:
+                        st.success(f"Reset credits for {user_email} to 0")
+                        st.rerun()
+                    else:
+                        st.error(f"Failed to reset credits for {user_email}")
+                else:
+                    st.error("Please enter a user email")
 
         if st.button("💰 Apply Credit Adjustment", type="primary"):
             if user_email and credits_to_add != 0:
-                action = "Added" if credits_to_add > 0 else "Removed"
-                st.success(f"{action} {abs(credits_to_add)} credits for {user_email}")
+                success = run_async(adjust_user_credits(user_email, credits_to_add))
+                if success:
+                    action = "Added" if credits_to_add > 0 else "Removed"
+                    st.success(f"{action} {abs(credits_to_add)} credits for {user_email}")
+                    st.rerun()
+                else:
+                    st.error(f"Failed to adjust credits for {user_email}")
             else:
                 st.error("Please provide valid email and credit amount")
 
@@ -365,6 +423,49 @@ def get_score_color(score: float) -> str:
         return "#f44336"  # Red
     else:
         return "#9e9e9e"  # Grey
+
+
+async def adjust_user_credits(user_email: str, credits_to_add: int) -> bool:
+    """Adjust user credits by email"""
+    from db import db
+
+    try:
+        # Get user by email
+        user = await db.get_user_by_email(user_email)
+        if not user:
+            return False
+
+        # Add credits to user
+        success = await db.add_credits_to_user(user.id, credits_to_add)
+        return success
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error adjusting credits for {user_email}: {e}")
+        return False
+
+
+async def reset_user_credits(user_email: str) -> bool:
+    """Reset user credits to 0"""
+    from db import db
+
+    try:
+        # Get user by email
+        user = await db.get_user_by_email(user_email)
+        if not user:
+            return False
+
+        # Calculate credits to deduct to reach 0
+        credits_to_deduct = -user.credits_balance
+
+        # Add negative credits to reset to 0
+        success = await db.add_credits_to_user(user.id, credits_to_deduct)
+        return success
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error resetting credits for {user_email}: {e}")
+        return False
 
 
 # Main function for standalone execution

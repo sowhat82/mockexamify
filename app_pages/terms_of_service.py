@@ -31,14 +31,14 @@ def show_terms_page():
         st.markdown(
             """
             <style>
-            /* Force all text in stMarkdown to black */
-            .stMarkdown, .stMarkdown * {
-                color: #000000 !important;
-            }
-            .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4, .stMarkdown h5, .stMarkdown h6 {
-                color: #000000 !important;
-            }
-            .stMarkdown p, .stMarkdown li, .stMarkdown span, .stMarkdown div {
+            /* Force all text to black with maximum specificity */
+            .stMarkdown, .stMarkdown *,
+            .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4, .stMarkdown h5, .stMarkdown h6,
+            .stMarkdown p, .stMarkdown li, .stMarkdown span, .stMarkdown div,
+            .stMarkdown a, .stMarkdown strong, .stMarkdown em, .stMarkdown code,
+            div[data-testid="stMarkdownContainer"] *,
+            [data-testid="stMarkdownContainer"] *,
+            .element-container * {
                 color: #000000 !important;
             }
             </style>

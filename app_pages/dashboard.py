@@ -207,7 +207,7 @@ def show_quick_actions():
     st.markdown("---")
     st.markdown("## ⚡ Quick Actions")
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2 = st.columns(2)
 
     with col1:
         if st.button("💳 Purchase Credits", use_container_width=True, type="primary"):
@@ -215,22 +215,22 @@ def show_quick_actions():
             st.session_state.page = "purchase_credits"
             st.rerun()
 
-    with col2:
-        if st.button("📈 View Progress", use_container_width=True):
-            st.toast("[DEBUG] View Progress button clicked")
-            st.session_state.page = "past_attempts"
-            st.rerun()
+    # with col2:
+    #     if st.button("📈 View Progress", use_container_width=True):
+    #         st.toast("[DEBUG] View Progress button clicked")
+    #         st.session_state.page = "past_attempts"
+    #         st.rerun()
 
-    with col3:
+    with col2:
         if st.button("💬 Contact Support", use_container_width=True):
             st.toast("[DEBUG] Contact Support button clicked (Quick Actions)")
             st.session_state.page = "contact_support"
             st.rerun()
 
-    with col4:
-        if st.button("⚙️ Settings", use_container_width=True):
-            st.toast("[DEBUG] Settings button clicked")
-            st.session_state.show_settings = True
+    # with col4:
+    #     if st.button("⚙️ Settings", use_container_width=True):
+    #         st.toast("[DEBUG] Settings button clicked")
+    #         st.session_state.show_settings = True
 
 
 def show_admin_panel():
@@ -939,13 +939,13 @@ async def load_user_activities(user_id: str, limit: int = 20) -> List[Dict[str, 
 def handle_dashboard_modals():
     """Handle dashboard modals and overlays"""
     # Settings modal
-    if st.session_state.get("show_settings"):
-        with st.expander("⚙️ Settings", expanded=True):
-            show_user_settings()
+    # if st.session_state.get("show_settings"):
+    #     with st.expander("⚙️ Settings", expanded=True):
+    #         show_user_settings()
 
-            if st.button("❌ Close Settings"):
-                del st.session_state.show_settings
-                st.rerun()
+    #         if st.button("❌ Close Settings"):
+    #             del st.session_state.show_settings
+    #             st.rerun()
 
     # Mock preview modal
     if "preview_mock" in st.session_state:

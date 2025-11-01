@@ -362,6 +362,38 @@ class DatabaseManager:
             logger.error(f"Error getting user: {e}")
             return None
 
+    async def get_all_users(self, limit: int = 100) -> List[User]:
+        """Get all users from database (admin function)"""
+        try:
+            # Start with demo users
+            all_users = []
+            for email, user_data in DEMO_USERS.items():
+                all_users.append(User(
+                    id=user_data["id"],
+                    email=user_data["email"],
+                    credits_balance=user_data["credits_balance"],
+                    role=user_data["role"],
+                    created_at=user_data["created_at"],
+                ))
+
+            # Add real users from database (use admin_client to bypass RLS)
+            if not self.demo_mode:
+                result = self.admin_client.table("users").select("*").limit(limit).execute()
+                if result.data:
+                    for user_data in result.data:
+                        all_users.append(User(
+                            id=user_data["id"],
+                            email=user_data["email"],
+                            credits_balance=user_data["credits_balance"],
+                            role=user_data["role"],
+                            created_at=user_data["created_at"],
+                        ))
+
+            return all_users
+        except Exception as e:
+            logger.error(f"Error getting all users: {e}")
+            return []
+
     async def update_user_credits(self, user_id: str, credits_to_add: int) -> bool:
         """Add credits to user balance"""
         try:

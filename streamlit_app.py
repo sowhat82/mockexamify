@@ -777,7 +777,10 @@ def show_enhanced_login_form(auth: AuthUtils):
 
     # Quick login buttons for development
     try:
+        import logging
+        logger = logging.getLogger(__name__)
         is_dev = config.ENVIRONMENT == "development"
+        logger.info(f"Quick login check: ENVIRONMENT={config.ENVIRONMENT}, is_dev={is_dev}")
 
         # Show quick login if development mode (works with both demo and production database)
         if is_dev:
@@ -817,8 +820,10 @@ def show_enhanced_login_form(auth: AuthUtils):
                     st.session_state.page = "dashboard"
                     st.rerun()
     except Exception as e:
-        # Silently fail if quick login setup fails
-        pass
+        # Log error but don't show to user
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Quick login setup failed: {e}")
 
     # Only show one form at a time: login or forgot password
     if st.session_state.get("show_forgot_password", False):
@@ -851,7 +856,6 @@ def show_enhanced_login_form(auth: AuthUtils):
                         st.session_state.reset_code = code
                         st.session_state.reset_email = reset_email
                         st.session_state.reset_stage = "verify"
-                        import config
                         if config.DEMO_MODE:
                             print(f"[DEMO] Password reset code for {reset_email}: {code}")
                             st.info(f"[DEMO] Password reset code: {code}")
@@ -881,7 +885,6 @@ def show_enhanced_login_form(auth: AuthUtils):
                         if not valid:
                             st.error(msg)
                         else:
-                            import config
                             if config.DEMO_MODE:
                                 from db import DEMO_USERS
                                 if st.session_state.reset_email in DEMO_USERS:

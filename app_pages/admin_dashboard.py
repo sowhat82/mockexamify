@@ -209,18 +209,40 @@ def show_admin_dashboard():
 def show_user_management_modal():
     """Show user management in an expander"""
     with st.expander("👥 User Management", expanded=True):
-        st.markdown("### Recent Users")
+        st.markdown("### All Users")
 
-        # Demo user data
-        users_data = {
-            "Email": ["user1@demo.com", "user2@demo.com", "user3@demo.com"],
-            "Credits": [15, 8, 22],
-            "Role": ["user", "user", "user"],
-            "Joined": ["2024-01-15", "2024-01-20", "2024-01-25"],
-        }
+        # Load real users from database
+        try:
+            from db import db
+            users = run_async(db.get_all_users())
 
-        df = pd.DataFrame(users_data)
-        st.dataframe(df, use_container_width=True)
+            if users:
+                # Convert User objects to DataFrame
+                joined_dates = []
+                for u in users:
+                    if isinstance(u.created_at, datetime):
+                        joined_dates.append(u.created_at.strftime("%Y-%m-%d"))
+                    elif isinstance(u.created_at, str):
+                        joined_dates.append(u.created_at.split("T")[0] if "T" in u.created_at else u.created_at)
+                    else:
+                        joined_dates.append(str(u.created_at))
+
+                users_data = {
+                    "Email": [u.email for u in users],
+                    "Credits": [u.credits_balance for u in users],
+                    "Role": [u.role for u in users],
+                    "Joined": joined_dates,
+                }
+
+                df = pd.DataFrame(users_data)
+                st.dataframe(df, use_container_width=True)
+
+                st.success(f"📊 Showing {len(users)} users")
+            else:
+                st.warning("No users found")
+
+        except Exception as e:
+            st.error(f"Error loading users: {e}")
 
         st.info("💡 Tip: Use 'Adjust User Credits' button for credit management")
 

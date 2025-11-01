@@ -120,14 +120,14 @@ except ImportError as e:
 
 # Configure Streamlit page
 st.set_page_config(
-    page_title="MockExamify - AI-Powered Mock Exams",
+    page_title="WantAMock - AI-Powered Mock Exams",
     page_icon="🎯",
     layout="wide",
     initial_sidebar_state="collapsed",  # Sidebar hidden permanently
     menu_items={
-        "Get Help": "mailto:support@mockexamify.com",
-        "Report a bug": "mailto:support@mockexamify.com",
-        "About": "MockExamify - Master your exams with AI-powered mock tests!",
+        "Get Help": "mailto:support@wantamock.com",
+        "Report a bug": "mailto:support@wantamock.com",
+        "About": "WantAMock - Master your exams with AI-powered mock tests!",
     },
 )
 

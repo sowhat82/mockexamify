@@ -1374,6 +1374,38 @@ class DatabaseManager:
             logger.error(f"Error deducting credits from user: {e}")
             return False
 
+    async def reset_user_password(self, user_id: str, new_password: str) -> bool:
+        """Reset user password (admin function)"""
+        try:
+            # Hash the new password
+            password_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+            # Check if this is a demo user
+            for email, user_data in DEMO_USERS.items():
+                if user_data["id"] == user_id:
+                    user_data["password_hash"] = password_hash
+                    logger.info(f"Reset password for demo user: {email}")
+                    return True
+
+            # Production user - update in database (use admin_client to bypass RLS)
+            if not self.demo_mode:
+                update_result = (
+                    self.admin_client.table("users")
+                    .update({"password_hash": password_hash})
+                    .eq("id", user_id)
+                    .execute()
+                )
+
+                success = len(update_result.data) > 0
+                if success:
+                    logger.info(f"Successfully reset password for user {user_id}")
+                return success
+
+            return False
+        except Exception as e:
+            logger.error(f"Error resetting password for user {user_id}: {e}")
+            return False
+
     # Admin Mock Management Methods
     async def update_mock(self, mock_id: str, update_data: Dict[str, Any]) -> bool:
         """Update a mock exam"""

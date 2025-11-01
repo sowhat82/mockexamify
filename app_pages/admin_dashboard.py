@@ -160,20 +160,30 @@ def show_admin_dashboard():
             st.session_state.show_users_modal = False
         if "show_credits_modal" not in st.session_state:
             st.session_state.show_credits_modal = False
+        if "show_password_modal" not in st.session_state:
+            st.session_state.show_password_modal = False
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
 
         with col1:
             if st.button("👥 Manage Users", use_container_width=True, type="primary"):
                 st.session_state.show_users_modal = True
                 st.session_state.show_credits_modal = False
+                st.session_state.show_password_modal = False
 
         with col2:
             if st.button("💰 Adjust User Credits", use_container_width=True):
                 st.session_state.show_credits_modal = True
                 st.session_state.show_users_modal = False
+                st.session_state.show_password_modal = False
 
         with col3:
+            if st.button("🔑 Reset User Password", use_container_width=True):
+                st.session_state.show_password_modal = True
+                st.session_state.show_users_modal = False
+                st.session_state.show_credits_modal = False
+
+        with col4:
             if st.button("📊 Export Analytics", use_container_width=True):
                 export_analytics()
 
@@ -183,6 +193,9 @@ def show_admin_dashboard():
 
         if st.session_state.show_credits_modal:
             show_credits_management_modal()
+
+        if st.session_state.show_password_modal:
+            show_password_reset_modal()
 
         # System Health
         st.markdown("---")
@@ -339,6 +352,65 @@ def show_credits_management_modal():
                 st.error("Please provide valid email and credit amount")
 
 
+def show_password_reset_modal():
+    """Show password reset interface"""
+    with st.expander("🔑 Password Reset", expanded=True):
+        col_header1, col_header2 = st.columns([5, 1])
+        with col_header1:
+            st.markdown("### Reset User Password")
+        with col_header2:
+            if st.button("✖️ Close", key="close_password_modal"):
+                st.session_state.show_password_modal = False
+                st.rerun()
+
+        st.markdown("""
+        <div style="background-color: #fff3cd; padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #ffc107; margin-bottom: 1rem;">
+            <p style="color: #856404; margin: 0;">
+                ⚠️ <strong>Important:</strong> This will immediately change the user's password.
+                Make sure to communicate the new password to them securely.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            user_email = st.text_input("User Email", key="password_user_email",
+                                      help="Enter the email of the user whose password you want to reset")
+            new_password = st.text_input("New Password", type="password", key="new_password",
+                                        help="Enter the new password for the user")
+            confirm_password = st.text_input("Confirm Password", type="password", key="confirm_password",
+                                            help="Re-enter the password to confirm")
+
+        with col2:
+            st.markdown("#### Password Requirements")
+            st.markdown("""
+            - Minimum 6 characters
+            - Both passwords must match
+            - Avoid common passwords
+
+            **Tip:** Generate a strong password and share it with the user securely.
+            """)
+
+        if st.button("🔑 Reset Password", type="primary"):
+            if not user_email:
+                st.error("Please enter a user email")
+            elif not new_password or not confirm_password:
+                st.error("Please enter and confirm the new password")
+            elif new_password != confirm_password:
+                st.error("Passwords do not match")
+            elif len(new_password) < 6:
+                st.error("Password must be at least 6 characters long")
+            else:
+                success = run_async(reset_user_password(user_email, new_password))
+                if success:
+                    st.success(f"✅ Password successfully reset for {user_email}")
+                    st.info("💡 Make sure to communicate the new password to the user securely.")
+                    st.rerun()
+                else:
+                    st.error(f"❌ Failed to reset password for {user_email}. User may not exist.")
+
+
 def export_analytics():
     """Export analytics data"""
     st.info("📊 Analytics export feature coming soon! Will export CSV/Excel with all metrics.")
@@ -465,6 +537,26 @@ async def reset_user_credits(user_email: str) -> bool:
         import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Error resetting credits for {user_email}: {e}")
+        return False
+
+
+async def reset_user_password(user_email: str, new_password: str) -> bool:
+    """Reset user password by email (admin function)"""
+    from db import db
+
+    try:
+        # Get user by email
+        user = await db.get_user_by_email(user_email)
+        if not user:
+            return False
+
+        # Reset password using user ID
+        success = await db.reset_user_password(user.id, new_password)
+        return success
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error resetting password for {user_email}: {e}")
         return False
 
 

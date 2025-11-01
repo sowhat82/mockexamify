@@ -153,3 +153,6 @@ venv.bak/
 # Local configuration files
 local_config.py
 local_settings.py
+
+# Claude Code local settings
+.claude/settings.local.json

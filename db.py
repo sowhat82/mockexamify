@@ -362,6 +362,38 @@ class DatabaseManager:
             logger.error(f"Error getting user: {e}")
             return None
 
+    async def get_all_users(self, limit: int = 100) -> List[User]:
+        """Get all users from database (admin function)"""
+        try:
+            # Start with demo users
+            all_users = []
+            for email, user_data in DEMO_USERS.items():
+                all_users.append(User(
+                    id=user_data["id"],
+                    email=user_data["email"],
+                    credits_balance=user_data["credits_balance"],
+                    role=user_data["role"],
+                    created_at=user_data["created_at"],
+                ))
+
+            # Add real users from database (use admin_client to bypass RLS)
+            if not self.demo_mode:
+                result = self.admin_client.table("users").select("*").limit(limit).execute()
+                if result.data:
+                    for user_data in result.data:
+                        all_users.append(User(
+                            id=user_data["id"],
+                            email=user_data["email"],
+                            credits_balance=user_data["credits_balance"],
+                            role=user_data["role"],
+                            created_at=user_data["created_at"],
+                        ))
+
+            return all_users
+        except Exception as e:
+            logger.error(f"Error getting all users: {e}")
+            return []
+
     async def update_user_credits(self, user_id: str, credits_to_add: int) -> bool:
         """Add credits to user balance"""
         try:
@@ -1340,6 +1372,38 @@ class DatabaseManager:
             return success
         except Exception as e:
             logger.error(f"Error deducting credits from user: {e}")
+            return False
+
+    async def reset_user_password(self, user_id: str, new_password: str) -> bool:
+        """Reset user password (admin function)"""
+        try:
+            # Hash the new password
+            password_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+            # Check if this is a demo user
+            for email, user_data in DEMO_USERS.items():
+                if user_data["id"] == user_id:
+                    user_data["password_hash"] = password_hash
+                    logger.info(f"Reset password for demo user: {email}")
+                    return True
+
+            # Production user - update in database (use admin_client to bypass RLS)
+            if not self.demo_mode:
+                update_result = (
+                    self.admin_client.table("users")
+                    .update({"password_hash": password_hash})
+                    .eq("id", user_id)
+                    .execute()
+                )
+
+                success = len(update_result.data) > 0
+                if success:
+                    logger.info(f"Successfully reset password for user {user_id}")
+                return success
+
+            return False
+        except Exception as e:
+            logger.error(f"Error resetting password for user {user_id}: {e}")
             return False
 
     # Admin Mock Management Methods

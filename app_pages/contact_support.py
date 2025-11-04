@@ -268,7 +268,7 @@ def show_faq_section():
             "questions": [
                 {
                     "q": "How do I reset my password?",
-                    "a": "Click 'Forgot Password' on the login page and enter your email. You'll receive a password reset link within a few minutes.",
+                    "a": "Submit a support ticket using the 'Submit Ticket' tab above with the subject 'Password Reset Request'. Include your registered email address in the description. An administrator will reset your password and contact you with the new credentials.",
                 },
                 {
                     "q": "Can I change my email address?",

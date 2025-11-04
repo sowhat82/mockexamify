@@ -155,19 +155,47 @@ def show_admin_dashboard():
         st.markdown("---")
         st.markdown("## ⚙️ Quick Actions")
 
-        col1, col2, col3 = st.columns(3)
+        # Initialize modal state if not present
+        if "show_users_modal" not in st.session_state:
+            st.session_state.show_users_modal = False
+        if "show_credits_modal" not in st.session_state:
+            st.session_state.show_credits_modal = False
+        if "show_password_modal" not in st.session_state:
+            st.session_state.show_password_modal = False
+
+        col1, col2, col3, col4 = st.columns(4)
 
         with col1:
             if st.button("👥 Manage Users", use_container_width=True, type="primary"):
-                show_user_management_modal()
+                st.session_state.show_users_modal = True
+                st.session_state.show_credits_modal = False
+                st.session_state.show_password_modal = False
 
         with col2:
             if st.button("💰 Adjust User Credits", use_container_width=True):
-                show_credits_management_modal()
+                st.session_state.show_credits_modal = True
+                st.session_state.show_users_modal = False
+                st.session_state.show_password_modal = False
 
         with col3:
+            if st.button("🔑 Reset User Password", use_container_width=True):
+                st.session_state.show_password_modal = True
+                st.session_state.show_users_modal = False
+                st.session_state.show_credits_modal = False
+
+        with col4:
             if st.button("📊 Export Analytics", use_container_width=True):
                 export_analytics()
+
+        # Show modals based on session state
+        if st.session_state.show_users_modal:
+            show_user_management_modal()
+
+        if st.session_state.show_credits_modal:
+            show_credits_management_modal()
+
+        if st.session_state.show_password_modal:
+            show_password_reset_modal()
 
         # System Health
         st.markdown("---")
@@ -209,18 +237,46 @@ def show_admin_dashboard():
 def show_user_management_modal():
     """Show user management in an expander"""
     with st.expander("👥 User Management", expanded=True):
-        st.markdown("### Recent Users")
+        col1, col2 = st.columns([5, 1])
+        with col1:
+            st.markdown("### All Users")
+        with col2:
+            if st.button("✖️ Close", key="close_users_modal"):
+                st.session_state.show_users_modal = False
+                st.rerun()
 
-        # Demo user data
-        users_data = {
-            "Email": ["user1@demo.com", "user2@demo.com", "user3@demo.com"],
-            "Credits": [15, 8, 22],
-            "Role": ["user", "user", "user"],
-            "Joined": ["2024-01-15", "2024-01-20", "2024-01-25"],
-        }
+        # Load real users from database
+        try:
+            from db import db
+            users = run_async(db.get_all_users())
 
-        df = pd.DataFrame(users_data)
-        st.dataframe(df, use_container_width=True)
+            if users:
+                # Convert User objects to DataFrame
+                joined_dates = []
+                for u in users:
+                    if isinstance(u.created_at, datetime):
+                        joined_dates.append(u.created_at.strftime("%Y-%m-%d"))
+                    elif isinstance(u.created_at, str):
+                        joined_dates.append(u.created_at.split("T")[0] if "T" in u.created_at else u.created_at)
+                    else:
+                        joined_dates.append(str(u.created_at))
+
+                users_data = {
+                    "Email": [u.email for u in users],
+                    "Credits": [u.credits_balance for u in users],
+                    "Role": [u.role for u in users],
+                    "Joined": joined_dates,
+                }
+
+                df = pd.DataFrame(users_data)
+                st.dataframe(df, use_container_width=True)
+
+                st.success(f"📊 Showing {len(users)} users")
+            else:
+                st.warning("No users found")
+
+        except Exception as e:
+            st.error(f"Error loading users: {e}")
 
         st.info("💡 Tip: Use 'Adjust User Credits' button for credit management")
 
@@ -228,7 +284,13 @@ def show_user_management_modal():
 def show_credits_management_modal():
     """Show credits management interface"""
     with st.expander("💰 Credits Management", expanded=True):
-        st.markdown("### Adjust User Credits")
+        col_header1, col_header2 = st.columns([5, 1])
+        with col_header1:
+            st.markdown("### Adjust User Credits")
+        with col_header2:
+            if st.button("✖️ Close", key="close_credits_modal"):
+                st.session_state.show_credits_modal = False
+                st.rerun()
 
         col1, col2 = st.columns(2)
 
@@ -245,18 +307,108 @@ def show_credits_management_modal():
         with col2:
             st.markdown("#### Quick Actions")
             if st.button("➕ Add 5 Credits"):
-                st.success(f"Added 5 credits to {user_email if user_email else '[user]'}")
+                if user_email:
+                    success = run_async(adjust_user_credits(user_email, 5))
+                    if success:
+                        st.success(f"Added 5 credits to {user_email}")
+                        st.rerun()
+                    else:
+                        st.error(f"Failed to add credits to {user_email}")
+                else:
+                    st.error("Please enter a user email")
+
             if st.button("➕ Add 10 Credits"):
-                st.success(f"Added 10 credits to {user_email if user_email else '[user]'}")
+                if user_email:
+                    success = run_async(adjust_user_credits(user_email, 10))
+                    if success:
+                        st.success(f"Added 10 credits to {user_email}")
+                        st.rerun()
+                    else:
+                        st.error(f"Failed to add credits to {user_email}")
+                else:
+                    st.error("Please enter a user email")
+
             if st.button("🔄 Reset to 0"):
-                st.warning(f"Reset credits for {user_email if user_email else '[user]'}")
+                if user_email:
+                    success = run_async(reset_user_credits(user_email))
+                    if success:
+                        st.success(f"Reset credits for {user_email} to 0")
+                        st.rerun()
+                    else:
+                        st.error(f"Failed to reset credits for {user_email}")
+                else:
+                    st.error("Please enter a user email")
 
         if st.button("💰 Apply Credit Adjustment", type="primary"):
             if user_email and credits_to_add != 0:
-                action = "Added" if credits_to_add > 0 else "Removed"
-                st.success(f"{action} {abs(credits_to_add)} credits for {user_email}")
+                success = run_async(adjust_user_credits(user_email, credits_to_add))
+                if success:
+                    action = "Added" if credits_to_add > 0 else "Removed"
+                    st.success(f"{action} {abs(credits_to_add)} credits for {user_email}")
+                    st.rerun()
+                else:
+                    st.error(f"Failed to adjust credits for {user_email}")
             else:
                 st.error("Please provide valid email and credit amount")
+
+
+def show_password_reset_modal():
+    """Show password reset interface"""
+    with st.expander("🔑 Password Reset", expanded=True):
+        col_header1, col_header2 = st.columns([5, 1])
+        with col_header1:
+            st.markdown("### Reset User Password")
+        with col_header2:
+            if st.button("✖️ Close", key="close_password_modal"):
+                st.session_state.show_password_modal = False
+                st.rerun()
+
+        st.markdown("""
+        <div style="background-color: #fff3cd; padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #ffc107; margin-bottom: 1rem;">
+            <p style="color: #856404; margin: 0;">
+                ⚠️ <strong>Important:</strong> This will immediately change the user's password.
+                Make sure to communicate the new password to them securely.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            user_email = st.text_input("User Email", key="password_user_email",
+                                      help="Enter the email of the user whose password you want to reset")
+            new_password = st.text_input("New Password", type="password", key="new_password",
+                                        help="Enter the new password for the user")
+            confirm_password = st.text_input("Confirm Password", type="password", key="confirm_password",
+                                            help="Re-enter the password to confirm")
+
+        with col2:
+            st.markdown("#### Password Requirements")
+            st.markdown("""
+            - Minimum 6 characters
+            - Both passwords must match
+            - Avoid common passwords
+
+            **Tip:** Generate a strong password and share it with the user securely.
+            """)
+
+        if st.button("🔑 Reset Password", type="primary"):
+            if not user_email:
+                st.error("Please enter a user email")
+            elif not new_password or not confirm_password:
+                st.error("Please enter and confirm the new password")
+            elif new_password != confirm_password:
+                st.error("Passwords do not match")
+            elif len(new_password) < 6:
+                st.error("Password must be at least 6 characters long")
+            else:
+                success = run_async(reset_user_password(user_email, new_password))
+                if success:
+                    st.success(f"✅ Password successfully reset for {user_email}")
+                    st.info("💡 Make sure to communicate the new password to the user securely.")
+                    st.rerun()
+                else:
+                    st.error(f"❌ Failed to reset password for {user_email}. User may not exist.")
 
 
 def export_analytics():
@@ -343,6 +495,69 @@ def get_score_color(score: float) -> str:
         return "#f44336"  # Red
     else:
         return "#9e9e9e"  # Grey
+
+
+async def adjust_user_credits(user_email: str, credits_to_add: int) -> bool:
+    """Adjust user credits by email"""
+    from db import db
+
+    try:
+        # Get user by email
+        user = await db.get_user_by_email(user_email)
+        if not user:
+            return False
+
+        # Add credits to user
+        success = await db.add_credits_to_user(user.id, credits_to_add)
+        return success
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error adjusting credits for {user_email}: {e}")
+        return False
+
+
+async def reset_user_credits(user_email: str) -> bool:
+    """Reset user credits to 0"""
+    from db import db
+
+    try:
+        # Get user by email
+        user = await db.get_user_by_email(user_email)
+        if not user:
+            return False
+
+        # Calculate credits to deduct to reach 0
+        credits_to_deduct = -user.credits_balance
+
+        # Add negative credits to reset to 0
+        success = await db.add_credits_to_user(user.id, credits_to_deduct)
+        return success
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error resetting credits for {user_email}: {e}")
+        return False
+
+
+async def reset_user_password(user_email: str, new_password: str) -> bool:
+    """Reset user password by email (admin function)"""
+    from db import db
+
+    try:
+        # Get user by email
+        user = await db.get_user_by_email(user_email)
+        if not user:
+            return False
+
+        # Reset password using user ID
+        success = await db.reset_user_password(user.id, new_password)
+        return success
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error resetting password for {user_email}: {e}")
+        return False
 
 
 # Main function for standalone execution

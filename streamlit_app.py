@@ -851,7 +851,6 @@ def show_enhanced_login_form(auth: AuthUtils):
                         st.session_state.reset_code = code
                         st.session_state.reset_email = reset_email
                         st.session_state.reset_stage = "verify"
-                        import config
                         if config.DEMO_MODE:
                             print(f"[DEMO] Password reset code for {reset_email}: {code}")
                             st.info(f"[DEMO] Password reset code: {code}")
@@ -881,7 +880,6 @@ def show_enhanced_login_form(auth: AuthUtils):
                         if not valid:
                             st.error(msg)
                         else:
-                            import config
                             if config.DEMO_MODE:
                                 from db import DEMO_USERS
                                 if st.session_state.reset_email in DEMO_USERS:

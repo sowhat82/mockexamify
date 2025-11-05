@@ -990,11 +990,19 @@ class DatabaseManager:
                 logger.info(f"Demo user ticket created: {fake_id} from {user_email}")
                 return fake_id
 
-            # Basic tickets table only has: user_id, subject, message, status, created_at
+            # Tickets table has only: user_id, subject, message, status
+            # Include user email in the message since there's no user_email column
+            message_text = ticket_data.get("description") or ticket_data.get("message")
+            user_email_from_ticket = ticket_data.get("user_email", "")
+
+            # Prepend email to message if provided
+            if user_email_from_ticket and user_email_from_ticket not in str(message_text):
+                message_text = f"Email: {user_email_from_ticket}\n\n{message_text}"
+
             payload = {
                 "user_id": user_id,
                 "subject": ticket_data.get("subject"),
-                "message": ticket_data.get("description") or ticket_data.get("message"),
+                "message": message_text,
                 "status": ticket_data.get("status", "open"),
             }
 
@@ -1021,8 +1029,9 @@ class DatabaseManager:
                 return DEMO_TICKETS
 
             # Also return DEMO_TICKETS in hybrid mode (for admin viewing demo user tickets)
+            # Use admin_client to bypass RLS and see ALL tickets (including anonymous password reset requests)
             result = (
-                self.client.table("tickets").select("*").order("created_at", desc=True).execute()
+                self.admin_client.table("tickets").select("*").order("created_at", desc=True).execute()
             )
             all_tickets = result.data if result.data else []
 

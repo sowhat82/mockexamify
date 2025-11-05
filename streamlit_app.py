@@ -987,6 +987,8 @@ def show_password_reset_ticket_form():
                         "user_email": email,
                         "subject": "Password Reset Request",
                         "description": f"User requested password reset for account: {email}\n\nAdditional information:\n{description or 'None provided'}",
+                        "category": "Account & Login",
+                        "priority": "High",
                         "browser": "",
                         "device": "",
                         "error_message": "",

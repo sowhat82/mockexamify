@@ -3,9 +3,7 @@ Question Pool Manager for MockExamify
 Handles question bank storage, AI-powered duplicate detection, and pool management
 """
 
-import asyncio
 import hashlib
-import json
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -40,7 +38,7 @@ class QuestionPoolManager:
 
         # Create hash from question + choices
         hash_content = f"{q_text}|{choices_str}"
-        return hashlib.md5(hash_content.encode()).hexdigest()
+        return hashlib.md5(hash_content.encode(), usedforsecurity=False).hexdigest()
 
     def detect_exact_duplicates(
         self, new_questions: List[Dict[str, Any]], existing_questions: List[Dict[str, Any]]
@@ -79,10 +77,11 @@ class QuestionPoolManager:
         new_question: Dict[str, Any],
         existing_questions: List[Dict[str, Any]],
         threshold: float = 0.90,
-    ) -> List[Tuple[Dict[str, Any], float]]:
+    ) -> Tuple[List[Tuple[Dict[str, Any], float]], Optional[str]]:
         """
         Use AI to detect semantically similar questions
-        Returns list of (question, similarity_score) tuples above threshold
+        Returns (list of (question, similarity_score) tuples above threshold, error_message)
+        error_message is None on success, or a string describing the error
         """
         try:
             similar_questions = []
@@ -98,7 +97,17 @@ class QuestionPoolManager:
             )
 
             for existing_q in questions_to_check:
-                similarity = await self._calculate_semantic_similarity(new_question, existing_q)
+                similarity, error = await self._calculate_semantic_similarity(
+                    new_question, existing_q
+                )
+
+                # If we hit a rate limit or error, propagate it up
+                if error:
+                    if "rate limit" in error.lower() or "429" in error:
+                        return [], error
+                    # For other errors, log but continue
+                    logger.warning(f"Error calculating similarity (continuing): {error}")
+                    continue
 
                 if similarity >= threshold:
                     similar_questions.append((existing_q, similarity))
@@ -106,16 +115,20 @@ class QuestionPoolManager:
             # Sort by similarity descending
             similar_questions.sort(key=lambda x: x[1], reverse=True)
 
-            return similar_questions
+            return similar_questions, None
 
         except Exception as e:
-            logger.error(f"Error detecting similar questions with AI: {e}")
-            return []
+            error_msg = f"Error detecting similar questions with AI: {e}"
+            logger.error(error_msg)
+            return [], error_msg
 
-    async def _calculate_semantic_similarity(self, q1: Dict[str, Any], q2: Dict[str, Any]) -> float:
+    async def _calculate_semantic_similarity(
+        self, q1: Dict[str, Any], q2: Dict[str, Any]
+    ) -> Tuple[float, Optional[str]]:
         """
         Use AI to calculate semantic similarity between two questions
-        Returns score from 0.0 to 1.0
+        Returns (score from 0.0 to 1.0, error_message)
+        error_message is None on success, or a string describing the error
         """
         try:
             prompt = f"""Compare these two exam questions and rate their similarity from 0.0 to 1.0.
@@ -152,17 +165,21 @@ Examples:
                     # Clean the response (remove any extra text)
                     content = response.strip()
                     similarity = float(content)
-                    return max(0.0, min(1.0, similarity))  # Clamp between 0 and 1
+                    return max(0.0, min(1.0, similarity)), None  # Clamp between 0 and 1
                 except ValueError:
                     logger.warning(f"Could not parse similarity score: {response}")
-                    return 0.0
+                    return 0.0, None
             else:
+                # Check if it's a rate limit error
+                if response and ("rate limit" in response.lower() or "429" in response):
+                    return 0.0, response
                 logger.warning(f"AI returned error: {response}")
-                return 0.0
+                return 0.0, None
 
         except Exception as e:
-            logger.error(f"Error calculating similarity: {e}")
-            return 0.0
+            error_msg = f"Error calculating similarity: {e}"
+            logger.error(error_msg)
+            return 0.0, error_msg
 
     def merge_questions_to_pool(
         self,

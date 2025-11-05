@@ -4,14 +4,12 @@ Allows admins to upload mock exams via CSV/JSON/PDF/Word files
 Supports both single mock exams and question pool management
 """
 
-import asyncio
 import csv
 import io
 import json
 import logging
 from typing import Any, Dict, List
 
-import pandas as pd
 import streamlit as st
 
 import config
@@ -618,6 +616,7 @@ async def process_pool_upload(
         # Step 2: AI-powered semantic duplicate detection (if enabled)
         questions_to_add = unique_after_exact
         ai_duplicates_found = 0
+        ai_detection_skipped = False
 
         if enable_ai_detection and unique_after_exact and existing_q_list:
             progress_placeholder.info(
@@ -627,11 +626,24 @@ async def process_pool_upload(
             # For performance, we'll check AI similarity for questions that passed exact check
             final_unique = []
 
-            for new_q in unique_after_exact:
+            for idx, new_q in enumerate(unique_after_exact):
                 # Check if this question is similar to any existing questions
-                similar = await question_pool_manager.detect_similar_questions_with_ai(
+                similar, error = await question_pool_manager.detect_similar_questions_with_ai(
                     new_q, existing_q_list, threshold=similarity_threshold
                 )
+
+                # If we hit a rate limit error, skip the rest of AI detection
+                if error and ("rate limit" in error.lower() or "429" in error):
+                    ai_detection_skipped = True
+                    # Add remaining questions without AI check
+                    final_unique.append(new_q)
+                    final_unique.extend(unique_after_exact[idx + 1 :])
+                    remaining_count = len(unique_after_exact) - idx - 1
+                    progress_placeholder.warning(
+                        f"⚠️ AI duplicate detection paused due to API rate limits. "
+                        f"Continuing with exact matching only for remaining {remaining_count} questions..."
+                    )
+                    break
 
                 if similar:
                     # Found semantic duplicate
@@ -639,13 +651,22 @@ async def process_pool_upload(
                     new_q["is_duplicate"] = True
                     new_q["similarity_score"] = similar[0][1] * 100  # Convert to percentage
                 else:
+                    # No similar questions found - add to unique list
                     final_unique.append(new_q)
 
             questions_to_add = final_unique
-            stats_placeholder.info(
-                f"🤖 AI detection: {ai_duplicates_found} semantic duplicates found "
-                f"(threshold: {similarity_threshold*100}%)"
-            )
+
+            if ai_detection_skipped:
+                stats_placeholder.warning(
+                    f"⚠️ AI detection: {ai_duplicates_found} semantic duplicates found before rate limit. "
+                    f"Remaining questions checked with exact matching only. "
+                    "This usually happens when API rate limits are exceeded (20 req/min, 50 req/day for free tier)."
+                )
+            else:
+                stats_placeholder.info(
+                    f"🤖 AI detection: {ai_duplicates_found} semantic duplicates found "
+                    f"(threshold: {similarity_threshold*100}%)"
+                )
 
         # Create upload batch record
         batch_id = await db.create_upload_batch(

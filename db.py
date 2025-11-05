@@ -957,20 +957,24 @@ class DatabaseManager:
         Returns ticket id on success
         """
         try:
-            # Check if this is a demo user (hybrid mode with demo user ID)
+            # Check if this is a demo user (hybrid mode with demo user ID) or anonymous ticket
             user_id = ticket_data.get("user_id")
             is_demo_user = user_id in [user_data["id"] for user_data in DEMO_USERS.values()]
+            is_anonymous_ticket = user_id == "00000000-0000-0000-0000-000000000000"
 
-            if self.demo_mode or is_demo_user:
+            if self.demo_mode or is_demo_user or is_anonymous_ticket:
                 # Store demo ticket in memory
                 fake_id = f"demo-support-{len(DEMO_TICKETS) + 1}"
 
-                # Get user email from DEMO_USERS
-                user_email = "Unknown user"
-                for demo_user_data in DEMO_USERS.values():
-                    if demo_user_data["id"] == user_id:
-                        user_email = demo_user_data["email"]
-                        break
+                # Get user email from ticket_data first, then try DEMO_USERS lookup
+                user_email = ticket_data.get("user_email") or "Unknown user"
+
+                # If not provided in ticket_data, try looking up from DEMO_USERS
+                if user_email == "Unknown user":
+                    for demo_user_data in DEMO_USERS.values():
+                        if demo_user_data["id"] == user_id:
+                            user_email = demo_user_data["email"]
+                            break
 
                 description = ticket_data.get("description") or ticket_data.get("message")
                 ticket = {

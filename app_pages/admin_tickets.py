@@ -53,10 +53,21 @@ def show_ticket_detail_modal(ticket=None, key_suffix=""):
     # Ticket header
     col1, col2 = st.columns([2, 1])
 
+    # Extract description/message and user email
+    description = ticket.get("description") or ticket.get("message", "No description provided")
+    user_email = ticket.get("user_email")
+    if not user_email and description and description.startswith("Email: "):
+        # Extract email from message text
+        lines = description.split("\n")
+        if lines[0].startswith("Email: "):
+            user_email = lines[0].replace("Email: ", "").strip()
+    if not user_email:
+        user_email = "Unknown"
+
     with col1:
         st.markdown(f"### #{ticket.get('id')} - {ticket.get('subject')}")
-        st.markdown(f"**From:** {ticket.get('user_email')}")
-        st.markdown(f"**Category:** {ticket.get('category')}")
+        st.markdown(f"**From:** {user_email}")
+        st.markdown(f"**Category:** {ticket.get('category', 'General')}")
         st.markdown(f"**Created:** {ticket.get('created_at')}")
 
     with col2:
@@ -78,7 +89,7 @@ def show_ticket_detail_modal(ticket=None, key_suffix=""):
 
     # Description
     st.markdown("### 📄 Description")
-    st.info(ticket.get("description", "No description provided"))
+    st.info(description)
 
     # Additional technical details
     st.markdown("### 🔧 Technical Details")
@@ -491,12 +502,23 @@ def display_ticket_card(
     """Display a ticket card"""
     ticket_id = ticket.get("id", "Unknown")
     subject = ticket.get("subject", "No subject")
-    user_email = ticket.get("user_email", "Unknown user")
     status = ticket.get("status", "Open")
     priority = ticket.get("priority", "Medium")
     category = ticket.get("category", "General")
     created_at = ticket.get("created_at", "")
-    description = ticket.get("description", "")
+
+    # Handle both 'description' and 'message' fields (database may have either)
+    description = ticket.get("description") or ticket.get("message", "")
+
+    # Extract user email - check user_email field or parse from message
+    user_email = ticket.get("user_email")
+    if not user_email and description and description.startswith("Email: "):
+        # Extract email from message text
+        lines = description.split("\n")
+        if lines[0].startswith("Email: "):
+            user_email = lines[0].replace("Email: ", "").strip()
+    if not user_email:
+        user_email = "Unknown user"
 
     # Status colors
     status_colors = {

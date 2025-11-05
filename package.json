@@ -1,0 +1,18 @@
+{
+  "name": "mockexamify-e2e-tests",
+  "version": "1.0.0",
+  "description": "End-to-end testing with self-healing automation for MockExamify",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "auto-fix": "node auto_fix_loop.js"
+  },
+  "keywords": ["playwright", "e2e", "testing", "self-healing"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@types/node": "^20.10.0"
+  }
+}

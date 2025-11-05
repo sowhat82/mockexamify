@@ -1581,16 +1581,17 @@ class DatabaseManager:
                     "is_active": True,
                 }
 
+            # Use admin_client to bypass RLS policies for question pool operations
+            client = self.admin_client if self.admin_client else self.client
+
             # Check if pool already exists
-            result = (
-                self.client.table("question_pools").select("*").eq("pool_name", pool_name).execute()
-            )
+            result = client.table("question_pools").select("*").eq("pool_name", pool_name).execute()
 
             if result.data and len(result.data) > 0:
                 # Pool exists - update it
                 pool = result.data[0]
                 update_result = (
-                    self.client.table("question_pools")
+                    client.table("question_pools")
                     .update(
                         {
                             "category": category,
@@ -1606,7 +1607,7 @@ class DatabaseManager:
             else:
                 # Pool doesn't exist - create new
                 insert_result = (
-                    self.client.table("question_pools")
+                    client.table("question_pools")
                     .insert(
                         {
                             "pool_name": pool_name,

@@ -928,6 +928,21 @@ def show_password_reset_ticket_form():
         unsafe_allow_html=True,
     )
 
+    # Add CSS to make form labels black
+    st.markdown(
+        """
+        <style>
+        .stTextInput label, .stTextArea label {
+            color: #000000 !important;
+        }
+        .stTextInput label span, .stTextArea label span {
+            color: #000000 !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     # Back to login button
     if st.button("⬅️ Back to Login"):
         st.session_state.show_password_reset_form = False
@@ -963,8 +978,12 @@ def show_password_reset_ticket_form():
                     st.error(f"⚠️ {email_error}")
                 else:
                     # Create support ticket
+                    # Use a special UUID for anonymous/pre-login tickets
+                    import uuid
+                    anonymous_uuid = "00000000-0000-0000-0000-000000000000"
+
                     ticket_data = {
-                        "user_id": "anonymous",  # No user ID for pre-login tickets
+                        "user_id": anonymous_uuid,  # Special UUID for pre-login tickets
                         "user_email": email,
                         "subject": "Password Reset Request",
                         "description": f"User requested password reset for account: {email}\n\nAdditional information:\n{description or 'None provided'}",
@@ -989,10 +1008,8 @@ def show_password_reset_ticket_form():
                         )
                         st.balloons()
 
-                        # Clear form state after 3 seconds
-                        if st.button("⬅️ Return to Login"):
-                            st.session_state.show_password_reset_form = False
-                            st.rerun()
+                        # Auto-redirect to login after successful submission
+                        st.session_state.show_password_reset_form = False
                     else:
                         st.error(
                             "❌ Failed to submit request. Please try again or contact support directly."

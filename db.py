@@ -998,7 +998,14 @@ class DatabaseManager:
                 "status": ticket_data.get("status", "open"),
             }
 
-            result = self.client.table("tickets").insert(payload).execute()
+            # Use admin_client for anonymous tickets (pre-login password reset)
+            # to bypass RLS policies
+            anonymous_uuid = "00000000-0000-0000-0000-000000000000"
+            if user_id == anonymous_uuid:
+                result = self.admin_client.table("tickets").insert(payload).execute()
+            else:
+                result = self.client.table("tickets").insert(payload).execute()
+
             if result.data and len(result.data) > 0:
                 return result.data[0].get("id")
             return None

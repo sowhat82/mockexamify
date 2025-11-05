@@ -1701,8 +1701,11 @@ class DatabaseManager:
                 # Demo mode - return mock batch id
                 return "demo-batch-001"
 
+            # Use admin_client to bypass RLS policies for upload batch operations
+            client = self.admin_client if self.admin_client else self.client
+
             result = (
-                self.client.table("upload_batches")
+                client.table("upload_batches")
                 .insert(
                     {
                         "pool_id": pool_id,

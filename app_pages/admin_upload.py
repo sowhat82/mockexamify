@@ -149,34 +149,87 @@ def show_question_pool_upload(auth):
         if submit_pool:
             if not pool_name:
                 st.error("Please enter a pool name")
-                return
-
-            if not uploaded_files:
+            elif not uploaded_files:
                 st.error("Please upload at least one file")
-                return
+            else:
+                # Store upload parameters in session state
+                st.session_state.upload_in_progress = True
+                st.session_state.upload_params = {
+                    "pool_name": pool_name,
+                    "category": category,
+                    "description": description,
+                    "uploaded_files": uploaded_files,
+                    "enable_ai_detection": enable_ai_detection,
+                    "similarity_threshold": similarity_threshold / 100.0,
+                }
+                st.rerun()
 
-            # Process pool upload
-            st.markdown(
-                '<p style="color: #000000;">Processing question pool upload...</p>',
-                unsafe_allow_html=True,
-            )
-            with st.spinner(""):
-                success = run_async(
-                    process_pool_upload(
-                        pool_name=pool_name,
-                        category=category,
-                        description=description,
-                        uploaded_files=uploaded_files,
-                        enable_ai_detection=enable_ai_detection,
-                        similarity_threshold=similarity_threshold / 100.0,
-                    )
+    # Process upload outside of form (if triggered)
+    if st.session_state.get("upload_in_progress"):
+        params = st.session_state.upload_params
+
+        st.markdown(
+            '<p style="color: #000000;">Processing question pool upload...</p>',
+            unsafe_allow_html=True,
+        )
+        with st.spinner(""):
+            result = run_async(
+                process_pool_upload(
+                    pool_name=params["pool_name"],
+                    category=params["category"],
+                    description=params["description"],
+                    uploaded_files=params["uploaded_files"],
+                    enable_ai_detection=params["enable_ai_detection"],
+                    similarity_threshold=params["similarity_threshold"],
                 )
+            )
 
-                if success:
-                    st.success("🎉 Question pool updated successfully!")
-                    st.balloons()
+            # Clear upload state
+            st.session_state.upload_in_progress = False
+            st.session_state.upload_params = None
+
+            if result.get("success"):
+                st.success("🎉 Question pool updated successfully!")
+                st.balloons()
+
+                # Verify upload and show actual question count
+                st.markdown("---")
+                st.markdown('<h3 style="color: #000000;">✅ Upload Complete!</h3>', unsafe_allow_html=True)
+
+                # Fetch actual current question count from database
+                from db import db
+                pool_id = result.get("pool_id")
+                pool_name_result = result.get("pool_name")
+
+                if pool_id:
+                    pool_questions = run_async(db.get_pool_questions(pool_id))
+                    actual_count = len(pool_questions)
+
+                    st.info(
+                        f"📊 **Pool '{pool_name_result}' now contains {actual_count} total questions**\n\n"
+                        f"✅ Upload verified! Questions are immediately available for generating mock exams."
+                    )
                 else:
-                    st.error("Failed to update question pool")
+                    st.warning("Upload completed but couldn't verify question count. Please check Manage Pools.")
+
+                # Navigation buttons (now outside form)
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    if st.button("📊 View Pool Questions", use_container_width=True, type="primary"):
+                        st.session_state.page = "admin_manage_pools"
+                        st.rerun()
+
+                with col2:
+                    if st.button("➕ Upload More Questions", use_container_width=True):
+                        st.rerun()
+
+                with col3:
+                    if st.button("🏠 Back to Dashboard", use_container_width=True):
+                        st.session_state.page = "dashboard"
+                        st.rerun()
+            else:
+                st.error("Failed to update question pool. Please check the logs and try again.")
 
 
 def show_single_mock_upload(auth):
@@ -693,6 +746,23 @@ async def process_pool_upload(
                 st.error("Failed to save questions to database")
                 return False
 
+            # Trigger background AI explanation generation (runs independently)
+            import subprocess
+            import os
+
+            python_path = os.path.join(os.getcwd(), "venv", "bin", "python")
+            script_path = os.path.join(os.getcwd(), "background_explanation_generator.py")
+
+            # Spawn detached background process
+            subprocess.Popen(
+                [python_path, script_path, pool_id, batch_id],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True  # Detach from parent process
+            )
+
+            logger.info(f"Background explanation generator started for pool {pool_id}")
+
         # Display final results
         progress_placeholder.empty()
         stats_placeholder.empty()
@@ -731,6 +801,16 @@ async def process_pool_upload(
             total_duplicates = len(exact_duplicates) + ai_duplicates_found
             st.metric("🔄 Duplicates Skipped", total_duplicates)
 
+        # Explanation generation note
+        st.info(
+            "💡 **About Explanations:**\n\n"
+            "✅ Questions with explanations in the document have been preserved\n\n"
+            "🤖 **Background AI generation started!** A background process is now generating explanations "
+            "for questions without them. This continues even if you close your browser.\n\n"
+            "📚 All questions are immediately available for mock exams. "
+            "Check `background_explanation_generator.log` for progress details."
+        )
+
         # Detailed breakdown
         with st.expander("📋 Detailed Breakdown"):
             st.markdown(
@@ -755,9 +835,10 @@ async def process_pool_upload(
                 for f in uploaded_files:
                     st.markdown(f"- {f.name}")
 
-        return True
+        # Return pool_id and success status for verification
+        return {"success": True, "pool_id": pool_id, "pool_name": pool_name}
 
     except Exception as e:
         st.error(f"Error processing pool upload: {str(e)}")
         logger.error(f"Pool upload error: {e}", exc_info=True)
-        return False
+        return {"success": False}

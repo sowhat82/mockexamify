@@ -1732,7 +1732,8 @@ class DatabaseManager:
     async def add_questions_to_pool(
         self, pool_id: str, questions: List[Dict[str, Any]], source_file: str, batch_id: str
     ) -> bool:
-        """Add questions to pool with duplicate tracking and AI explanation generation"""
+        """Add questions to pool immediately with document explanations or placeholders.
+        AI explanations are generated in background separately."""
         try:
             if self.demo_mode:
                 # Demo mode - just return success
@@ -1740,37 +1741,29 @@ class DatabaseManager:
 
             # Prepare questions for insertion
             questions_to_insert = []
+            questions_with_doc_explanations = 0
+            questions_needing_ai = 0
 
-            logger.info(f"Generating AI explanations for {len(questions)} questions...")
+            logger.info(f"Preparing {len(questions)} questions for upload (skipping AI generation for speed)...")
 
             for idx, q in enumerate(questions):
-                # Generate AI explanation if not already present
-                explanation = q.get("explanation")
+                # Use explanation from document if available, otherwise placeholder
+                explanation = q.get("explanation", "").strip()
 
-                if not explanation or explanation == q.get("explanation_seed"):
-                    try:
-                        logger.info(
-                            f"Generating explanation for question {idx + 1}/{len(questions)}"
-                        )
-                        explanation = await generate_explanation(
-                            question=q["question"],
-                            choices=q["choices"],
-                            correct_index=q["correct_index"],
-                            scenario=q.get("scenario", ""),
-                            explanation_seed=q.get("explanation_seed", ""),
-                        )
-                    except Exception as e:
-                        logger.error(f"Error generating explanation for question {idx + 1}: {e}")
-                        # Use fallback explanation
-                        correct_choice = q["choices"][q["correct_index"]]
-                        explanation = f"The correct answer is: {correct_choice}"
+                if explanation and len(explanation) > 10:  # Valid explanation from document
+                    questions_with_doc_explanations += 1
+                else:
+                    # Use simple placeholder - AI will generate later
+                    correct_choice = q["choices"][q["correct_index"]]
+                    explanation = f"The correct answer is: {correct_choice}"
+                    questions_needing_ai += 1
 
                 question_data = {
                     "pool_id": pool_id,
                     "question_text": q["question"],
                     "choices": json.dumps(q["choices"]),
                     "correct_answer": q["correct_index"],
-                    "explanation": explanation,  # Store full AI-generated explanation
+                    "explanation": explanation,
                     "source_file": source_file,
                     "upload_batch_id": batch_id,
                     "is_duplicate": q.get("is_duplicate", False),
@@ -1785,9 +1778,12 @@ class DatabaseManager:
 
                 questions_to_insert.append(question_data)
 
-            logger.info(f"AI explanation generation complete for {len(questions)} questions")
+            logger.info(
+                f"Questions prepared: {questions_with_doc_explanations} with document explanations, "
+                f"{questions_needing_ai} will use AI generation (background)"
+            )
 
-            # Batch insert all questions
+            # Batch insert all questions immediately
             if questions_to_insert:
                 # Use admin_client to bypass RLS policies for pool question uploads
                 result = self.admin_client.table("pool_questions").insert(questions_to_insert).execute()
@@ -1795,6 +1791,7 @@ class DatabaseManager:
                 if result.data:
                     # Update batch statistics
                     await self._update_batch_stats(batch_id, len(questions), 0, len(questions))
+                    logger.info(f"✅ Successfully inserted {len(questions)} questions to database")
                     return True
 
             return False

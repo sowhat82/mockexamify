@@ -1789,7 +1789,8 @@ class DatabaseManager:
 
             # Batch insert all questions
             if questions_to_insert:
-                result = self.client.table("pool_questions").insert(questions_to_insert).execute()
+                # Use admin_client to bypass RLS policies for pool question uploads
+                result = self.admin_client.table("pool_questions").insert(questions_to_insert).execute()
 
                 if result.data:
                     # Update batch statistics
@@ -1810,8 +1811,9 @@ class DatabaseManager:
             if self.demo_mode:
                 return True
 
+            # Use admin_client to bypass RLS for batch updates
             result = (
-                self.client.table("upload_batches")
+                self.admin_client.table("upload_batches")
                 .update(
                     {
                         "questions_count": questions_count,

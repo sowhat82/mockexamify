@@ -749,8 +749,10 @@ async def process_pool_upload(
             # Trigger background AI explanation generation (runs independently)
             import subprocess
             import os
+            import sys
 
-            python_path = os.path.join(os.getcwd(), "venv", "bin", "python")
+            # Use current Python interpreter instead of hardcoded venv path
+            python_path = sys.executable
             script_path = os.path.join(os.getcwd(), "background_explanation_generator.py")
 
             # Spawn detached background process

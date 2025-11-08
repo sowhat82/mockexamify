@@ -35,7 +35,24 @@ class DocumentParser:
             # Determine file type
             file_extension = uploaded_file.name.split(".")[-1].lower()
 
-            # Extract text from document
+            # For Word documents, try structured parsing first
+            if file_extension in ["docx", "doc"]:
+                st.info("🔍 Attempting structured parsing (faster and more accurate)...")
+                structured_questions = self._parse_word_structured(uploaded_file)
+
+                if structured_questions:
+                    st.success(f"✅ Structured parsing successful! Extracted {len(structured_questions)} questions")
+                    # Validate questions
+                    valid_questions = self._validate_questions(structured_questions)
+                    if valid_questions:
+                        return True, valid_questions, ""
+                    else:
+                        st.warning("⚠️ Structured parsing validation failed, falling back to AI extraction...")
+
+                else:
+                    st.info("📄 Structured parsing found no questions, using AI extraction...")
+
+            # Extract text from document for AI parsing
             if file_extension == "pdf":
                 text = self._extract_text_from_pdf(uploaded_file)
             elif file_extension in ["docx", "doc"]:
@@ -47,6 +64,7 @@ class DocumentParser:
                 return False, [], "Could not extract sufficient text from document"
 
             # Use AI to parse questions from text
+            st.info("🤖 Using AI to extract questions from document...")
             questions = self._parse_questions_with_ai(text)
 
             if not questions:
@@ -415,6 +433,128 @@ Explanation: Paris is the capital and largest city of France.
 
 The AI will intelligently extract and structure all questions automatically!
 """
+
+    def _parse_word_structured(self, uploaded_file) -> List[Dict[str, Any]]:
+        """
+        Parse Word document using structured approach (faster and more accurate than AI)
+        Looks for questions numbered like "1. Question text?" followed by choices A, B, C, D
+        Also extracts answer key table if present
+        """
+        try:
+            # Reset file pointer
+            uploaded_file.seek(0)
+
+            doc = Document(uploaded_file)
+            questions = []
+            answer_key = {}
+
+            # First, try to find answer key table
+            for table in doc.tables:
+                for i, row in enumerate(table.rows):
+                    if i == 0:  # Skip header row
+                        continue
+                    cells = [cell.text.strip() for cell in row.cells]
+                    if len(cells) >= 2:
+                        try:
+                            q_num = cells[0].strip()
+                            # Extract just the number
+                            q_num_match = re.match(r'(\d+)', q_num)
+                            if q_num_match:
+                                q_num = int(q_num_match.group(1))
+                                answer = cells[1].strip()
+                                explanation = cells[2].strip() if len(cells) > 2 else ""
+                                answer_key[q_num] = {
+                                    'answer': answer,
+                                    'explanation': explanation
+                                }
+                        except (ValueError, IndexError):
+                            continue
+
+            # Extract questions from paragraphs
+            current_question = None
+            current_choices = []
+
+            for para in doc.paragraphs:
+                text = para.text.strip()
+                if not text:
+                    continue
+
+                # Check if this is a question number (e.g., "1. Question text?")
+                q_match = re.match(r'^(\d+)\.\s+(.+)', text)
+                if q_match:
+                    # Save previous question if exists
+                    if current_question and current_choices:
+                        # Convert answer to index
+                        correct_index = self._convert_answer_to_index(
+                            current_question.get('answer', ''),
+                            current_choices
+                        )
+
+                        questions.append({
+                            'question': current_question['text'],
+                            'choices': [c['text'] for c in current_choices],
+                            'correct_index': correct_index,
+                            'explanation_seed': current_question.get('explanation', '')
+                        })
+
+                    # Start new question
+                    q_num = int(q_match.group(1))
+                    q_text = q_match.group(2).strip()
+
+                    current_question = {
+                        'number': q_num,
+                        'text': q_text,
+                        'answer': answer_key.get(q_num, {}).get('answer', ''),
+                        'explanation': answer_key.get(q_num, {}).get('explanation', '')
+                    }
+                    current_choices = []
+
+                # Check if this is an answer choice (e.g., "A. Choice text")
+                elif re.match(r'^[A-Z]\.\s+', text):
+                    choice_match = re.match(r'^([A-Z])\.\s+(.+)', text)
+                    if choice_match:
+                        choice_letter = choice_match.group(1)
+                        choice_text = choice_match.group(2).strip()
+                        current_choices.append({
+                            'letter': choice_letter,
+                            'text': choice_text
+                        })
+
+            # Don't forget the last question
+            if current_question and current_choices:
+                correct_index = self._convert_answer_to_index(
+                    current_question.get('answer', ''),
+                    current_choices
+                )
+
+                questions.append({
+                    'question': current_question['text'],
+                    'choices': [c['text'] for c in current_choices],
+                    'correct_index': correct_index,
+                    'explanation_seed': current_question.get('explanation', '')
+                })
+
+            return questions
+
+        except Exception as e:
+            st.warning(f"Structured parsing error: {e}")
+            return []
+
+    def _convert_answer_to_index(self, answer_str: str, choices: List[Dict[str, str]]) -> int:
+        """Convert answer letters (like 'A, C') to zero-based index (takes first answer)"""
+        if not answer_str:
+            return 0
+
+        # Handle multiple answers - take the first one (our system only supports single answers)
+        answers = [a.strip() for a in answer_str.split(',')]
+        first_answer = answers[0].upper()
+
+        # Find the index of this choice
+        for i, choice in enumerate(choices):
+            if choice['letter'] == first_answer:
+                return i
+
+        return 0  # Default to first choice if not found
 
 
 # Create singleton instance

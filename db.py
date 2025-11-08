@@ -52,6 +52,16 @@ DEMO_TICKETS = load_demo_tickets()
 logger.info(f"Loaded {len(DEMO_TICKETS)} demo tickets from persistent storage")
 
 DEMO_USERS = {
+    "admin@mockexamify.com": {
+        "id": "admin-demo-id",
+        "email": "admin@mockexamify.com",
+        "password_hash": bcrypt.hashpw("admin123".encode("utf-8"), bcrypt.gensalt()).decode(
+            "utf-8"
+        ),
+        "credits_balance": 100,
+        "role": "admin",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    },
     "admin@wantamock.com": {
         "id": "demo-admin-001",
         "email": "admin@wantamock.com",
@@ -81,7 +91,7 @@ DEMO_USERS = {
         "created_at": datetime.now(timezone.utc).isoformat(),
     },
     "student@test.com": {
-        "id": "123e4567-e89b-12d3-a456-426614174000",
+        "id": "student-demo-id",
         "email": "student@test.com",
         "password_hash": bcrypt.hashpw("password".encode("utf-8"), bcrypt.gensalt()).decode(
             "utf-8"

@@ -517,12 +517,27 @@ def display_question(question: Dict[str, Any], question_index: int, user: Dict[s
 
     # Question text
     question_text = question.get("question", "")
-    st.markdown(f"**{question_text}**")
+    st.markdown(
+        f"""
+        <div style="word-wrap: break-word; overflow-wrap: break-word; max-width: 100%;
+                    font-size: 1.1rem; line-height: 1.6; margin-bottom: 1rem;">
+            <strong>{question_text}</strong>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     # Scenario if present
     if "scenario" in question and question["scenario"]:
         with st.expander("📋 Scenario", expanded=False):
-            st.markdown(question["scenario"])
+            st.markdown(
+                f"""
+                <div style="word-wrap: break-word; overflow-wrap: break-word; max-width: 100%;">
+                    {question["scenario"]}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
     # Answer choices
     choices = question.get("choices", [])
@@ -565,7 +580,7 @@ def display_question(question: Dict[str, Any], question_index: int, user: Dict[s
                     # User's answer is correct
                     st.markdown(
                         f"""
-                        <div style="background: #d4edda; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; border-left: 4px solid #28a745; color: #000000;">
+                        <div style="background: #d4edda; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; border-left: 4px solid #28a745; color: #000000; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%;">
                             <strong style="color: #000000;">✅ {chr(65 + i)}. {choice}</strong> <span style="color: #28a745;">(Your Answer - Correct)</span>
                         </div>
                         """,
@@ -575,7 +590,7 @@ def display_question(question: Dict[str, Any], question_index: int, user: Dict[s
                     # User's answer is incorrect
                     st.markdown(
                         f"""
-                        <div style="background: #f8d7da; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; border-left: 4px solid #dc3545; color: #000000;">
+                        <div style="background: #f8d7da; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; border-left: 4px solid #dc3545; color: #000000; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%;">
                             <strong style="color: #000000;">❌ {chr(65 + i)}. {choice}</strong> <span style="color: #dc3545;">(Your Answer - Incorrect)</span>
                         </div>
                         """,
@@ -585,7 +600,7 @@ def display_question(question: Dict[str, Any], question_index: int, user: Dict[s
                 # Show correct answer
                 st.markdown(
                     f"""
-                    <div style="background: #d1ecf1; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; border-left: 4px solid #17a2b8; color: #000000;">
+                    <div style="background: #d1ecf1; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; border-left: 4px solid #17a2b8; color: #000000; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%;">
                         <strong style="color: #000000;">✓ {chr(65 + i)}. {choice}</strong> <span style="color: #17a2b8;">(Correct Answer)</span>
                     </div>
                     """,
@@ -595,7 +610,7 @@ def display_question(question: Dict[str, Any], question_index: int, user: Dict[s
                 # Other choices
                 st.markdown(
                     f"""
-                    <div style="background: #f8f9fa; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; color: #000000;">
+                    <div style="background: #f8f9fa; padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; color: #000000; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%;">
                         {chr(65 + i)}. {choice}
                     </div>
                     """,
@@ -608,7 +623,7 @@ def display_question(question: Dict[str, Any], question_index: int, user: Dict[s
             st.markdown("### 💡 Explanation")
             st.markdown(
                 f"""
-                <div style="background: #e7f3ff; padding: 1.5rem; border-radius: 0.5rem; border-left: 4px solid #2196F3; color: #000000;">
+                <div style="background: #e7f3ff; padding: 1.5rem; border-radius: 0.5rem; border-left: 4px solid #2196F3; color: #000000; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%;">
                     {result["explanation"]}
                 </div>
                 """,

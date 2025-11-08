@@ -2,6 +2,8 @@
 
 ## Basic Git Workflow
 
+git add -A && git commit -m "Your message" && git push
+
 ### 1. Check Status
 See what files have changed:
 ```bash

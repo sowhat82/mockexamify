@@ -329,8 +329,18 @@ Extract all questions now:"""
                     st.warning(f"Question {i+1}: Missing correct_index, skipping")
                     continue
 
-                # Validate correct_index
-                correct_index = int(q["correct_index"])
+                # Validate correct_index - handle both int and list (for multi-answer questions)
+                raw_index = q["correct_index"]
+                if isinstance(raw_index, list):
+                    # If AI returned a list (e.g., [1, 2] for multi-select), take the first one
+                    # Our system currently only supports single-answer questions
+                    if len(raw_index) == 0:
+                        st.warning(f"Question {i+1}: Empty correct_index list, skipping")
+                        continue
+                    correct_index = int(raw_index[0])
+                else:
+                    correct_index = int(raw_index)
+
                 if correct_index < 0 or correct_index >= len(q["choices"]):
                     st.warning(f"Question {i+1}: Invalid correct_index {correct_index}, skipping")
                     continue

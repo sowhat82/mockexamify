@@ -1172,8 +1172,11 @@ class DatabaseManager:
                 logger.warning(f"Demo ticket {ticket_id} not found")
                 return False
 
+            # Use admin_client to bypass RLS for ticket status updates
+            client = self.admin_client if self.admin_client else self.client
+
             result = (
-                self.client.table("tickets")
+                client.table("tickets")
                 .update({"status": new_status})
                 .eq("id", ticket_id)
                 .execute()
@@ -1213,10 +1216,13 @@ class DatabaseManager:
                 logger.warning(f"Demo ticket {ticket_id} not found")
                 return False
 
+            # Use admin_client to bypass RLS for ticket responses
+            client = self.admin_client if self.admin_client else self.client
+
             # Prefer a dedicated responses table if present
             try:
                 resp_result = (
-                    self.client.table("support_ticket_responses")
+                    client.table("support_ticket_responses")
                     .insert(
                         {
                             "ticket_id": ticket_id,
@@ -1234,7 +1240,7 @@ class DatabaseManager:
                 try:
                     # Get existing responses
                     ticket = (
-                        self.client.table("tickets")
+                        client.table("tickets")
                         .select("responses")
                         .eq("id", ticket_id)
                         .execute()
@@ -1252,7 +1258,7 @@ class DatabaseManager:
                     )
 
                     update = (
-                        self.client.table("tickets")
+                        client.table("tickets")
                         .update({"responses": existing})
                         .eq("id", ticket_id)
                         .execute()

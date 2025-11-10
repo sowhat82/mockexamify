@@ -307,8 +307,18 @@ def create_payment_button(
     )
     
     if success and session_url:
-        # Store the checkout URL and redirect using Streamlit's method
-        st.markdown(f'<meta http-equiv="refresh" content="0; url={session_url}">', unsafe_allow_html=True)
+        # Redirect using JavaScript for better compatibility
+        st.markdown(
+            f"""
+            <script>
+                window.location.href = "{session_url}";
+            </script>
+            """,
+            unsafe_allow_html=True
+        )
+        # Also show a message in case JavaScript doesn't work
+        st.info("Redirecting to secure payment... If you're not redirected, click below:")
+        st.markdown(f"[Complete Payment]({session_url})")
         return True
     else:
         st.error(f"Payment error: {error}")

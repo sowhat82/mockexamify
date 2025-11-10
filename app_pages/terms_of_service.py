@@ -46,7 +46,13 @@ def show_terms_page():
         st.markdown(
             """
             <style>
-            /* Force all text to black with maximum specificity */
+            /* Black background container with black text */
+            .tos-container {
+                background-color: #000000 !important;
+                padding: 2rem;
+                border-radius: 12px;
+                color: #000000 !important;
+            }
             .tos-container,
             .tos-container *,
             .tos-container h1, .tos-container h2, .tos-container h3,
@@ -62,7 +68,7 @@ def show_terms_page():
         )
 
         # Wrap in container with inline style
-        final_content = f'<div class="tos-container" style="color: #000000 !important;">{styled_content}</div>'
+        final_content = f'<div class="tos-container" style="background-color: #000000 !important; color: #000000 !important; padding: 2rem;">{styled_content}</div>'
         st.markdown(final_content, unsafe_allow_html=True)
 
         # Back button at bottom

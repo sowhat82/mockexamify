@@ -22,7 +22,7 @@ def show_terms_of_service():
             """
         <style>
         .legal-document {
-            background: white;
+            background: black;
             padding: 2rem;
             border-radius: 12px;
             max-height: 600px;
@@ -71,7 +71,7 @@ def show_privacy_policy():
             """
         <style>
         .legal-document {
-            background: white;
+            background: black;
             padding: 2rem;
             border-radius: 12px;
             max-height: 600px;

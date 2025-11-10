@@ -28,77 +28,30 @@ class AuthUtils:
         Sign in user with email and password
         Returns: (success, user_data, error_message)
         """
+        # ALWAYS use direct database - never use API for Streamlit Cloud
         try:
-            # Check if we should use direct database authentication
-            import config
+            from db import db
 
-            # ALWAYS use direct database authentication unless explicitly on localhost with API
-            # This ensures Streamlit Cloud always uses database directly
-            use_direct_db = (
-                config.DEMO_MODE
-                or "streamlit.app" in self.api_base_url
-                or not self.api_base_url.startswith("http://localhost")
-            )
+            logger.info(f"Sign in attempt for {email} using direct database")
 
-            if use_direct_db:
-                # Use direct database authentication
-                from db import db
+            user = await db.authenticate_user(email, password)
+            if user:
+                logger.info(f"User {email} authenticated successfully")
+                user_data = {
+                    "token": f"db_token_{user.id}",
+                    "user_id": user.id,
+                    "email": user.email,
+                    "role": user.role,
+                    "credits_balance": user.credits_balance,
+                }
+                return True, user_data, None
+            else:
+                logger.info(f"Authentication failed for {email}")
+                return False, None, "Invalid email or password"
 
-                user = await db.authenticate_user(email, password)
-                if user:
-                    user_data = {
-                        "token": f"db_token_{user.id}",
-                        "user_id": user.id,
-                        "email": user.email,
-                        "role": user.role,
-                        "credits_balance": user.credits_balance,
-                    }
-                    return True, user_data, None
-                else:
-                    return False, None, "Invalid email or password"
-
-            # Production mode with API - only for localhost development
-            async with httpx.AsyncClient(follow_redirects=True) as client:
-                response = await client.post(
-                    f"{self.api_base_url}/api/auth/login",
-                    json={"email": email, "password": password},
-                    timeout=30.0,
-                )
-
-                if response.status_code == 200:
-                    data = response.json()
-                    return True, data, None
-                elif response.status_code == 401:
-                    return False, None, "Invalid email or password"
-                elif response.status_code == 404:
-                    return False, None, "User not found"
-                else:
-                    return False, None, f"Login failed: {response.status_code}"
-
-        except httpx.TimeoutException:
-            return False, None, "Request timed out. Please try again."
-        except httpx.ConnectError:
-            # Fallback to direct database auth if API connection fails
-            try:
-                from db import db
-
-                user = await db.authenticate_user(email, password)
-                if user:
-                    user_data = {
-                        "token": f"db_token_{user.id}",
-                        "user_id": user.id,
-                        "email": user.email,
-                        "role": user.role,
-                        "credits_balance": user.credits_balance,
-                    }
-                    return True, user_data, None
-                else:
-                    return False, None, "Invalid email or password"
-            except Exception as db_error:
-                return False, None, "Unable to connect to authentication service"
         except Exception as e:
-            logger.error(f"Sign in error: {e}")
-            return False, None, f"An unexpected error occurred: {str(e)}"
+            logger.error(f"Sign in error for {email}: {type(e).__name__}: {str(e)}", exc_info=True)
+            return False, None, f"Login error: {str(e)}"
 
     async def sign_up(
         self, email: str, password: str

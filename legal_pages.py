@@ -22,7 +22,7 @@ def show_terms_of_service():
             """
         <style>
         .legal-document {
-            background: black;
+            background: white;
             padding: 2rem;
             border-radius: 12px;
             max-height: 600px;
@@ -45,8 +45,9 @@ def show_terms_of_service():
             unsafe_allow_html=True,
         )
 
-        with st.container():
-            st.markdown(tos_content)
+        # Wrap content with explicit black text styling
+        styled_tos = f'<div style="color: #000000 !important; background-color: #FFFFFF; padding: 1rem; border-radius: 8px;">{tos_content}</div>'
+        st.markdown(styled_tos, unsafe_allow_html=True)
 
         if st.button("⬅️ Back", key="back_from_tos"):
             st.session_state.page = "login"
@@ -71,7 +72,7 @@ def show_privacy_policy():
             """
         <style>
         .legal-document {
-            background: black;
+            background: white;
             padding: 2rem;
             border-radius: 12px;
             max-height: 600px;
@@ -94,8 +95,9 @@ def show_privacy_policy():
             unsafe_allow_html=True,
         )
 
-        with st.container():
-            st.markdown(privacy_content)
+        # Wrap content with explicit black text styling
+        styled_privacy = f'<div style="color: #000000 !important; background-color: #FFFFFF; padding: 1rem; border-radius: 8px;">{privacy_content}</div>'
+        st.markdown(styled_privacy, unsafe_allow_html=True)
 
         if st.button("⬅️ Back", key="back_from_privacy"):
             st.session_state.page = "login"

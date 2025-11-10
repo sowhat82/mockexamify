@@ -685,46 +685,59 @@ class DatabaseManager:
                 if score is None:
                     score = (correct_answers / total_questions) * 100 if total_questions > 0 else 0
 
-            # Use admin_client to bypass RLS for attempt creation
-            client = self.admin_client if self.admin_client else self.client
+            # Use direct HTTP request to PostgREST API to bypass RLS
+            import httpx
 
-            result = (
-                client.table("attempts")
-                .insert(
-                    {
-                        "user_id": user_id,
-                        "mock_id": mock_id,
-                        "user_answers": json.dumps(user_answers),
-                        "score": score,
-                        "correct_answers": correct_answers,
-                        "total_questions": total_questions,
-                        "time_taken": time_taken,
-                        "detailed_results": (
-                            json.dumps(detailed_results) if detailed_results else None
-                        ),
-                        "status": status,
-                        "explanation_unlocked": False,
-                        "credits_paid": credits_paid,
-                        "questions_submitted": questions_submitted,
-                        "created_at": datetime.now(timezone.utc).isoformat(),
-                    }
-                )
-                .execute()
-            )
+            url = f"{config.SUPABASE_URL}/rest/v1/attempts"
+            headers = {
+                "apikey": config.SUPABASE_SERVICE_KEY,
+                "Authorization": f"Bearer {config.SUPABASE_SERVICE_KEY}",
+                "Content-Type": "application/json",
+                "Prefer": "return=representation"
+            }
+            data = {
+                "user_id": user_id,
+                "mock_id": mock_id,
+                "user_answers": json.dumps(user_answers),
+                "score": score,
+                "correct_answers": correct_answers,
+                "total_questions": total_questions,
+                "time_taken": time_taken,
+                "detailed_results": json.dumps(detailed_results) if detailed_results else None,
+                "status": status,
+                "explanation_unlocked": False,
+                "credits_paid": credits_paid,
+                "questions_submitted": questions_submitted,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
 
-            if result.data:
-                attempt_data = result.data[0]
-                return AttemptResponse(
-                    id=attempt_data["id"],
-                    user_id=attempt_data["user_id"],
-                    mock_id=attempt_data["mock_id"],
-                    user_answers=json.loads(attempt_data["user_answers"]),
-                    score=attempt_data["score"],
-                    total_questions=attempt_data["total_questions"],
-                    correct_answers=attempt_data["correct_answers"],
-                    explanation_unlocked=attempt_data["explanation_unlocked"],
-                    timestamp=attempt_data["created_at"],
-                )
+            logger.info(f"Creating attempt for user {user_id}, mock {mock_id}")
+
+            async with httpx.AsyncClient() as http_client:
+                response = await http_client.post(url, headers=headers, json=data, timeout=30.0)
+
+                if response.status_code in (200, 201):
+                    attempt_data = response.json()[0] if isinstance(response.json(), list) else response.json()
+                    logger.info(f"Attempt created successfully: {attempt_data['id']}")
+                    return AttemptResponse(
+                        id=attempt_data["id"],
+                        user_id=attempt_data["user_id"],
+                        mock_id=attempt_data["mock_id"],
+                        user_answers=json.loads(attempt_data["user_answers"]),
+                        score=attempt_data["score"],
+                        total_questions=attempt_data["total_questions"],
+                        correct_answers=attempt_data["correct_answers"],
+                        explanation_unlocked=attempt_data["explanation_unlocked"],
+                        timestamp=attempt_data["created_at"],
+                    )
+                else:
+                    error_detail = response.text
+                    logger.error(f"API error creating attempt: {response.status_code} - {error_detail}")
+                    return None
+
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error creating attempt: {str(e)}", exc_info=True)
+            return None
         except Exception as e:
             logger.error(f"Error creating attempt for user {user_id}: {type(e).__name__}: {str(e)}", exc_info=True)
             return None

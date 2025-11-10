@@ -307,18 +307,9 @@ def create_payment_button(
     )
     
     if success and session_url:
-        # Redirect using JavaScript for better compatibility
-        st.markdown(
-            f"""
-            <script>
-                window.location.href = "{session_url}";
-            </script>
-            """,
-            unsafe_allow_html=True
-        )
-        # Also show a message in case JavaScript doesn't work
-        st.info("Redirecting to secure payment... If you're not redirected, click below:")
-        st.markdown(f"[Complete Payment]({session_url})")
+        # Store URL in session state and return it
+        # The calling function will handle displaying the link button
+        st.session_state[f'checkout_url_{package_key}'] = session_url
         return True
     else:
         st.error(f"Payment error: {error}")

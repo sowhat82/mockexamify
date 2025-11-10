@@ -267,43 +267,55 @@ def display_package_card(
             unsafe_allow_html=True,
         )
 
-        # Purchase button
-        button_key = f"purchase_{package_key}"
-        if st.button(
-            f"🛒 Purchase {package['name']}",
-            key=button_key,
-            use_container_width=True,
-        ):
-            # Create checkout session
-            import os
-            import config
-
-            # Determine base URL based on environment
-            if os.getenv('APP_BASE_URL'):
-                # Manual override via environment variable
-                base_url = os.getenv('APP_BASE_URL')
-            elif config.ENVIRONMENT == 'production':
-                # Production environment - use production URL
-                base_url = os.getenv('PRODUCTION_URL', 'https://wantamock.streamlit.app')
-            elif os.getenv('CODESPACE_NAME'):
-                # Development in Codespaces
-                base_url = f"https://{os.getenv('CODESPACE_NAME')}-8501.app.github.dev"
-            else:
-                # Fallback to localhost for local development
-                base_url = "http://localhost:8501"
-
-            success = create_payment_button(
-                stripe_utils=stripe_utils,
-                package_key=package_key,
-                user_id=user["id"],
-                user_email=user["email"],
-                base_url=base_url,
+        # Check if checkout URL is already created for this package
+        checkout_url_key = f'checkout_url_{package_key}'
+        if checkout_url_key in st.session_state:
+            # Show link button to go to Stripe checkout
+            st.link_button(
+                f"🛒 Continue to Payment →",
+                st.session_state[checkout_url_key],
+                use_container_width=True,
+                type="primary"
             )
+            st.info("Click above to complete your purchase on Stripe's secure checkout page")
+        else:
+            # Show regular button to create checkout session
+            button_key = f"purchase_{package_key}"
+            if st.button(
+                f"🛒 Purchase {package['name']}",
+                key=button_key,
+                use_container_width=True,
+            ):
+                # Create checkout session
+                import os
+                import config
 
-            if success:
-                st.success("Redirecting to secure payment...")
-            else:
-                st.error("Failed to initiate payment. Please try again.")
+                # Determine base URL based on environment
+                if os.getenv('APP_BASE_URL'):
+                    # Manual override via environment variable
+                    base_url = os.getenv('APP_BASE_URL')
+                elif config.ENVIRONMENT == 'production':
+                    # Production environment - use production URL
+                    base_url = os.getenv('PRODUCTION_URL', 'https://wantamock.streamlit.app')
+                elif os.getenv('CODESPACE_NAME'):
+                    # Development in Codespaces
+                    base_url = f"https://{os.getenv('CODESPACE_NAME')}-8501.app.github.dev"
+                else:
+                    # Fallback to localhost for local development
+                    base_url = "http://localhost:8501"
+
+                success = create_payment_button(
+                    stripe_utils=stripe_utils,
+                    package_key=package_key,
+                    user_id=user["id"],
+                    user_email=user["email"],
+                    base_url=base_url,
+                )
+
+                if success:
+                    st.rerun()  # Rerun to show the link button
+                else:
+                    st.error("Failed to initiate payment. Please try again.")
 
         # Add large spacing after button to clearly separate from next card
         st.markdown('<div style="height: 2.5rem;"></div>', unsafe_allow_html=True)

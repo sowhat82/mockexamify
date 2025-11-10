@@ -227,9 +227,18 @@ class DatabaseManager:
         if self.demo_mode:
             return await self._demo_create_user(email, password)
 
+        # Check if admin client is available
+        if not self.admin_client:
+            error_msg = "Database admin access not configured. Please contact support."
+            logger.error(f"Cannot create user - admin_client is None")
+            raise RuntimeError(error_msg)
+
         try:
             # Hash password
             hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+
+            logger.info(f"Attempting to create user {email} in database")
+            logger.info(f"Using admin_client: {self.admin_client is not None}")
 
             # Use admin_client to bypass RLS for user creation
             result = (
@@ -246,8 +255,11 @@ class DatabaseManager:
                 .execute()
             )
 
+            logger.info(f"Database insert result: {result}")
+
             if result.data:
                 user_data = result.data[0]
+                logger.info(f"User created successfully: {user_data['id']}")
                 return User(
                     id=user_data["id"],
                     email=user_data["email"],
@@ -255,9 +267,13 @@ class DatabaseManager:
                     role=user_data["role"],
                     created_at=user_data["created_at"],
                 )
+            else:
+                logger.error(f"No data returned from insert. Result: {result}")
+                raise RuntimeError("Database did not return user data after insert")
         except Exception as e:
-            logger.error(f"Error creating user: {e}")
-            return None
+            logger.error(f"Error creating user {email}: {type(e).__name__}: {str(e)}", exc_info=True)
+            # Re-raise the exception so we get the actual error message
+            raise
 
     async def get_user_by_email(self, email: str) -> Optional[User]:
         """Get user by email address"""

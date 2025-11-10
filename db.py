@@ -725,11 +725,17 @@ class DatabaseManager:
                 if response.status_code in (200, 201):
                     attempt_data = response.json()[0] if isinstance(response.json(), list) else response.json()
                     logger.info(f"Attempt created successfully: {attempt_data['id']}")
+
+                    # Parse user_answers - it's stored as JSON string of dict, need to convert to list
+                    user_answers_data = json.loads(attempt_data["user_answers"]) if isinstance(attempt_data["user_answers"], str) else attempt_data["user_answers"]
+                    # Convert dict to list of values (for compatibility with AttemptResponse model)
+                    user_answers_list = list(user_answers_data.values()) if isinstance(user_answers_data, dict) else user_answers_data
+
                     return AttemptResponse(
                         id=attempt_data["id"],
                         user_id=attempt_data["user_id"],
                         mock_id=attempt_data["mock_id"],
-                        user_answers=json.loads(attempt_data["user_answers"]),
+                        user_answers=user_answers_list,
                         score=attempt_data["score"],
                         total_questions=attempt_data["total_questions"],
                         correct_answers=attempt_data["correct_answers"],

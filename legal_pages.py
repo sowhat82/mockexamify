@@ -9,6 +9,7 @@ import streamlit as st
 
 def show_terms_of_service():
     """Display Terms of Service"""
+    st.error("🔧 DEBUG: Using legal_pages.py file - Testing CSS fix")
     st.markdown("### 📜 Terms of Service")
 
     # Read and display the Terms of Service
@@ -17,27 +18,24 @@ def show_terms_of_service():
         with open(tos_path, "r", encoding="utf-8") as f:
             tos_content = f.read()
 
-        # Create a scrollable container for the terms
+        # Add aggressive CSS to force black text
         st.markdown(
             """
         <style>
-        .legal-document {
-            background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            max-height: 600px;
-            overflow-y: auto;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        /* Force all text to black with maximum specificity */
-        .stMarkdown, .stMarkdown *,
-        .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4, .stMarkdown h5, .stMarkdown h6,
-        .stMarkdown p, .stMarkdown li, .stMarkdown span, .stMarkdown div,
-        .stMarkdown a, .stMarkdown strong, .stMarkdown em, .stMarkdown code,
-        div[data-testid="stMarkdownContainer"] *,
+        /* Override Streamlit's theme colors */
+        [data-testid="stMarkdownContainer"],
         [data-testid="stMarkdownContainer"] *,
-        .element-container * {
+        .stMarkdown,
+        .stMarkdown *,
+        .stMarkdown h1, .stMarkdown h2, .stMarkdown h3,
+        .stMarkdown h4, .stMarkdown h5, .stMarkdown h6,
+        .stMarkdown p, .stMarkdown li, .stMarkdown ul, .stMarkdown ol,
+        .stMarkdown span, .stMarkdown div, .stMarkdown a,
+        .stMarkdown strong, .stMarkdown em, .stMarkdown code,
+        .element-container p,
+        .element-container h1, .element-container h2, .element-container h3,
+        .element-container h4, .element-container h5, .element-container h6,
+        .element-container li, .element-container span {
             color: #000000 !important;
         }
         </style>
@@ -45,9 +43,8 @@ def show_terms_of_service():
             unsafe_allow_html=True,
         )
 
-        # Wrap content with explicit black text styling
-        styled_tos = f'<div style="color: #000000 !important; background-color: #FFFFFF; padding: 1rem; border-radius: 8px;">{tos_content}</div>'
-        st.markdown(styled_tos, unsafe_allow_html=True)
+        # Display markdown content directly
+        st.markdown(tos_content)
 
         if st.button("⬅️ Back", key="back_from_tos"):
             st.session_state.page = "login"
@@ -67,27 +64,24 @@ def show_privacy_policy():
         with open(privacy_path, "r", encoding="utf-8") as f:
             privacy_content = f.read()
 
-        # Create a scrollable container for the policy
+        # Add aggressive CSS to force black text
         st.markdown(
             """
         <style>
-        .legal-document {
-            background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            max-height: 600px;
-            overflow-y: auto;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        /* Force all text to black with maximum specificity */
-        .stMarkdown, .stMarkdown *,
-        .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4, .stMarkdown h5, .stMarkdown h6,
-        .stMarkdown p, .stMarkdown li, .stMarkdown span, .stMarkdown div,
-        .stMarkdown a, .stMarkdown strong, .stMarkdown em, .stMarkdown code,
-        div[data-testid="stMarkdownContainer"] *,
+        /* Override Streamlit's theme colors */
+        [data-testid="stMarkdownContainer"],
         [data-testid="stMarkdownContainer"] *,
-        .element-container * {
+        .stMarkdown,
+        .stMarkdown *,
+        .stMarkdown h1, .stMarkdown h2, .stMarkdown h3,
+        .stMarkdown h4, .stMarkdown h5, .stMarkdown h6,
+        .stMarkdown p, .stMarkdown li, .stMarkdown ul, .stMarkdown ol,
+        .stMarkdown span, .stMarkdown div, .stMarkdown a,
+        .stMarkdown strong, .stMarkdown em, .stMarkdown code,
+        .element-container p,
+        .element-container h1, .element-container h2, .element-container h3,
+        .element-container h4, .element-container h5, .element-container h6,
+        .element-container li, .element-container span {
             color: #000000 !important;
         }
         </style>
@@ -95,9 +89,8 @@ def show_privacy_policy():
             unsafe_allow_html=True,
         )
 
-        # Wrap content with explicit black text styling
-        styled_privacy = f'<div style="color: #000000 !important; background-color: #FFFFFF; padding: 1rem; border-radius: 8px;">{privacy_content}</div>'
-        st.markdown(styled_privacy, unsafe_allow_html=True)
+        # Display markdown content directly
+        st.markdown(privacy_content)
 
         if st.button("⬅️ Back", key="back_from_privacy"):
             st.session_state.page = "login"

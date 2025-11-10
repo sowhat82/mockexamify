@@ -11,6 +11,9 @@ import streamlit as st
 def show_terms_page():
     """Display Terms of Service page"""
 
+    # DEBUG MESSAGE
+    st.warning("🔧 DEBUG: This is app_pages/terms_of_service.py - version 2024-01-10")
+
     # Page config
     st.markdown('<h2 style="color: #000000;">📜 Terms of Service</h2>', unsafe_allow_html=True)
 
@@ -28,46 +31,37 @@ def show_terms_page():
         with open(tos_path, "r", encoding="utf-8") as f:
             tos_content = f.read()
 
-        # Add inline black color styles to all HTML elements
-        def add_black_color_styles(html_content):
-            """Add inline black color to all HTML tags"""
-            # Add style to opening tags
-            html_content = re.sub(
-                r'<(h[1-6]|p|li|ul|ol|div|span|strong|em|a)([^>]*)>',
-                r'<\1\2 style="color: #000000 !important;">',
-                html_content
-            )
-            return html_content
-
-        # Apply black color styling
-        styled_content = add_black_color_styles(tos_content)
-
-        # Display with comprehensive CSS and wrapped content
+        # Add aggressive CSS to force black text on white background
         st.markdown(
             """
             <style>
-            /* White background container with black text */
-            .tos-container {
+            /* Override Streamlit's theme colors for this page */
+            [data-testid="stAppViewContainer"] {
                 background-color: #FFFFFF !important;
-                padding: 2rem;
-                border-radius: 12px;
             }
-            .tos-container *,
-            .tos-container h1, .tos-container h2, .tos-container h3,
-            .tos-container h4, .tos-container h5, .tos-container h6,
-            .tos-container p, .tos-container li, .tos-container ul, .tos-container ol,
-            .tos-container span, .tos-container div, .tos-container a,
-            .tos-container strong, .tos-container em, .tos-container code {
+            [data-testid="stMarkdownContainer"],
+            [data-testid="stMarkdownContainer"] *,
+            .stMarkdown,
+            .stMarkdown *,
+            .stMarkdown h1, .stMarkdown h2, .stMarkdown h3,
+            .stMarkdown h4, .stMarkdown h5, .stMarkdown h6,
+            .stMarkdown p, .stMarkdown li, .stMarkdown ul, .stMarkdown ol,
+            .stMarkdown span, .stMarkdown div, .stMarkdown a,
+            .stMarkdown strong, .stMarkdown em, .stMarkdown code,
+            .element-container p,
+            .element-container h1, .element-container h2, .element-container h3,
+            .element-container h4, .element-container h5, .element-container h6,
+            .element-container li, .element-container span {
                 color: #000000 !important;
+                background-color: transparent !important;
             }
             </style>
         """,
             unsafe_allow_html=True,
         )
 
-        # Wrap in container with white background and black text
-        final_content = f'<div class="tos-container" style="background-color: #FFFFFF !important; padding: 2rem; border-radius: 12px;"><div style="color: #000000 !important;">{styled_content}</div></div>'
-        st.markdown(final_content, unsafe_allow_html=True)
+        # Display markdown content directly (Streamlit will render it)
+        st.markdown(tos_content)
 
         # Back button at bottom
         st.markdown("---")

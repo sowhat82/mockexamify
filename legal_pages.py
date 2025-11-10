@@ -9,7 +9,6 @@ import streamlit as st
 
 def show_terms_of_service():
     """Display Terms of Service"""
-    st.error("🔧 DEBUG: Using legal_pages.py file - Testing CSS fix")
     st.markdown("### 📜 Terms of Service")
 
     # Read and display the Terms of Service

@@ -490,9 +490,12 @@ async def delete_pool(pool_id: str) -> bool:
         if db.demo_mode:
             return True
 
+        # Use admin_client to bypass RLS for pool deletion
+        client = db.admin_client if db.admin_client else db.client
+
         # In production, set is_active to False instead of hard delete
         response = (
-            db.client.table("question_pools")
+            client.table("question_pools")
             .update({"is_active": False})
             .eq("id", pool_id)
             .execute()
@@ -512,7 +515,10 @@ async def delete_question(question_id: str) -> bool:
         if db.demo_mode:
             return True
 
-        response = db.client.table("pool_questions").delete().eq("id", question_id).execute()
+        # Use admin_client to bypass RLS for question deletion
+        client = db.admin_client if db.admin_client else db.client
+
+        response = client.table("pool_questions").delete().eq("id", question_id).execute()
 
         return bool(response.data)
     except Exception as e:
@@ -529,8 +535,11 @@ async def update_question(question_id: str, updated_data: Dict[str, Any]) -> boo
             st.warning("Demo mode: Changes not saved")
             return True
 
+        # Use admin_client to bypass RLS for question updates
+        client = db.admin_client if db.admin_client else db.client
+
         response = (
-            db.client.table("pool_questions").update(updated_data).eq("id", question_id).execute()
+            client.table("pool_questions").update(updated_data).eq("id", question_id).execute()
         )
 
         return bool(response.data)

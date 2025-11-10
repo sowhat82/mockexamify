@@ -11,9 +11,6 @@ import streamlit as st
 def show_terms_page():
     """Display Terms of Service page"""
 
-    # DEBUG MESSAGE
-    st.warning("🔧 DEBUG: This is app_pages/terms_of_service.py - version 2024-01-10")
-
     # Page config
     st.markdown('<h2 style="color: #000000;">📜 Terms of Service</h2>', unsafe_allow_html=True)
 

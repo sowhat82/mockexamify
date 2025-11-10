@@ -1114,6 +1114,29 @@ def show_enhanced_register_form(auth: AuthUtils):
     with col1:
         with st.expander("📜 Terms of Service", expanded=False):
             try:
+                # Add CSS to force black text
+                st.markdown(
+                    """
+                    <style>
+                    /* Force black text in Terms of Service */
+                    div[data-testid="stExpander"] p,
+                    div[data-testid="stExpander"] h1,
+                    div[data-testid="stExpander"] h2,
+                    div[data-testid="stExpander"] h3,
+                    div[data-testid="stExpander"] h4,
+                    div[data-testid="stExpander"] h5,
+                    div[data-testid="stExpander"] h6,
+                    div[data-testid="stExpander"] li,
+                    div[data-testid="stExpander"] span,
+                    div[data-testid="stExpander"] div,
+                    div[data-testid="stExpander"] strong,
+                    div[data-testid="stExpander"] em {
+                        color: #000000 !important;
+                    }
+                    </style>
+                    """,
+                    unsafe_allow_html=True
+                )
                 tos_path = Path(__file__).parent / "legal" / "terms_of_service.md"
                 with open(tos_path, "r", encoding="utf-8") as f:
                     tos_content = f.read()
@@ -1124,6 +1147,29 @@ def show_enhanced_register_form(auth: AuthUtils):
     with col2:
         with st.expander("🔒 Privacy Policy", expanded=False):
             try:
+                # Add CSS to force black text
+                st.markdown(
+                    """
+                    <style>
+                    /* Force black text in Privacy Policy */
+                    div[data-testid="stExpander"] p,
+                    div[data-testid="stExpander"] h1,
+                    div[data-testid="stExpander"] h2,
+                    div[data-testid="stExpander"] h3,
+                    div[data-testid="stExpander"] h4,
+                    div[data-testid="stExpander"] h5,
+                    div[data-testid="stExpander"] h6,
+                    div[data-testid="stExpander"] li,
+                    div[data-testid="stExpander"] span,
+                    div[data-testid="stExpander"] div,
+                    div[data-testid="stExpander"] strong,
+                    div[data-testid="stExpander"] em {
+                        color: #000000 !important;
+                    }
+                    </style>
+                    """,
+                    unsafe_allow_html=True
+                )
                 privacy_path = Path(__file__).parent / "legal" / "privacy_policy.md"
                 with open(privacy_path, "r", encoding="utf-8") as f:
                     privacy_content = f.read()

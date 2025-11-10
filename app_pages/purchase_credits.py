@@ -14,9 +14,21 @@ from stripe_utils import create_payment_button, init_stripe_utils
 
 def show_purchase_credits():
     """Display the enhanced credit purchase page"""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # EMERGENCY DEBUG - Log at the very start
+    logger.info("="*80)
+    logger.info("[SHOW_PURCHASE_CREDITS] Function called - TOP OF FUNCTION")
+    logger.info(f"[SHOW_PURCHASE_CREDITS] Query params: {dict(st.query_params)}")
+    logger.info(f"[SHOW_PURCHASE_CREDITS] Session state page: {st.session_state.get('page', 'unknown')}")
+    logger.info(f"[SHOW_PURCHASE_CREDITS] Session state keys: {list(st.session_state.keys())}")
+    logger.info("="*80)
+
     auth = AuthUtils(config.API_BASE_URL)
 
     if not auth.is_authenticated():
+        logger.error("[SHOW_PURCHASE_CREDITS] User not authenticated!")
         st.error("Please log in to purchase credits")
         st.stop()
 

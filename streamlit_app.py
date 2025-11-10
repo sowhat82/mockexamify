@@ -615,6 +615,16 @@ select::-ms-expand {
 
 def main():
     """Main application logic with enhanced UI"""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # EMERGENCY DEBUG - Log at entry point
+    logger.info("\n" + "="*80)
+    logger.info("[MAIN] Application starting")
+    logger.info(f"[MAIN] Query params: {dict(st.query_params)}")
+    logger.info(f"[MAIN] Session state: {dict(st.session_state)}")
+    logger.info("="*80 + "\n")
+
     # Initialize session state
     if "page" not in st.session_state:
         st.session_state.page = "login"
@@ -626,8 +636,12 @@ def main():
 
     # Handle payment callbacks
     query_params = st.query_params
+    logger.info(f"[MAIN] Checking for payment callback. Has 'payment' key: {'payment' in query_params}")
+
     if "payment" in query_params:
+        logger.info("[MAIN] Payment callback detected - calling handle_payment_callback()")
         handle_payment_callback()
+        logger.info("[MAIN] Payment callback done - returning early")
         return
 
     # Check if viewing legal pages (accessible without authentication)
@@ -1229,6 +1243,15 @@ def show_authenticated_app(auth: AuthUtils):
     # Enhanced main content area with better routing
     page = st.session_state.get("page", "dashboard")
     print(f"DEBUG: Routing to page: {page}")
+
+    # EMERGENCY DEBUG - Log routing
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("="*80)
+    logger.info(f"[ROUTING] About to route to page: {page}")
+    logger.info(f"[ROUTING] Query params: {dict(st.query_params)}")
+    logger.info(f"[ROUTING] User: {user.get('email', 'unknown')}")
+    logger.info("="*80)
 
     # Route to appropriate page (each page handles its own header)
     if page == "dashboard":

@@ -30,6 +30,16 @@ def show_terms_of_service():
             border: 1px solid #e2e8f0;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
+        /* Force all text to black with maximum specificity */
+        .stMarkdown, .stMarkdown *,
+        .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4, .stMarkdown h5, .stMarkdown h6,
+        .stMarkdown p, .stMarkdown li, .stMarkdown span, .stMarkdown div,
+        .stMarkdown a, .stMarkdown strong, .stMarkdown em, .stMarkdown code,
+        div[data-testid="stMarkdownContainer"] *,
+        [data-testid="stMarkdownContainer"] *,
+        .element-container * {
+            color: #000000 !important;
+        }
         </style>
         """,
             unsafe_allow_html=True,
@@ -68,6 +78,16 @@ def show_privacy_policy():
             overflow-y: auto;
             border: 1px solid #e2e8f0;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        /* Force all text to black with maximum specificity */
+        .stMarkdown, .stMarkdown *,
+        .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4, .stMarkdown h5, .stMarkdown h6,
+        .stMarkdown p, .stMarkdown li, .stMarkdown span, .stMarkdown div,
+        .stMarkdown a, .stMarkdown strong, .stMarkdown em, .stMarkdown code,
+        div[data-testid="stMarkdownContainer"] *,
+        [data-testid="stMarkdownContainer"] *,
+        .element-container * {
+            color: #000000 !important;
         }
         </style>
         """,

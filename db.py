@@ -234,17 +234,24 @@ class DatabaseManager:
             raise RuntimeError(error_msg)
 
         try:
+            import uuid
+
             # Hash password
             hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
             logger.info(f"Attempting to create user {email} in database")
             logger.info(f"Using admin_client: {self.admin_client is not None}")
 
-            # Use admin_client to bypass RLS for user creation
+            # Generate a UUID for the new user
+            user_id = str(uuid.uuid4())
+
+            # Use admin_client with explicit headers to bypass RLS
+            # The service_role key should automatically bypass RLS, but we ensure it's set correctly
             result = (
                 self.admin_client.table("users")
                 .insert(
                     {
+                        "id": user_id,  # Explicitly set the UUID
                         "email": email,
                         "password_hash": hashed_password.decode("utf-8"),
                         "credits_balance": 1,  # Give new users 1 free trial credit

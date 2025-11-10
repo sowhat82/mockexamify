@@ -32,12 +32,12 @@ class AuthUtils:
             # Check if we should use direct database authentication
             import config
 
-            # Use direct database authentication for Streamlit Cloud or demo mode
-            # Only use API calls when running on localhost with backend server
+            # ALWAYS use direct database authentication unless explicitly on localhost with API
+            # This ensures Streamlit Cloud always uses database directly
             use_direct_db = (
                 config.DEMO_MODE
-                or not self.api_base_url.startswith("http://localhost")
                 or "streamlit.app" in self.api_base_url
+                or not self.api_base_url.startswith("http://localhost")
             )
 
             if use_direct_db:
@@ -111,11 +111,12 @@ class AuthUtils:
             # Check if we should use direct database authentication
             import config
 
-            # Use direct database authentication for Streamlit Cloud or demo mode
+            # ALWAYS use direct database authentication unless explicitly on localhost with API
+            # This ensures Streamlit Cloud always uses database directly
             use_direct_db = (
                 config.DEMO_MODE
-                or not self.api_base_url.startswith("http://localhost")
                 or "streamlit.app" in self.api_base_url
+                or not self.api_base_url.startswith("http://localhost")
             )
 
             if use_direct_db:

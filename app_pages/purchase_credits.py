@@ -270,29 +270,32 @@ def display_package_card(
         # Check if checkout URL is already created for this package
         checkout_url_key = f'checkout_url_{package_key}'
         if checkout_url_key in st.session_state:
-            # Show clickable link that opens in new tab
+            # Show clickable button using HTML component that opens in new tab
             checkout_url = st.session_state[checkout_url_key]
-            st.markdown(
+
+            import streamlit.components.v1 as components
+
+            components.html(
                 f"""
                 <div style="margin-bottom: 1rem;">
-                    <a href="{checkout_url}" target="_blank" style="
-                        display: inline-block;
+                    <button onclick="window.open('{checkout_url}', '_blank')" style="
                         width: 100%;
                         padding: 0.75rem 1rem;
                         background-color: #0066cc;
                         color: white;
                         text-align: center;
-                        text-decoration: none;
+                        border: none;
                         border-radius: 0.5rem;
                         font-weight: bold;
                         font-size: 1.1rem;
+                        cursor: pointer;
                         transition: all 0.3s ease;
                     " onmouseover="this.style.backgroundColor='#0052a3'" onmouseout="this.style.backgroundColor='#0066cc'">
                         🛒 Continue to Payment (Opens in New Tab) →
-                    </a>
+                    </button>
                 </div>
                 """,
-                unsafe_allow_html=True
+                height=80
             )
             st.info("Click above to complete your purchase on Stripe's secure checkout page. The checkout will open in a new tab.")
         else:

@@ -227,59 +227,69 @@ class DatabaseManager:
         if self.demo_mode:
             return await self._demo_create_user(email, password)
 
-        # Check if admin client is available
-        if not self.admin_client:
-            error_msg = "Database admin access not configured. Please contact support."
-            logger.error(f"Cannot create user - admin_client is None")
+        # Check if we have Supabase configuration
+        if not config.SUPABASE_URL or not config.SUPABASE_SERVICE_KEY:
+            error_msg = "Database configuration missing. Please contact support."
+            logger.error(f"Cannot create user - missing Supabase config")
             raise RuntimeError(error_msg)
 
         try:
             import uuid
+            import httpx
 
             # Hash password
             hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
             logger.info(f"Attempting to create user {email} in database")
-            logger.info(f"Using admin_client: {self.admin_client is not None}")
 
             # Generate a UUID for the new user
             user_id = str(uuid.uuid4())
 
-            # Use admin_client with explicit headers to bypass RLS
-            # The service_role key should automatically bypass RLS, but we ensure it's set correctly
-            result = (
-                self.admin_client.table("users")
-                .insert(
-                    {
-                        "id": user_id,  # Explicitly set the UUID
-                        "email": email,
-                        "password_hash": hashed_password.decode("utf-8"),
-                        "credits_balance": 1,  # Give new users 1 free trial credit
-                        "role": "user",
-                        "created_at": datetime.now(timezone.utc).isoformat(),
-                    }
-                )
-                .execute()
-            )
+            # Use direct HTTP request to PostgREST API with service role key
+            # This ensures RLS is properly bypassed
+            url = f"{config.SUPABASE_URL}/rest/v1/users"
+            headers = {
+                "apikey": config.SUPABASE_SERVICE_KEY,
+                "Authorization": f"Bearer {config.SUPABASE_SERVICE_KEY}",
+                "Content-Type": "application/json",
+                "Prefer": "return=representation"
+            }
+            data = {
+                "id": user_id,
+                "email": email,
+                "password_hash": hashed_password.decode("utf-8"),
+                "credits_balance": 1,
+                "role": "user",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
 
-            logger.info(f"Database insert result: {result}")
+            logger.info(f"Making direct API call to create user")
 
-            if result.data:
-                user_data = result.data[0]
-                logger.info(f"User created successfully: {user_data['id']}")
-                return User(
-                    id=user_data["id"],
-                    email=user_data["email"],
-                    credits_balance=user_data["credits_balance"],
-                    role=user_data["role"],
-                    created_at=user_data["created_at"],
-                )
-            else:
-                logger.error(f"No data returned from insert. Result: {result}")
-                raise RuntimeError("Database did not return user data after insert")
+            async with httpx.AsyncClient() as client:
+                response = await client.post(url, headers=headers, json=data, timeout=30.0)
+
+                logger.info(f"API response status: {response.status_code}")
+
+                if response.status_code in (200, 201):
+                    user_data = response.json()[0] if isinstance(response.json(), list) else response.json()
+                    logger.info(f"User created successfully: {user_data['id']}")
+                    return User(
+                        id=user_data["id"],
+                        email=user_data["email"],
+                        credits_balance=user_data["credits_balance"],
+                        role=user_data["role"],
+                        created_at=user_data["created_at"],
+                    )
+                else:
+                    error_detail = response.text
+                    logger.error(f"API error: {response.status_code} - {error_detail}")
+                    raise RuntimeError(f"Database API error: {error_detail}")
+
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error creating user {email}: {str(e)}", exc_info=True)
+            raise RuntimeError(f"Network error: {str(e)}")
         except Exception as e:
             logger.error(f"Error creating user {email}: {type(e).__name__}: {str(e)}", exc_info=True)
-            # Re-raise the exception so we get the actual error message
             raise
 
     async def get_user_by_email(self, email: str) -> Optional[User]:

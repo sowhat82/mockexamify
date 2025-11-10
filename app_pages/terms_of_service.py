@@ -2,6 +2,7 @@
 Terms of Service Page for MockExamify
 """
 
+import re
 from pathlib import Path
 
 import streamlit as st
@@ -27,18 +28,32 @@ def show_terms_page():
         with open(tos_path, "r", encoding="utf-8") as f:
             tos_content = f.read()
 
-        # Display in a container with styling
+        # Add inline black color styles to all HTML elements
+        def add_black_color_styles(html_content):
+            """Add inline black color to all HTML tags"""
+            # Add style to opening tags
+            html_content = re.sub(
+                r'<(h[1-6]|p|li|ul|ol|div|span|strong|em|a)([^>]*)>',
+                r'<\1\2 style="color: #000000 !important;">',
+                html_content
+            )
+            return html_content
+
+        # Apply black color styling
+        styled_content = add_black_color_styles(tos_content)
+
+        # Display with comprehensive CSS and wrapped content
         st.markdown(
             """
             <style>
             /* Force all text to black with maximum specificity */
-            .stMarkdown, .stMarkdown *,
-            .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4, .stMarkdown h5, .stMarkdown h6,
-            .stMarkdown p, .stMarkdown li, .stMarkdown span, .stMarkdown div,
-            .stMarkdown a, .stMarkdown strong, .stMarkdown em, .stMarkdown code,
-            div[data-testid="stMarkdownContainer"] *,
-            [data-testid="stMarkdownContainer"] *,
-            .element-container * {
+            .tos-container,
+            .tos-container *,
+            .tos-container h1, .tos-container h2, .tos-container h3,
+            .tos-container h4, .tos-container h5, .tos-container h6,
+            .tos-container p, .tos-container li, .tos-container ul, .tos-container ol,
+            .tos-container span, .tos-container div, .tos-container a,
+            .tos-container strong, .tos-container em, .tos-container code {
                 color: #000000 !important;
             }
             </style>
@@ -46,7 +61,9 @@ def show_terms_page():
             unsafe_allow_html=True,
         )
 
-        st.markdown(tos_content, unsafe_allow_html=True)
+        # Wrap in container with inline style
+        final_content = f'<div class="tos-container" style="color: #000000 !important;">{styled_content}</div>'
+        st.markdown(final_content, unsafe_allow_html=True)
 
         # Back button at bottom
         st.markdown("---")

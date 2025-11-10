@@ -270,14 +270,31 @@ def display_package_card(
         # Check if checkout URL is already created for this package
         checkout_url_key = f'checkout_url_{package_key}'
         if checkout_url_key in st.session_state:
-            # Show link button to go to Stripe checkout
-            st.link_button(
-                f"🛒 Continue to Payment →",
-                st.session_state[checkout_url_key],
-                use_container_width=True,
-                type="primary"
+            # Show clickable link that opens in new tab
+            checkout_url = st.session_state[checkout_url_key]
+            st.markdown(
+                f"""
+                <div style="margin-bottom: 1rem;">
+                    <a href="{checkout_url}" target="_blank" style="
+                        display: inline-block;
+                        width: 100%;
+                        padding: 0.75rem 1rem;
+                        background-color: #0066cc;
+                        color: white;
+                        text-align: center;
+                        text-decoration: none;
+                        border-radius: 0.5rem;
+                        font-weight: bold;
+                        font-size: 1.1rem;
+                        transition: all 0.3s ease;
+                    " onmouseover="this.style.backgroundColor='#0052a3'" onmouseout="this.style.backgroundColor='#0066cc'">
+                        🛒 Continue to Payment (Opens in New Tab) →
+                    </a>
+                </div>
+                """,
+                unsafe_allow_html=True
             )
-            st.info("Click above to complete your purchase on Stripe's secure checkout page")
+            st.info("Click above to complete your purchase on Stripe's secure checkout page. The checkout will open in a new tab.")
         else:
             # Show regular button to create checkout session
             button_key = f"purchase_{package_key}"

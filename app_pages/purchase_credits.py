@@ -270,34 +270,13 @@ def display_package_card(
         # Check if checkout URL is already created for this package
         checkout_url_key = f'checkout_url_{package_key}'
         if checkout_url_key in st.session_state:
-            # Show clickable button using HTML component that opens in new tab
+            # Show the Stripe checkout URL
             checkout_url = st.session_state[checkout_url_key]
 
-            import streamlit.components.v1 as components
-
-            components.html(
-                f"""
-                <div style="margin-bottom: 1rem;">
-                    <button onclick="window.open('{checkout_url}', '_blank')" style="
-                        width: 100%;
-                        padding: 0.75rem 1rem;
-                        background-color: #0066cc;
-                        color: white;
-                        text-align: center;
-                        border: none;
-                        border-radius: 0.5rem;
-                        font-weight: bold;
-                        font-size: 1.1rem;
-                        cursor: pointer;
-                        transition: all 0.3s ease;
-                    " onmouseover="this.style.backgroundColor='#0052a3'" onmouseout="this.style.backgroundColor='#0066cc'">
-                        🛒 Continue to Payment (Opens in New Tab) →
-                    </button>
-                </div>
-                """,
-                height=80
-            )
-            st.info("Click above to complete your purchase on Stripe's secure checkout page. The checkout will open in a new tab.")
+            st.success("✅ Checkout session created!")
+            st.info("Click the link below to complete your purchase on Stripe's secure checkout page:")
+            st.markdown(f"### [🛒 Continue to Stripe Payment →]({checkout_url})")
+            st.code(checkout_url, language=None)  # Show URL so user can copy if link doesn't work
         else:
             # Show regular button to create checkout session
             button_key = f"purchase_{package_key}"

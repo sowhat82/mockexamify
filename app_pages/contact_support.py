@@ -27,6 +27,11 @@ def show_contact_support():
     # Header
     st.markdown("# 💬 Contact Support")
 
+    # Back to Dashboard button at the top so it's visible in all tabs
+    if st.button("🏠 Back to Dashboard", key="back_to_dashboard_top"):
+        st.session_state.page = "dashboard"
+        st.rerun()
+
     # Tab layout for different support options - hide FAQ and Help Center for students
     is_admin = user.get("role") == "admin"
 
@@ -106,11 +111,6 @@ def show_submit_ticket_form(user: Dict[str, Any]):
         """,
         unsafe_allow_html=True,
     )
-
-    # Add back button to dashboard
-    if st.button("🏠 Back to Dashboard"):
-        st.session_state.page = "dashboard"
-        st.rerun()
 
     with st.form("support_ticket_form"):
         # Issue Category fully removed

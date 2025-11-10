@@ -15,15 +15,18 @@ from stripe_utils import create_payment_button, init_stripe_utils
 def show_purchase_credits():
     """Display the enhanced credit purchase page"""
     import logging
+
     logger = logging.getLogger(__name__)
 
     # EMERGENCY DEBUG - Log at the very start
-    logger.info("="*80)
+    logger.info("=" * 80)
     logger.info("[SHOW_PURCHASE_CREDITS] Function called - TOP OF FUNCTION")
     logger.info(f"[SHOW_PURCHASE_CREDITS] Query params: {dict(st.query_params)}")
-    logger.info(f"[SHOW_PURCHASE_CREDITS] Session state page: {st.session_state.get('page', 'unknown')}")
+    logger.info(
+        f"[SHOW_PURCHASE_CREDITS] Session state page: {st.session_state.get('page', 'unknown')}"
+    )
     logger.info(f"[SHOW_PURCHASE_CREDITS] Session state keys: {list(st.session_state.keys())}")
-    logger.info("="*80)
+    logger.info("=" * 80)
 
     auth = AuthUtils(config.API_BASE_URL)
 
@@ -280,13 +283,15 @@ def display_package_card(
         )
 
         # Check if checkout URL is already created for this package
-        checkout_url_key = f'checkout_url_{package_key}'
+        checkout_url_key = f"checkout_url_{package_key}"
         if checkout_url_key in st.session_state:
             # Show the Stripe checkout URL
             checkout_url = st.session_state[checkout_url_key]
 
             st.success("✅ Checkout session created!")
-            st.info("Click the link below to complete your purchase on Stripe's secure checkout page:")
+            st.info(
+                "Click the link below to complete your purchase on Stripe's secure checkout page:"
+            )
             st.markdown(f"### [🛒 Continue to Stripe Payment →]({checkout_url})")
             st.code(checkout_url, language=None)  # Show URL so user can copy if link doesn't work
         else:
@@ -298,21 +303,22 @@ def display_package_card(
                 use_container_width=True,
             ):
                 # Create checkout session
-                import os
-                import config
                 import logging
+                import os
+
+                import config
 
                 logger = logging.getLogger(__name__)
                 logger.info(f"[PURCHASE] Button clicked for package: {package_key}")
 
                 # Determine base URL based on environment
-                if os.getenv('APP_BASE_URL'):
+                if os.getenv("APP_BASE_URL"):
                     # Manual override via environment variable
-                    base_url = os.getenv('APP_BASE_URL')
-                elif config.ENVIRONMENT == 'production':
+                    base_url = os.getenv("APP_BASE_URL")
+                elif config.ENVIRONMENT == "production":
                     # Production environment - use production URL
-                    base_url = os.getenv('PRODUCTION_URL', 'https://wantamock.streamlit.app')
-                elif os.getenv('CODESPACE_NAME'):
+                    base_url = os.getenv("PRODUCTION_URL", "https://wantamock.streamlit.app")
+                elif os.getenv("CODESPACE_NAME"):
                     # Development in Codespaces
                     base_url = f"https://{os.getenv('CODESPACE_NAME')}-8501.app.github.dev"
                 else:
@@ -333,8 +339,10 @@ def display_package_card(
                 logger.info(f"[PURCHASE] create_payment_button returned: {success}")
 
                 if success:
-                    checkout_url = st.session_state.get(f'checkout_url_{package_key}')
-                    logger.info(f"[PURCHASE] Checkout URL stored: {checkout_url[:50] if checkout_url else 'None'}...")
+                    checkout_url = st.session_state.get(f"checkout_url_{package_key}")
+                    logger.info(
+                        f"[PURCHASE] Checkout URL stored: {checkout_url[:50] if checkout_url else 'None'}..."
+                    )
                     st.rerun()  # Rerun to show the link button
                 else:
                     logger.error(f"[PURCHASE] Failed to create checkout session")
@@ -350,6 +358,7 @@ def handle_payment_callback():
 
     # Debug logging
     import logging
+
     logger = logging.getLogger(__name__)
     logger.info(f"Payment callback received. Query params: {dict(query_params)}")
 
@@ -375,17 +384,17 @@ def handle_payment_callback():
 
                         if success and session_data:
                             # Restore user authentication from payment session
-                            user_id = session_data.get('user_id')
-                            user_email = session_data.get('customer_email')
+                            user_id = session_data.get("user_id")
+                            user_email = session_data.get("customer_email")
 
-                            if user_id and not st.session_state.get('authenticated', False):
+                            if user_id and not st.session_state.get("authenticated", False):
                                 # Re-authenticate the user using data from Stripe
-                                from db import db, DEMO_USERS
+                                from db import DEMO_USERS, db
 
                                 # Check if demo user
                                 demo_user = None
                                 for email, user_data in DEMO_USERS.items():
-                                    if user_data['id'] == user_id:
+                                    if user_data["id"] == user_id:
                                         demo_user = user_data
                                         break
 
@@ -423,9 +432,12 @@ def handle_payment_callback():
                                 st.session_state[session_data_key] = session_data
 
                                 # Update current user credits in session
-                                if st.session_state.get('current_user'):
-                                    credits_added = session_data.get('credits', 0)
-                                    st.session_state.current_user['credits_balance'] = st.session_state.current_user.get('credits_balance', 0) + credits_added
+                                if st.session_state.get("current_user"):
+                                    credits_added = session_data.get("credits", 0)
+                                    st.session_state.current_user["credits_balance"] = (
+                                        st.session_state.current_user.get("credits_balance", 0)
+                                        + credits_added
+                                    )
 
                                 st.balloons()
                             else:
@@ -439,9 +451,7 @@ def handle_payment_callback():
                         return
 
                 # Show success message and details (whether just processed or already processed)
-                st.success(
-                    "🎉 Payment successful! Your credits have been added to your account."
-                )
+                st.success("🎉 Payment successful! Your credits have been added to your account.")
 
                 # Retrieve session data from session state
                 session_data = st.session_state.get(session_data_key)
@@ -449,9 +459,7 @@ def handle_payment_callback():
                     # Show payment details
                     with st.expander("Payment Details", expanded=True):
                         st.write(f"**Credits Purchased:** {session_data['credits']}")
-                        st.write(
-                            f"**Amount Paid:** ${session_data['amount_paid'] / 100:.2f}"
-                        )
+                        st.write(f"**Amount Paid:** ${session_data['amount_paid'] / 100:.2f}")
                         st.write(f"**Transaction ID:** {session_id[:20]}...")
 
                 if st.button("Continue to Dashboard"):

@@ -616,14 +616,15 @@ select::-ms-expand {
 def main():
     """Main application logic with enhanced UI"""
     import logging
+
     logger = logging.getLogger(__name__)
 
     # EMERGENCY DEBUG - Log at entry point
-    logger.info("\n" + "="*80)
+    logger.info("\n" + "=" * 80)
     logger.info("[MAIN] Application starting")
     logger.info(f"[MAIN] Query params: {dict(st.query_params)}")
     logger.info(f"[MAIN] Session state: {dict(st.session_state)}")
-    logger.info("="*80 + "\n")
+    logger.info("=" * 80 + "\n")
 
     # Initialize session state
     if "page" not in st.session_state:
@@ -636,7 +637,9 @@ def main():
 
     # Handle payment callbacks
     query_params = st.query_params
-    logger.info(f"[MAIN] Checking for payment callback. Has 'payment' key: {'payment' in query_params}")
+    logger.info(
+        f"[MAIN] Checking for payment callback. Has 'payment' key: {'payment' in query_params}"
+    )
 
     if "payment" in query_params:
         logger.info("[MAIN] Payment callback detected - calling handle_payment_callback()")
@@ -994,6 +997,7 @@ def show_password_reset_ticket_form():
                     # Create support ticket
                     # Use a special UUID for anonymous/pre-login tickets
                     import uuid
+
                     anonymous_uuid = "00000000-0000-0000-0000-000000000000"
 
                     ticket_data = {
@@ -1149,7 +1153,7 @@ def show_enhanced_register_form(auth: AuthUtils):
                     }
                     </style>
                     """,
-                    unsafe_allow_html=True
+                    unsafe_allow_html=True,
                 )
                 tos_path = Path(__file__).parent / "legal" / "terms_of_service.md"
                 with open(tos_path, "r", encoding="utf-8") as f:
@@ -1182,7 +1186,7 @@ def show_enhanced_register_form(auth: AuthUtils):
                     }
                     </style>
                     """,
-                    unsafe_allow_html=True
+                    unsafe_allow_html=True,
                 )
                 privacy_path = Path(__file__).parent / "legal" / "privacy_policy.md"
                 with open(privacy_path, "r", encoding="utf-8") as f:
@@ -1246,12 +1250,13 @@ def show_authenticated_app(auth: AuthUtils):
 
     # EMERGENCY DEBUG - Log routing
     import logging
+
     logger = logging.getLogger(__name__)
-    logger.info("="*80)
+    logger.info("=" * 80)
     logger.info(f"[ROUTING] About to route to page: {page}")
     logger.info(f"[ROUTING] Query params: {dict(st.query_params)}")
     logger.info(f"[ROUTING] User: {user.get('email', 'unknown')}")
-    logger.info("="*80)
+    logger.info("=" * 80)
 
     # Route to appropriate page (each page handles its own header)
     if page == "dashboard":

@@ -1216,6 +1216,11 @@ class DatabaseManager:
                 logger.warning(f"Demo ticket {ticket_id} not found")
                 return False
 
+            # Check if we have Supabase configuration
+            if not config.SUPABASE_URL or not config.SUPABASE_SERVICE_KEY:
+                logger.error("Cannot add ticket response - missing Supabase config")
+                return False
+
             # Use direct HTTP API to bypass RLS issues
             import httpx
 
@@ -1227,28 +1232,38 @@ class DatabaseManager:
                 "Content-Type": "application/json",
             }
 
-            logger.info(f"Fetching ticket {ticket_id} to add response")
+            logger.info(f"[add_ticket_response] Fetching ticket {ticket_id}")
+            logger.info(f"[add_ticket_response] URL: {url}?id=eq.{ticket_id}")
 
             # Get the ticket
             async with httpx.AsyncClient() as http_client:
                 # Fetch current responses
-                get_response = await http_client.get(
-                    f"{url}?id=eq.{ticket_id}&select=responses",
-                    headers=headers,
-                    timeout=30.0
-                )
+                try:
+                    get_response = await http_client.get(
+                        f"{url}?id=eq.{ticket_id}&select=responses",
+                        headers=headers,
+                        timeout=30.0
+                    )
+                    logger.info(f"[add_ticket_response] GET status: {get_response.status_code}")
+                except Exception as fetch_error:
+                    logger.error(f"[add_ticket_response] HTTP GET error: {type(fetch_error).__name__}: {str(fetch_error)}")
+                    return False
 
                 if get_response.status_code != 200:
-                    logger.error(f"Failed to fetch ticket: {get_response.status_code} - {get_response.text}")
+                    logger.error(f"[add_ticket_response] Failed to fetch ticket: {get_response.status_code}")
+                    logger.error(f"[add_ticket_response] Response body: {get_response.text}")
                     return False
 
                 ticket_data = get_response.json()
+                logger.info(f"[add_ticket_response] Ticket data: {ticket_data}")
+
                 if not ticket_data or len(ticket_data) == 0:
-                    logger.error(f"Ticket {ticket_id} not found")
+                    logger.error(f"[add_ticket_response] Ticket {ticket_id} not found in response")
                     return False
 
                 # Get existing responses or initialize empty array
                 existing = ticket_data[0].get("responses") or []
+                logger.info(f"[add_ticket_response] Existing responses count: {len(existing)}")
 
                 # Add new response
                 existing.append({
@@ -1258,19 +1273,25 @@ class DatabaseManager:
                 })
 
                 # Update ticket with new responses
-                logger.info(f"Updating ticket {ticket_id} with {len(existing)} responses")
-                patch_response = await http_client.patch(
-                    f"{url}?id=eq.{ticket_id}",
-                    headers=headers,
-                    json={"responses": existing},
-                    timeout=30.0
-                )
+                logger.info(f"[add_ticket_response] Updating ticket with {len(existing)} total responses")
+                try:
+                    patch_response = await http_client.patch(
+                        f"{url}?id=eq.{ticket_id}",
+                        headers=headers,
+                        json={"responses": existing},
+                        timeout=30.0
+                    )
+                    logger.info(f"[add_ticket_response] PATCH status: {patch_response.status_code}")
+                except Exception as patch_error:
+                    logger.error(f"[add_ticket_response] HTTP PATCH error: {type(patch_error).__name__}: {str(patch_error)}")
+                    return False
 
                 if patch_response.status_code in (200, 204):
-                    logger.info(f"Successfully added response to ticket {ticket_id}")
+                    logger.info(f"[add_ticket_response] Successfully added response to ticket {ticket_id}")
                     return True
                 else:
-                    logger.error(f"Failed to update ticket: {patch_response.status_code} - {patch_response.text}")
+                    logger.error(f"[add_ticket_response] Failed to update ticket: {patch_response.status_code}")
+                    logger.error(f"[add_ticket_response] Response body: {patch_response.text}")
                     return False
         except Exception as e:
             logger.error(f"Error adding ticket response: {e}")

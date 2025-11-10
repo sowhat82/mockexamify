@@ -107,94 +107,38 @@ class AuthUtils:
         Sign up new user
         Returns: (success, user_data, error_message)
         """
+        # ALWAYS use direct database - never use API for Streamlit Cloud
         try:
-            # Check if we should use direct database authentication
-            import config
+            from db import db
 
-            # ALWAYS use direct database authentication unless explicitly on localhost with API
-            # This ensures Streamlit Cloud always uses database directly
-            use_direct_db = (
-                config.DEMO_MODE
-                or "streamlit.app" in self.api_base_url
-                or not self.api_base_url.startswith("http://localhost")
-            )
+            logger.info(f"Sign up attempt for {email} using direct database")
 
-            if use_direct_db:
-                # Use direct database user creation
-                from db import db
+            # Check if user already exists
+            existing_user = await db.get_user_by_email(email)
+            if existing_user:
+                logger.info(f"User {email} already exists")
+                return False, None, "An account with this email already exists"
 
-                # Check if user already exists
-                existing_user = await db.get_user_by_email(email)
-                if existing_user:
-                    return False, None, "An account with this email already exists"
+            # Create new user
+            logger.info(f"Creating new user {email}")
+            user = await db.create_user(email, password)
+            if user:
+                logger.info(f"User {email} created successfully")
+                user_data = {
+                    "token": f"db_token_{user.id}",
+                    "user_id": user.id,
+                    "email": user.email,
+                    "role": user.role,
+                    "credits_balance": user.credits_balance,
+                }
+                return True, user_data, None
+            else:
+                logger.error(f"Failed to create user {email}")
+                return False, None, "Failed to create account. Please try again."
 
-                # Create new user
-                user = await db.create_user(email, password)
-                if user:
-                    user_data = {
-                        "token": f"db_token_{user.id}",
-                        "user_id": user.id,
-                        "email": user.email,
-                        "role": user.role,
-                        "credits_balance": user.credits_balance,
-                    }
-                    return True, user_data, None
-                else:
-                    return False, None, "Failed to create account. Please try again."
-
-            # Production mode with API - only for localhost development
-            async with httpx.AsyncClient(follow_redirects=True) as client:
-                response = await client.post(
-                    f"{self.api_base_url}/api/auth/register",
-                    json={"email": email, "password": password},
-                    timeout=30.0,
-                )
-
-                if response.status_code == 200:
-                    data = response.json()
-                    return True, data, None
-                elif response.status_code == 400:
-                    try:
-                        error_data = response.json()
-                        error_msg = error_data.get("detail", "Registration failed")
-                    except:
-                        error_msg = "Registration failed"
-                    return False, None, error_msg
-                elif response.status_code == 409:
-                    return False, None, "An account with this email already exists"
-                else:
-                    return False, None, f"Registration failed: {response.status_code}"
-
-        except httpx.TimeoutException:
-            return False, None, "Request timed out. Please try again."
-        except httpx.ConnectError:
-            # Fallback to direct database creation if API connection fails
-            try:
-                from db import db
-
-                # Check if user already exists
-                existing_user = await db.get_user_by_email(email)
-                if existing_user:
-                    return False, None, "An account with this email already exists"
-
-                # Create new user
-                user = await db.create_user(email, password)
-                if user:
-                    user_data = {
-                        "token": f"db_token_{user.id}",
-                        "user_id": user.id,
-                        "email": user.email,
-                        "role": user.role,
-                        "credits_balance": user.credits_balance,
-                    }
-                    return True, user_data, None
-                else:
-                    return False, None, "Failed to create account. Please try again."
-            except Exception as db_error:
-                return False, None, "Unable to connect to registration service"
         except Exception as e:
-            logger.error(f"Sign up error: {e}")
-            return False, None, f"An unexpected error occurred: {str(e)}"
+            logger.error(f"Sign up error for {email}: {type(e).__name__}: {str(e)}", exc_info=True)
+            return False, None, f"Registration error: {str(e)}"
 
     def logout(self):
         """Clear authentication state"""

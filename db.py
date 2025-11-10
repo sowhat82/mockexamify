@@ -1216,59 +1216,62 @@ class DatabaseManager:
                 logger.warning(f"Demo ticket {ticket_id} not found")
                 return False
 
-            # Use admin_client to bypass RLS for ticket responses
-            client = self.admin_client if self.admin_client else self.client
+            # Use direct HTTP API to bypass RLS issues
+            import httpx
 
-            # Prefer a dedicated responses table if present
-            try:
-                resp_result = (
-                    client.table("support_ticket_responses")
-                    .insert(
-                        {
-                            "ticket_id": ticket_id,
-                            "responder": responder,
-                            "message": message,
-                            "created_at": datetime.now(timezone.utc).isoformat(),
-                        }
-                    )
-                    .execute()
+            # First, get existing responses
+            url = f"{config.SUPABASE_URL}/rest/v1/tickets"
+            headers = {
+                "apikey": config.SUPABASE_SERVICE_KEY,
+                "Authorization": f"Bearer {config.SUPABASE_SERVICE_KEY}",
+                "Content-Type": "application/json",
+            }
+
+            logger.info(f"Fetching ticket {ticket_id} to add response")
+
+            # Get the ticket
+            async with httpx.AsyncClient() as http_client:
+                # Fetch current responses
+                get_response = await http_client.get(
+                    f"{url}?id=eq.{ticket_id}&select=responses",
+                    headers=headers,
+                    timeout=30.0
                 )
-                if resp_result.data:
-                    return True
-            except Exception:
-                # Fallback: append to JSONB 'responses' array on support_tickets
-                try:
-                    # Get existing responses
-                    ticket = (
-                        client.table("tickets")
-                        .select("responses")
-                        .eq("id", ticket_id)
-                        .execute()
-                    )
-                    existing = []
-                    if ticket.data and len(ticket.data) > 0 and ticket.data[0].get("responses"):
-                        existing = ticket.data[0]["responses"]
 
-                    existing.append(
-                        {
-                            "responder": responder,
-                            "message": message,
-                            "created_at": datetime.now(timezone.utc).isoformat(),
-                        }
-                    )
-
-                    update = (
-                        client.table("tickets")
-                        .update({"responses": existing})
-                        .eq("id", ticket_id)
-                        .execute()
-                    )
-                    return len(update.data) > 0
-                except Exception as e:
-                    logger.error(f"Error appending response to support ticket: {e}")
+                if get_response.status_code != 200:
+                    logger.error(f"Failed to fetch ticket: {get_response.status_code} - {get_response.text}")
                     return False
 
-            return False
+                ticket_data = get_response.json()
+                if not ticket_data or len(ticket_data) == 0:
+                    logger.error(f"Ticket {ticket_id} not found")
+                    return False
+
+                # Get existing responses or initialize empty array
+                existing = ticket_data[0].get("responses") or []
+
+                # Add new response
+                existing.append({
+                    "responder": responder,
+                    "message": message,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                })
+
+                # Update ticket with new responses
+                logger.info(f"Updating ticket {ticket_id} with {len(existing)} responses")
+                patch_response = await http_client.patch(
+                    f"{url}?id=eq.{ticket_id}",
+                    headers=headers,
+                    json={"responses": existing},
+                    timeout=30.0
+                )
+
+                if patch_response.status_code in (200, 204):
+                    logger.info(f"Successfully added response to ticket {ticket_id}")
+                    return True
+                else:
+                    logger.error(f"Failed to update ticket: {patch_response.status_code} - {patch_response.text}")
+                    return False
         except Exception as e:
             logger.error(f"Error adding ticket response: {e}")
             return False

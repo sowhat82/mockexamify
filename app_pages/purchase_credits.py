@@ -288,6 +288,10 @@ def display_package_card(
                 # Create checkout session
                 import os
                 import config
+                import logging
+
+                logger = logging.getLogger(__name__)
+                logger.info(f"[PURCHASE] Button clicked for package: {package_key}")
 
                 # Determine base URL based on environment
                 if os.getenv('APP_BASE_URL'):
@@ -303,6 +307,9 @@ def display_package_card(
                     # Fallback to localhost for local development
                     base_url = "http://localhost:8501"
 
+                logger.info(f"[PURCHASE] Base URL: {base_url}")
+                logger.info(f"[PURCHASE] User ID: {user['id']}, Email: {user['email']}")
+
                 success = create_payment_button(
                     stripe_utils=stripe_utils,
                     package_key=package_key,
@@ -311,9 +318,14 @@ def display_package_card(
                     base_url=base_url,
                 )
 
+                logger.info(f"[PURCHASE] create_payment_button returned: {success}")
+
                 if success:
+                    checkout_url = st.session_state.get(f'checkout_url_{package_key}')
+                    logger.info(f"[PURCHASE] Checkout URL stored: {checkout_url[:50] if checkout_url else 'None'}...")
                     st.rerun()  # Rerun to show the link button
                 else:
+                    logger.error(f"[PURCHASE] Failed to create checkout session")
                     st.error("Failed to initiate payment. Please try again.")
 
         # Add large spacing after button to clearly separate from next card

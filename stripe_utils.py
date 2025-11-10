@@ -297,7 +297,11 @@ def create_payment_button(
     # Create checkout session
     success_url = f"{base_url}/?payment=success"
     cancel_url = f"{base_url}/?payment=cancelled"
-    
+
+    logger.info(f"[STRIPE] Creating checkout session for {package_key}")
+    logger.info(f"[STRIPE] Success URL: {success_url}")
+    logger.info(f"[STRIPE] Cancel URL: {cancel_url}")
+
     success, session_url, error = stripe_utils.create_checkout_session(
         package_key=package_key,
         user_id=user_id,
@@ -305,12 +309,17 @@ def create_payment_button(
         success_url=success_url,
         cancel_url=cancel_url
     )
-    
+
+    logger.info(f"[STRIPE] Checkout session result: success={success}, has_url={bool(session_url)}, error={error}")
+
     if success and session_url:
         # Store URL in session state and return it
         # The calling function will handle displaying the link button
+        logger.info(f"[STRIPE] Storing checkout URL in session state: checkout_url_{package_key}")
+        logger.info(f"[STRIPE] URL: {session_url[:80]}...")
         st.session_state[f'checkout_url_{package_key}'] = session_url
         return True
     else:
+        logger.error(f"[STRIPE] Failed to create session: {error}")
         st.error(f"Payment error: {error}")
         return False

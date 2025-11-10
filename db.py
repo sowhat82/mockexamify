@@ -668,6 +668,7 @@ class DatabaseManager:
             if score is None or correct_answers is None or total_questions is None:
                 mock = await self.get_mock_by_id(mock_id)
                 if not mock:
+                    logger.error(f"Mock {mock_id} not found, cannot calculate scores")
                     return None
 
                 if total_questions is None:
@@ -684,6 +685,11 @@ class DatabaseManager:
 
                 if score is None:
                     score = (correct_answers / total_questions) * 100 if total_questions > 0 else 0
+
+            # Check if we have required configuration
+            if not config.SUPABASE_URL or not config.SUPABASE_SERVICE_KEY:
+                logger.error("Missing Supabase configuration for attempt creation")
+                return None
 
             # Use direct HTTP request to PostgREST API to bypass RLS
             import httpx

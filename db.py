@@ -685,8 +685,11 @@ class DatabaseManager:
                 if score is None:
                     score = (correct_answers / total_questions) * 100 if total_questions > 0 else 0
 
+            # Use admin_client to bypass RLS for attempt creation
+            client = self.admin_client if self.admin_client else self.client
+
             result = (
-                self.client.table("attempts")
+                client.table("attempts")
                 .insert(
                     {
                         "user_id": user_id,
@@ -723,7 +726,7 @@ class DatabaseManager:
                     timestamp=attempt_data["created_at"],
                 )
         except Exception as e:
-            logger.error(f"Error creating attempt: {e}")
+            logger.error(f"Error creating attempt for user {user_id}: {type(e).__name__}: {str(e)}", exc_info=True)
             return None
 
     async def get_user_attempts(self, user_id: str) -> List[AttemptResponse]:

@@ -107,6 +107,11 @@ def show_submit_ticket_form(user: Dict[str, Any]):
         unsafe_allow_html=True,
     )
 
+    # Add back button to dashboard
+    if st.button("🏠 Back to Dashboard"):
+        st.session_state.page = "dashboard"
+        st.rerun()
+
     with st.form("support_ticket_form"):
         # Issue Category fully removed
 

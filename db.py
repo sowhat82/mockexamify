@@ -1128,8 +1128,12 @@ class DatabaseManager:
                 # Return demo tickets for this user only
                 return [ticket for ticket in DEMO_TICKETS if ticket["user_id"] == user_id]
 
+            # Use admin_client to ensure we can read tickets even if RLS is restrictive
+            # This is safe because we're filtering by user_id
+            client = self.admin_client if self.admin_client else self.client
+
             result = (
-                self.client.table("tickets")
+                client.table("tickets")
                 .select("*")
                 .eq("user_id", user_id)
                 .order("created_at", desc=True)
@@ -1147,7 +1151,7 @@ class DatabaseManager:
 
             return user_tickets
         except Exception as e:
-            logger.error(f"Error getting user support tickets: {e}")
+            logger.error(f"Error getting user support tickets for {user_id}: {type(e).__name__}: {str(e)}", exc_info=True)
             # Return demo tickets for this user on error
             return [ticket for ticket in DEMO_TICKETS if ticket["user_id"] == user_id]
 

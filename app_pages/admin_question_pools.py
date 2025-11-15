@@ -208,42 +208,40 @@ def display_question_details(question: Dict[str, Any]):
         explanation_html = f'<p style="color: white; margin-top: 1rem;"><strong>Explanation:</strong></p><p style="color: white;">{question["explanation"]}</p>'
 
     # Display everything in a gradient box
-    st.markdown(
-        f"""
-        <div style="
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 1.5rem;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
-            color: white;
-        ">
-            <p style="color: white;"><strong>Question:</strong></p>
-            <p style="color: white; margin-bottom: 1rem;">{question["question_text"]}</p>
+    details_html = f"""
+    <div style="
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 1.5rem;
+        border-radius: 0.75rem;
+        box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+        color: white;
+    ">
+        <p style="color: white;"><strong>Question:</strong></p>
+        <p style="color: white; margin-bottom: 1rem;">{question["question_text"]}</p>
 
-            <p style="color: white;"><strong>Choices:</strong></p>
-            {choices_html}
+        <p style="color: white;"><strong>Choices:</strong></p>
+        {choices_html}
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
-                <div>
-                    <p style="color: white;"><strong>Source:</strong> {question.get('source_file', 'Unknown')}</p>
-                    <p style="color: white;"><strong>Uploaded:</strong> {question.get('uploaded_at', 'Unknown')}</p>
-                    <p style="color: white;"><strong>Difficulty:</strong> {question.get('difficulty', 'Medium')}</p>
-                </div>
-                <div>
-                    <p style="color: white;"><strong>Statistics:</strong></p>
-                    <ul style="color: white;">
-                        <li>Times shown: {question.get('times_shown', 0)}</li>
-                        <li>Times correct: {question.get('times_correct', 0)}</li>
-                        <li>Times incorrect: {question.get('times_incorrect', 0)}</li>
-                    </ul>
-                </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+            <div>
+                <p style="color: white;"><strong>Source:</strong> {question.get('source_file', 'Unknown')}</p>
+                <p style="color: white;"><strong>Uploaded:</strong> {question.get('uploaded_at', 'Unknown')}</p>
+                <p style="color: white;"><strong>Difficulty:</strong> {question.get('difficulty', 'Medium')}</p>
             </div>
-
-            {explanation_html}
+            <div>
+                <p style="color: white;"><strong>Statistics:</strong></p>
+                <ul style="color: white;">
+                    <li>Times shown: {question.get('times_shown', 0)}</li>
+                    <li>Times correct: {question.get('times_correct', 0)}</li>
+                    <li>Times incorrect: {question.get('times_incorrect', 0)}</li>
+                </ul>
+            </div>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+
+        {explanation_html}
+    </div>
+    """
+    st.html(details_html)
 
     # Action buttons
     col1, col2 = st.columns(2)

@@ -318,6 +318,79 @@ Extract all questions now:"""
         # This could be enhanced with regex-based parsing if needed
         return []
 
+    def _auto_validate_calculations(self, question: str, choices: List[str], ai_index: int) -> Tuple[int, bool]:
+        """
+        Auto-validate calculation questions and correct AI errors.
+        Returns: (corrected_index, was_corrected)
+        """
+        import re
+
+        question_lower = question.lower()
+
+        # Only validate if all choices are numeric
+        try:
+            numeric_choices = [float(choice.replace(',', '').replace('$', '').strip()) for choice in choices]
+        except (ValueError, AttributeError):
+            # Not all choices are numeric, skip validation
+            return ai_index, False
+
+        # Pattern 1: Cross Rate Calculation (GBP/USD × USD/CNY = GBP/CNY)
+        cross_rate_match = re.search(r'(\w+)/(\w+)\s*[=:]\s*([\d.]+).*?(\w+)/(\w+)\s*[=:]\s*([\d.]+)', question)
+        if cross_rate_match and 'cross rate' in question_lower:
+            try:
+                # Extract: GBP/USD = 1.6824, USD/CNY = 6.2518
+                rate1 = float(cross_rate_match.group(3))
+                rate2 = float(cross_rate_match.group(6))
+                calculated = rate1 * rate2
+
+                # Find closest choice
+                closest_index = min(range(len(numeric_choices)),
+                                  key=lambda i: abs(numeric_choices[i] - calculated))
+
+                if closest_index != ai_index:
+                    return closest_index, True
+            except:
+                pass
+
+        # Pattern 2: Sharpe Ratio
+        sharpe_match = re.search(r'earned\s+([\d.]+)\s*%.*?standard deviation.*?([\d.]+)\s*%.*?risk[‑-]free.*?([\d.]+)\s*%', question)
+        if sharpe_match and 'sharpe' in question_lower:
+            try:
+                portfolio_return = float(sharpe_match.group(1))
+                std_dev = float(sharpe_match.group(2))
+                risk_free = float(sharpe_match.group(3))
+
+                sharpe_ratio = (portfolio_return - risk_free) / std_dev
+
+                # Find closest choice
+                closest_index = min(range(len(numeric_choices)),
+                                  key=lambda i: abs(numeric_choices[i] - sharpe_ratio))
+
+                if closest_index != ai_index:
+                    return closest_index, True
+            except:
+                pass
+
+        # Pattern 3: Simple percentage calculation
+        percentage_match = re.search(r'([\d.]+)\s*%.*?of.*?\$?([\d,]+)', question)
+        if percentage_match and ('calculate' in question_lower or 'what is' in question_lower):
+            try:
+                percentage = float(percentage_match.group(1)) / 100
+                amount = float(percentage_match.group(2).replace(',', ''))
+                calculated = percentage * amount
+
+                # Find closest choice
+                closest_index = min(range(len(numeric_choices)),
+                                  key=lambda i: abs(numeric_choices[i] - calculated))
+
+                if closest_index != ai_index and abs(numeric_choices[closest_index] - calculated) < 0.01:
+                    return closest_index, True
+            except:
+                pass
+
+        # No correction needed
+        return ai_index, False
+
     def _validate_questions(self, questions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Validate and clean extracted questions"""
         valid_questions = []
@@ -362,6 +435,17 @@ Extract all questions now:"""
                 if correct_index < 0 or correct_index >= len(q["choices"]):
                     st.warning(f"Question {i+1}: Invalid correct_index {correct_index}, skipping")
                     continue
+
+                # Auto-validate calculations (detects and corrects AI errors)
+                corrected_index, was_corrected = self._auto_validate_calculations(
+                    q["question"].strip(),
+                    [str(choice).strip() for choice in q["choices"]],
+                    correct_index
+                )
+
+                if was_corrected:
+                    st.warning(f"Question {i+1}: Auto-corrected answer from index {correct_index} to {corrected_index}")
+                    correct_index = corrected_index
 
                 # Clean and normalize question
                 cleaned_question = {

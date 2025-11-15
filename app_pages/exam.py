@@ -5,6 +5,7 @@ Comprehensive exam interface with timer, navigation, and result calculation
 
 import asyncio
 import json
+import logging
 import time
 import uuid
 from datetime import datetime, timedelta
@@ -17,6 +18,9 @@ from auth_utils import AuthUtils, run_async
 from db import db
 from openrouter_utils import generate_explanation
 from pdf_utils import generate_exam_results_pdf
+
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 
 def show_exam():

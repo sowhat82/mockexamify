@@ -31,21 +31,6 @@ def show_admin_question_pools():
     st.markdown("# 💼 Question Pool Management")
     st.markdown("View and manage your question pools")
 
-    # CSS to force expander text to white
-    st.markdown(
-        """
-    <style>
-    [data-testid="stExpander"] summary p {
-        color: white !important;
-    }
-    [data-testid="stExpander"] summary {
-        color: white !important;
-    }
-    </style>
-    """,
-        unsafe_allow_html=True,
-    )
-
     # Load question pools
     pools = run_async(load_question_pools())
 
@@ -68,12 +53,13 @@ def show_admin_question_pools():
             with col1:
                 st.markdown(
                     f"""
-                <style>
-                .pool-info * {{
-                    color: #FFFFFF !important;
-                }}
-                </style>
-                <div class="pool-info">
+                <div style="
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    padding: 1.5rem;
+                    border-radius: 0.75rem;
+                    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+                    color: white;
+                ">
                 <p><strong>Category:</strong> {pool.get('category', 'Uncategorized')}</p>
                 <p><strong>Description:</strong> {pool.get('description', 'No description')}</p>
                 <p><strong>Statistics:</strong></p>

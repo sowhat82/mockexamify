@@ -1,0 +1,29 @@
+═══════════════════════════════════════════════════════════════════
+  QUICK START: Test Stripe Integration in 3 Steps
+═══════════════════════════════════════════════════════════════════
+
+STEP 1: Open this file
+→ CHATGPT_STRIPE_QUICK_TEST.md
+
+STEP 2: Copy EVERYTHING (Ctrl+A, Ctrl+C)
+
+STEP 3: Paste into ChatGPT and add your email:
+→ [Paste entire file]
+→ My Stripe Google login email is: your.email@gmail.com
+
+Done! The agent will test everything autonomously.
+
+═══════════════════════════════════════════════════════════════════
+WHAT IT DOES:
+• Creates test account on your app
+• Tests checkout flow
+• Checks Stripe dashboard
+• Provides detailed report with screenshots
+• Does NOT spend real money (unless you authorize)
+═══════════════════════════════════════════════════════════════════
+
+Time: 20-30 minutes
+Cost: $0 (no payment completion)
+
+⚠️  REQUIRES: ChatGPT Plus with browser access enabled
+═══════════════════════════════════════════════════════════════════

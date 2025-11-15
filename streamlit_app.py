@@ -767,19 +767,23 @@ def show_authentication_page(auth: AuthUtils):
 
     st.markdown("---")
 
-    # Free trial announcement with white text
+    # Free trial announcement with custom styling for visibility in both light and dark modes
     st.markdown(
         """
-        <style>
-        .stAlert p, .stAlert div, .stAlert span, .stAlert strong {
-            color: #ffffff !important;
-        }
-        </style>
+        <div style="
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            margin: 1rem 0 2rem 0;
+            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+            border-left: 5px solid #ffd700;
+        ">
+            <p style="color: white; margin: 0; font-size: 1.1rem; line-height: 1.6;">
+                🎁 <strong>New users receive 1 FREE trial credit!</strong> Sign up now to test our platform and experience AI-powered mock exams.
+            </p>
+        </div>
         """,
         unsafe_allow_html=True,
-    )
-    st.info(
-        "🎁 **New users receive 1 FREE trial credit!** Sign up now to test our platform and experience AI-powered mock exams."
     )
 
     # Enhanced Login/Register tabs
@@ -1213,23 +1217,45 @@ def show_authenticated_app(auth: AuthUtils):
     user = auth.get_current_user()
     credits = user.get("credits_balance", 0)
 
-    # Top navigation bar with user info
-    col1, col2, col3 = st.columns([2, 1, 1])
+    # Top navigation bar with user info - with gradient background for visibility
+    st.markdown(
+        """
+        <style>
+        .nav-bar-container {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .nav-bar-container h3,
+        .nav-bar-container p,
+        .nav-bar-container strong {
+            color: white !important;
+            margin: 0;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    with col1:
-        st.html(
-            f'<div style="padding: 10px 0;"><h3 style="margin: 0; color: white;">🎯 WantAMock</h3></div>'
-        )
-
-    with col2:
-        st.html(
-            f'<div style="padding: 10px; text-align: right;"><p style="margin: 0; color: white;"><strong style="color: white;">💰 Credits:</strong> {credits}</p></div>'
-        )
-
-    with col3:
-        st.html(
-            f'<div style="padding: 10px; text-align: right;"><p style="margin: 0; color: white;"><strong style="color: white;">👤</strong> {user.get("email", "User")}</p></div>'
-        )
+    # Navigation bar with gradient background
+    nav_html = f"""
+    <div class="nav-bar-container">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="flex: 2;">
+                <h3 style="margin: 0; color: white;">🎯 WantAMock</h3>
+            </div>
+            <div style="flex: 1; text-align: right;">
+                <p style="margin: 0; color: white;"><strong>💰 Credits:</strong> {credits}</p>
+            </div>
+            <div style="flex: 1; text-align: right;">
+                <p style="margin: 0; color: white;"><strong>👤</strong> {user.get("email", "User")}</p>
+            </div>
+        </div>
+    </div>
+    """
+    st.html(nav_html)
 
     st.markdown("---")
 

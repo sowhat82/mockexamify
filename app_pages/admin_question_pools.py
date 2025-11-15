@@ -100,24 +100,7 @@ def show_admin_question_pools():
 def show_pool_questions(pool_id: str):
     """Display questions in a specific pool"""
     st.markdown("---")
-    st.markdown(
-        '<h3 style="color: white !important;">📝 Pool Questions</h3>', unsafe_allow_html=True
-    )
-
-    # CSS to force expander text to white
-    st.markdown(
-        """
-    <style>
-    [data-testid="stExpander"] summary p {
-        color: white !important;
-    }
-    [data-testid="stExpander"] summary {
-        color: white !important;
-    }
-    </style>
-    """,
-        unsafe_allow_html=True,
-    )
+    st.markdown("### 📝 Pool Questions")
 
     questions = run_async(load_pool_questions(pool_id))
 
@@ -132,23 +115,14 @@ def show_pool_questions(pool_id: str):
     col1, col2, col3 = st.columns([2, 1, 1])
 
     with col1:
-        st.markdown(
-            '<p style="color: white !important; font-weight: 500; margin-bottom: 0.5rem;">🔍 Search questions</p>',
-            unsafe_allow_html=True,
-        )
         search_term = st.text_input(
-            "Search questions", placeholder="Type to search...", label_visibility="collapsed"
+            "🔍 Search questions", placeholder="Type to search..."
         )
 
     with col2:
-        st.markdown(
-            '<p style="color: white !important; font-weight: 500; margin-bottom: 0.5rem;">Sort by</p>',
-            unsafe_allow_html=True,
-        )
         sort_by = st.selectbox(
-            "Sort by select",
+            "Sort by",
             ["Original Order", "Recent", "Most Shown", "Most Correct", "Most Incorrect"],
-            label_visibility="collapsed",
         )
 
     with col3:
@@ -179,10 +153,7 @@ def show_pool_questions(pool_id: str):
     elif sort_by == "Most Incorrect":
         filtered_questions.sort(key=lambda x: x.get("times_incorrect", 0), reverse=True)
 
-    st.markdown(
-        f'<p style="color: white !important;"><strong style="color: white !important;">Showing {len(filtered_questions)} of {len(questions)} questions</strong></p>',
-        unsafe_allow_html=True,
-    )
+    st.markdown(f"**Showing {len(filtered_questions)} of {len(questions)} questions**")
 
     # Display questions
     for idx, question in enumerate(filtered_questions, 1):
@@ -216,67 +187,63 @@ def display_question_details(question: Dict[str, Any]):
         show_edit_question_form(question)
         return
 
-    st.markdown(
-        f'<p style="color: white !important;"><strong style="color: white !important;">Question:</strong> {question["question_text"]}</p>',
-        unsafe_allow_html=True,
-    )
-
-    # Display choices
-    st.markdown(
-        '<p style="color: white !important;"><strong style="color: white !important;">Choices:</strong></p>',
-        unsafe_allow_html=True,
-    )
+    # Parse choices
     choices = (
         json.loads(question["choices"])
         if isinstance(question["choices"], str)
         else question["choices"]
     )
 
+    # Build choices HTML
+    choices_html = ""
     for i, choice in enumerate(choices):
         if i == question["correct_answer"]:
-            st.success(f"✅ {i}: {choice} (Correct Answer)")
+            choices_html += f'<p style="color: #4ade80; margin: 0.25rem 0;">✅ {i}: {choice} (Correct Answer)</p>'
         else:
-            st.markdown(
-                f'<p style="color: white !important;">◯ {i}: {choice}</p>', unsafe_allow_html=True
-            )
+            choices_html += f'<p style="color: white; margin: 0.25rem 0;">◯ {i}: {choice}</p>'
 
-    # Display metadata
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown(
-            f"""
-        <div style="color: white !important;">
-        <p style="color: white !important;"><strong style="color: white !important;">Source:</strong> {question.get('source_file', 'Unknown')}</p>
-
-        <p style="color: white !important;"><strong style="color: white !important;">Uploaded:</strong> {question.get('uploaded_at', 'Unknown')}</p>
-
-        <p style="color: white !important;"><strong style="color: white !important;">Difficulty:</strong> {question.get('difficulty', 'Medium')}</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-    with col2:
-        st.markdown(
-            f"""
-        <div style="color: white !important;">
-        <p style="color: white !important;"><strong style="color: white !important;">Statistics:</strong></p>
-        <ul style="color: white !important;">
-        <li style="color: white !important;">Times shown: {question.get('times_shown', 0)}</li>
-        <li style="color: white !important;">Times correct: {question.get('times_correct', 0)}</li>
-        <li style="color: white !important;">Times incorrect: {question.get('times_incorrect', 0)}</li>
-        </ul>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
+    # Explanation HTML
+    explanation_html = ""
     if question.get("explanation"):
-        st.markdown(
-            f'<p style="color: white !important;"><strong style="color: white !important;">Explanation:</strong> {question["explanation"]}</p>',
-            unsafe_allow_html=True,
-        )
+        explanation_html = f'<p style="color: white; margin-top: 1rem;"><strong>Explanation:</strong></p><p style="color: white;">{question["explanation"]}</p>'
+
+    # Display everything in a gradient box
+    st.markdown(
+        f"""
+        <div style="
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+            color: white;
+        ">
+            <p style="color: white;"><strong>Question:</strong></p>
+            <p style="color: white; margin-bottom: 1rem;">{question["question_text"]}</p>
+
+            <p style="color: white;"><strong>Choices:</strong></p>
+            {choices_html}
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                <div>
+                    <p style="color: white;"><strong>Source:</strong> {question.get('source_file', 'Unknown')}</p>
+                    <p style="color: white;"><strong>Uploaded:</strong> {question.get('uploaded_at', 'Unknown')}</p>
+                    <p style="color: white;"><strong>Difficulty:</strong> {question.get('difficulty', 'Medium')}</p>
+                </div>
+                <div>
+                    <p style="color: white;"><strong>Statistics:</strong></p>
+                    <ul style="color: white;">
+                        <li>Times shown: {question.get('times_shown', 0)}</li>
+                        <li>Times correct: {question.get('times_correct', 0)}</li>
+                        <li>Times incorrect: {question.get('times_incorrect', 0)}</li>
+                    </ul>
+                </div>
+            </div>
+
+            {explanation_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     # Action buttons
     col1, col2 = st.columns(2)
@@ -298,10 +265,7 @@ def display_question_details(question: Dict[str, Any]):
 
 def show_edit_question_form(question: Dict[str, Any]):
     """Display edit form for a question"""
-    st.markdown(
-        '<p style="color: white !important;"><strong style="color: white !important;">✏️ Editing Question</strong></p>',
-        unsafe_allow_html=True,
-    )
+    st.markdown("**✏️ Editing Question**")
 
     # Parse choices if they're stored as JSON string
     choices = (
@@ -312,50 +276,32 @@ def show_edit_question_form(question: Dict[str, Any]):
 
     with st.form(key=f"edit_form_{question['id']}"):
         # Question text
-        st.markdown(
-            '<p style="color: #000000 !important;">Question Text:</p>', unsafe_allow_html=True
-        )
         new_question_text = st.text_area(
-            "Question", value=question["question_text"], height=100, label_visibility="collapsed"
+            "Question Text", value=question["question_text"], height=100
         )
 
         # Choices
-        st.markdown(
-            '<p style="color: white !important;">Choices (one per line):</p>',
-            unsafe_allow_html=True,
-        )
         choices_text = "\n".join(choices)
         new_choices_text = st.text_area(
-            "Choices", value=choices_text, height=150, label_visibility="collapsed"
+            "Choices (one per line)", value=choices_text, height=150
         )
 
         # Correct answer
-        st.markdown(
-            '<p style="color: white !important;">Correct Answer (0-based index):</p>',
-            unsafe_allow_html=True,
-        )
         new_correct_answer = st.number_input(
-            "Correct Answer",
+            "Correct Answer (0-based index)",
             min_value=0,
             max_value=10,
             value=question["correct_answer"],
-            label_visibility="collapsed",
         )
 
         # Explanation
-        st.markdown(
-            '<p style="color: white !important;">Explanation (optional):</p>',
-            unsafe_allow_html=True,
-        )
         new_explanation = st.text_area(
-            "Explanation",
+            "Explanation (optional)",
             value=question.get("explanation", ""),
             height=100,
-            label_visibility="collapsed",
         )
 
         # Difficulty
-        st.markdown('<p style="color: white !important;">Difficulty:</p>', unsafe_allow_html=True)
         current_difficulty = question.get("difficulty", "Medium")
         # Handle case-insensitive difficulty matching
         difficulty_map = {"easy": "Easy", "medium": "Medium", "hard": "Hard"}
@@ -365,7 +311,6 @@ def show_edit_question_form(question: Dict[str, Any]):
             "Difficulty",
             options=["Easy", "Medium", "Hard"],
             index=["Easy", "Medium", "Hard"].index(current_difficulty_display),
-            label_visibility="collapsed",
         )
 
         col1, col2 = st.columns(2)

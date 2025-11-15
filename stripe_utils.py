@@ -81,9 +81,9 @@ class StripeUtils:
                         'price_data': {
                             'currency': 'sgd',
                             'product_data': {
-                                'name': package['name'],
+                                'name': f"WantAMock - {package['name']}",
                                 'description': package['description'],
-                                'images': ['https://wantamock.streamlit.app/logo.png'],  # Add your logo URL
+                                # 'images': ['https://wantamock.streamlit.app/logo.png'],  # Add your logo URL when available
                             },
                             'unit_amount': package['price'],
                         },
@@ -98,7 +98,7 @@ class StripeUtils:
                     'user_id': user_id,
                     'package_key': package_key,
                     'credits': str(package['credits']),
-                    'app_name': 'MockExamify'
+                    'app_name': 'WantAMock'
                 },
                 expires_at=int((datetime.now().timestamp() + 30 * 60))  # 30 minutes expiry
             )

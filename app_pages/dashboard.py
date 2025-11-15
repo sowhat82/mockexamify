@@ -123,7 +123,8 @@ def show_quick_stats(user: Dict[str, Any]):
     # Load user statistics
     stats = run_async(load_user_statistics(user["id"]))
 
-    col1, col2, col3, col4 = st.columns(4)
+    # Only show Credits Available for now - other metrics hidden until fully implemented
+    col1 = st.columns(1)[0]
 
     with col1:
         credits = user.get("credits_balance", 0)
@@ -144,62 +145,63 @@ def show_quick_stats(user: Dict[str, Any]):
             unsafe_allow_html=True,
         )
 
-    with col2:
-        total_attempts = stats.get("total_attempts", 0)
-        st.markdown(
-            f"""
-        <div style="
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            padding: 1.5rem;
-            border-radius: 1rem;
-            color: white;
-            text-align: center;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        ">
-            <div style="font-size: 2.5rem; font-weight: bold; margin-bottom: 0.5rem;">{total_attempts}</div>
-            <div style="font-size: 0.9rem; opacity: 0.9;">📝 Exams Taken</div>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-    with col3:
-        avg_score = stats.get("average_score", 0)
-        st.markdown(
-            f"""
-        <div style="
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            padding: 1.5rem;
-            border-radius: 1rem;
-            color: white;
-            text-align: center;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        ">
-            <div style="font-size: 2.5rem; font-weight: bold; margin-bottom: 0.5rem;">{avg_score:.1f}%</div>
-            <div style="font-size: 0.9rem; opacity: 0.9;">📊 Average Score</div>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-    with col4:
-        streak = stats.get("current_streak", 0)
-        st.markdown(
-            f"""
-        <div style="
-            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
-            padding: 1.5rem;
-            border-radius: 1rem;
-            color: white;
-            text-align: center;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        ">
-            <div style="font-size: 2.5rem; font-weight: bold; margin-bottom: 0.5rem;">{streak}</div>
-            <div style="font-size: 0.9rem; opacity: 0.9;">🔥 Day Streak</div>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
+    # TODO: Re-enable these metrics when fully implemented
+    # with col2:
+    #     total_attempts = stats.get("total_attempts", 0)
+    #     st.markdown(
+    #         f"""
+    #     <div style="
+    #         background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    #         padding: 1.5rem;
+    #         border-radius: 1rem;
+    #         color: white;
+    #         text-align: center;
+    #         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    #     ">
+    #         <div style="font-size: 2.5rem; font-weight: bold; margin-bottom: 0.5rem;">{total_attempts}</div>
+    #         <div style="font-size: 0.9rem; opacity: 0.9;">📝 Exams Taken</div>
+    #     </div>
+    #     """,
+    #         unsafe_allow_html=True,
+    #     )
+    #
+    # with col3:
+    #     avg_score = stats.get("average_score", 0)
+    #     st.markdown(
+    #         f"""
+    #     <div style="
+    #         background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    #         padding: 1.5rem;
+    #         border-radius: 1rem;
+    #         color: white;
+    #         text-align: center;
+    #         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    #     ">
+    #         <div style="font-size: 2.5rem; font-weight: bold; margin-bottom: 0.5rem;">{avg_score:.1f}%</div>
+    #         <div style="font-size: 0.9rem; opacity: 0.9;">📊 Average Score</div>
+    #     </div>
+    #     """,
+    #         unsafe_allow_html=True,
+    #     )
+    #
+    # with col4:
+    #     streak = stats.get("current_streak", 0)
+    #     st.markdown(
+    #         f"""
+    #     <div style="
+    #         background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    #         padding: 1.5rem;
+    #         border-radius: 1rem;
+    #         color: white;
+    #         text-align: center;
+    #         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    #     ">
+    #         <div style="font-size: 2.5rem; font-weight: bold; margin-bottom: 0.5rem;">{streak}</div>
+    #         <div style="font-size: 0.9rem; opacity: 0.9;">🔥 Day Streak</div>
+    #     </div>
+    #     """,
+    #         unsafe_allow_html=True,
+    #     )
 
 
 def show_quick_actions():

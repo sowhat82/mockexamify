@@ -867,6 +867,7 @@ def finish_exam(user: Dict[str, Any]):
 
         # Update existing attempt with final results
         if "attempt_id" in st.session_state:
+            logger.info(f"Updating existing attempt: {st.session_state.attempt_id}")
             # Update the existing in-progress attempt to completed
             update_success = run_async(
                 db.update_attempt_status(
@@ -876,16 +877,20 @@ def finish_exam(user: Dict[str, Any]):
                     correct_answers=correct_answers,
                 )
             )
+            logger.info(f"Update status result: {update_success}")
+
             # Also update with final data
-            run_async(
+            progress_update = run_async(
                 db.update_attempt_progress(
                     attempt_id=st.session_state.attempt_id,
                     questions_submitted=total_questions,
                     user_answers=st.session_state.answers,
                 )
             )
+            logger.info(f"Update progress result: {progress_update}")
             attempt_id = st.session_state.attempt_id
         else:
+            logger.warning("No attempt_id in session state, creating new attempt")
             # Fallback: create new attempt if no attempt_id found (shouldn't happen)
             attempt_data = {
                 "user_id": user["id"],
@@ -901,6 +906,7 @@ def finish_exam(user: Dict[str, Any]):
             attempt = run_async(db.create_attempt(**attempt_data))
             attempt_id = attempt.id if attempt else None
             update_success = bool(attempt)
+            logger.info(f"Created new attempt: {attempt_id}, success: {update_success}")
 
         if update_success and attempt_id:
             # Store results in session state
@@ -918,10 +924,19 @@ def finish_exam(user: Dict[str, Any]):
             st.success("🎉 Exam finished! Showing your results...")
             st.rerun()
         else:
-            st.error("Failed to save exam results. Please try again.")
+            error_details = []
+            if not update_success:
+                error_details.append("Database update failed")
+            if not attempt_id:
+                error_details.append("No attempt ID generated")
+
+            error_msg = "Failed to save exam results: " + ", ".join(error_details) if error_details else "Unknown error"
+            logger.error(f"Finish exam failed - update_success: {update_success}, attempt_id: {attempt_id}")
+            st.error(f"{error_msg}. Please contact support or try again.")
 
     except Exception as e:
-        st.error(f"Error finishing exam: {e}")
+        logger.error(f"Exception in finish_exam: {str(e)}", exc_info=True)
+        st.error(f"Error finishing exam: {str(e)}")
 
 
 def submit_exam(user: Dict[str, Any], auto_submit: bool = False):
@@ -1166,35 +1181,45 @@ def show_exit_confirmation_modal(user: Dict[str, Any]):
     else:
         estimated_refund = 0
 
-    # Add CSS to force white text in warning box
-    st.markdown(
-        """
-        <style>
-        .stAlert p, .stAlert div, .stAlert ul, .stAlert li, .stAlert strong {
-            color: #ffffff !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    # Display exit confirmation with custom styling for visibility in both light and dark modes
+    exit_html = f"""
+    <div style="
+        background: linear-gradient(135deg, #f39c12 0%, #e74c3c 100%);
+        padding: 2rem;
+        border-radius: 1rem;
+        margin: 1rem 0;
+        box-shadow: 0 4px 20px rgba(231, 76, 60, 0.3);
+        border-left: 6px solid #c0392b;
+    ">
+        <h3 style="color: white; margin-top: 0; margin-bottom: 1.5rem;">
+            Are you sure you want to exit this exam?
+        </h3>
 
-    # Display warning with white text
-    st.warning(
-        f"""
-        ### Are you sure you want to exit this exam?
+        <div style="background: rgba(255, 255, 255, 0.1); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+            <p style="color: white; margin: 0; margin-bottom: 0.5rem;"><strong>Current Progress:</strong></p>
+            <ul style="color: white; margin: 0; padding-left: 1.5rem;">
+                <li>✅ Questions submitted: {questions_submitted}/{total_questions}</li>
+                <li>❌ Questions remaining: {unattempted}</li>
+            </ul>
+        </div>
 
-        **Current Progress:**
-        - ✅ Questions submitted: {questions_submitted}/{total_questions}
-        - ❌ Questions remaining: {unattempted}
+        <div style="background: rgba(255, 255, 255, 0.1); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+            <p style="color: white; margin: 0; margin-bottom: 0.5rem;"><strong>Refund Policy:</strong></p>
+            <ul style="color: white; margin: 0; padding-left: 1.5rem;">
+                <li>Credits are refunded for unattempted questions in blocks of 10 (rounded down)</li>
+                <li>Unattempted blocks: <strong>{unattempted_blocks}</strong> blocks of 10</li>
+                <li>Estimated refund: <strong>{estimated_refund}</strong> credits</li>
+            </ul>
+        </div>
 
-        **Refund Policy:**
-        - Credits are refunded for unattempted questions in blocks of 10 (rounded down)
-        - Unattempted blocks: **{unattempted_blocks}** blocks of 10
-        - Estimated refund: **{estimated_refund}** credits
-
-        **⚠️ Warning:** Your submitted answers will be marked as abandoned and you cannot resume this exam.
-        """
-    )
+        <div style="background: rgba(192, 57, 43, 0.4); padding: 1rem; border-radius: 0.5rem; border: 2px solid rgba(255, 255, 255, 0.3);">
+            <p style="color: white; margin: 0;">
+                <strong>⚠️ Warning:</strong> Your submitted answers will be marked as abandoned and you cannot resume this exam.
+            </p>
+        </div>
+    </div>
+    """
+    st.html(exit_html)
 
     col1, col2, col3 = st.columns([1, 1, 1])
 

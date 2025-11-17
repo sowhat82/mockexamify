@@ -290,10 +290,23 @@ def display_package_card(
 
             st.success("✅ Checkout session created!")
             st.info(
-                "Click the link below to complete your purchase on Stripe's secure checkout page:"
+                "Redirecting you to Stripe's secure checkout page..."
             )
-            st.markdown(f"### [🛒 Continue to Stripe Payment →]({checkout_url})")
-            st.code(checkout_url, language=None)  # Show URL so user can copy if link doesn't work
+
+            # Auto-redirect to Stripe checkout in the SAME window
+            st.components.v1.html(
+                f"""
+                <script>
+                    // Redirect in the same window to preserve session
+                    window.location.href = "{checkout_url}";
+                </script>
+                """,
+                height=0,
+            )
+
+            # Fallback link if JavaScript doesn't work
+            st.markdown(f"If you are not redirected automatically, [click here to continue to payment]({checkout_url})")
+            st.code(checkout_url, language=None)  # Show URL so user can copy if needed
         else:
             # Show regular button to create checkout session
             button_key = f"purchase_{package_key}"

@@ -235,6 +235,7 @@ class DatabaseManager:
 
         try:
             import uuid
+
             import httpx
 
             # Hash password
@@ -252,7 +253,7 @@ class DatabaseManager:
                 "apikey": config.SUPABASE_SERVICE_KEY,
                 "Authorization": f"Bearer {config.SUPABASE_SERVICE_KEY}",
                 "Content-Type": "application/json",
-                "Prefer": "return=representation"
+                "Prefer": "return=representation",
             }
             data = {
                 "id": user_id,
@@ -271,7 +272,9 @@ class DatabaseManager:
                 logger.info(f"API response status: {response.status_code}")
 
                 if response.status_code in (200, 201):
-                    user_data = response.json()[0] if isinstance(response.json(), list) else response.json()
+                    user_data = (
+                        response.json()[0] if isinstance(response.json(), list) else response.json()
+                    )
                     logger.info(f"User created successfully: {user_data['id']}")
                     return User(
                         id=user_data["id"],
@@ -289,7 +292,9 @@ class DatabaseManager:
             logger.error(f"HTTP error creating user {email}: {str(e)}", exc_info=True)
             raise RuntimeError(f"Network error: {str(e)}")
         except Exception as e:
-            logger.error(f"Error creating user {email}: {type(e).__name__}: {str(e)}", exc_info=True)
+            logger.error(
+                f"Error creating user {email}: {type(e).__name__}: {str(e)}", exc_info=True
+            )
             raise
 
     async def get_user_by_email(self, email: str) -> Optional[User]:
@@ -411,26 +416,30 @@ class DatabaseManager:
             # Start with demo users
             all_users = []
             for email, user_data in DEMO_USERS.items():
-                all_users.append(User(
-                    id=user_data["id"],
-                    email=user_data["email"],
-                    credits_balance=user_data["credits_balance"],
-                    role=user_data["role"],
-                    created_at=user_data["created_at"],
-                ))
+                all_users.append(
+                    User(
+                        id=user_data["id"],
+                        email=user_data["email"],
+                        credits_balance=user_data["credits_balance"],
+                        role=user_data["role"],
+                        created_at=user_data["created_at"],
+                    )
+                )
 
             # Add real users from database (use admin_client to bypass RLS)
             if not self.demo_mode:
                 result = self.admin_client.table("users").select("*").limit(limit).execute()
                 if result.data:
                     for user_data in result.data:
-                        all_users.append(User(
-                            id=user_data["id"],
-                            email=user_data["email"],
-                            credits_balance=user_data["credits_balance"],
-                            role=user_data["role"],
-                            created_at=user_data["created_at"],
-                        ))
+                        all_users.append(
+                            User(
+                                id=user_data["id"],
+                                email=user_data["email"],
+                                credits_balance=user_data["credits_balance"],
+                                role=user_data["role"],
+                                created_at=user_data["created_at"],
+                            )
+                        )
 
             return all_users
         except Exception as e:
@@ -699,7 +708,7 @@ class DatabaseManager:
                 "apikey": config.SUPABASE_SERVICE_KEY,
                 "Authorization": f"Bearer {config.SUPABASE_SERVICE_KEY}",
                 "Content-Type": "application/json",
-                "Prefer": "return=representation"
+                "Prefer": "return=representation",
             }
             data = {
                 "user_id": user_id,
@@ -723,13 +732,23 @@ class DatabaseManager:
                 response = await http_client.post(url, headers=headers, json=data, timeout=30.0)
 
                 if response.status_code in (200, 201):
-                    attempt_data = response.json()[0] if isinstance(response.json(), list) else response.json()
+                    attempt_data = (
+                        response.json()[0] if isinstance(response.json(), list) else response.json()
+                    )
                     logger.info(f"Attempt created successfully: {attempt_data['id']}")
 
                     # Parse user_answers - it's stored as JSON string of dict, need to convert to list
-                    user_answers_data = json.loads(attempt_data["user_answers"]) if isinstance(attempt_data["user_answers"], str) else attempt_data["user_answers"]
+                    user_answers_data = (
+                        json.loads(attempt_data["user_answers"])
+                        if isinstance(attempt_data["user_answers"], str)
+                        else attempt_data["user_answers"]
+                    )
                     # Convert dict to list of values (for compatibility with AttemptResponse model)
-                    user_answers_list = list(user_answers_data.values()) if isinstance(user_answers_data, dict) else user_answers_data
+                    user_answers_list = (
+                        list(user_answers_data.values())
+                        if isinstance(user_answers_data, dict)
+                        else user_answers_data
+                    )
 
                     return AttemptResponse(
                         id=attempt_data["id"],
@@ -744,14 +763,19 @@ class DatabaseManager:
                     )
                 else:
                     error_detail = response.text
-                    logger.error(f"API error creating attempt: {response.status_code} - {error_detail}")
+                    logger.error(
+                        f"API error creating attempt: {response.status_code} - {error_detail}"
+                    )
                     return None
 
         except httpx.HTTPError as e:
             logger.error(f"HTTP error creating attempt: {str(e)}", exc_info=True)
             return None
         except Exception as e:
-            logger.error(f"Error creating attempt for user {user_id}: {type(e).__name__}: {str(e)}", exc_info=True)
+            logger.error(
+                f"Error creating attempt for user {user_id}: {type(e).__name__}: {str(e)}",
+                exc_info=True,
+            )
             return None
 
     async def get_user_attempts(self, user_id: str) -> List[AttemptResponse]:
@@ -819,9 +843,7 @@ class DatabaseManager:
 
             # Use admin_client to bypass RLS policies
             client = self.admin_client if self.admin_client else self.client
-            result = (
-                client.table("attempts").update(update_data).eq("id", attempt_id).execute()
-            )
+            result = client.table("attempts").update(update_data).eq("id", attempt_id).execute()
             return bool(result.data)
         except Exception as e:
             logger.error(f"Error updating attempt progress: {e}")
@@ -858,9 +880,7 @@ class DatabaseManager:
 
             # Use admin_client to bypass RLS policies
             client = self.admin_client if self.admin_client else self.client
-            result = (
-                client.table("attempts").update(update_data).eq("id", attempt_id).execute()
-            )
+            result = client.table("attempts").update(update_data).eq("id", attempt_id).execute()
             return bool(result.data)
         except Exception as e:
             logger.error(f"Error updating attempt status: {e}")
@@ -1107,7 +1127,10 @@ class DatabaseManager:
             # Also return DEMO_TICKETS in hybrid mode (for admin viewing demo user tickets)
             # Use admin_client to bypass RLS and see ALL tickets (including anonymous password reset requests)
             result = (
-                self.admin_client.table("tickets").select("*").order("created_at", desc=True).execute()
+                self.admin_client.table("tickets")
+                .select("*")
+                .order("created_at", desc=True)
+                .execute()
             )
             all_tickets = result.data if result.data else []
 
@@ -1155,7 +1178,10 @@ class DatabaseManager:
 
             return user_tickets
         except Exception as e:
-            logger.error(f"Error getting user support tickets for {user_id}: {type(e).__name__}: {str(e)}", exc_info=True)
+            logger.error(
+                f"Error getting user support tickets for {user_id}: {type(e).__name__}: {str(e)}",
+                exc_info=True,
+            )
             # Return demo tickets for this user on error
             return [ticket for ticket in DEMO_TICKETS if ticket["user_id"] == user_id]
 
@@ -1180,10 +1206,7 @@ class DatabaseManager:
             client = self.admin_client if self.admin_client else self.client
 
             result = (
-                client.table("tickets")
-                .update({"status": new_status})
-                .eq("id", ticket_id)
-                .execute()
+                client.table("tickets").update({"status": new_status}).eq("id", ticket_id).execute()
             )
             return len(result.data) > 0
         except Exception as e:
@@ -1244,17 +1267,19 @@ class DatabaseManager:
                 # Fetch current responses
                 try:
                     get_response = await http_client.get(
-                        f"{url}?id=eq.{ticket_id}&select=responses",
-                        headers=headers,
-                        timeout=30.0
+                        f"{url}?id=eq.{ticket_id}&select=responses", headers=headers, timeout=30.0
                     )
                     logger.info(f"[add_ticket_response] GET status: {get_response.status_code}")
                 except Exception as fetch_error:
-                    logger.error(f"[add_ticket_response] HTTP GET error: {type(fetch_error).__name__}: {str(fetch_error)}")
+                    logger.error(
+                        f"[add_ticket_response] HTTP GET error: {type(fetch_error).__name__}: {str(fetch_error)}"
+                    )
                     return False
 
                 if get_response.status_code != 200:
-                    logger.error(f"[add_ticket_response] Failed to fetch ticket: {get_response.status_code}")
+                    logger.error(
+                        f"[add_ticket_response] Failed to fetch ticket: {get_response.status_code}"
+                    )
                     logger.error(f"[add_ticket_response] Response body: {get_response.text}")
                     return False
 
@@ -1270,31 +1295,41 @@ class DatabaseManager:
                 logger.info(f"[add_ticket_response] Existing responses count: {len(existing)}")
 
                 # Add new response
-                existing.append({
-                    "responder": responder,
-                    "message": message,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                })
+                existing.append(
+                    {
+                        "responder": responder,
+                        "message": message,
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
 
                 # Update ticket with new responses
-                logger.info(f"[add_ticket_response] Updating ticket with {len(existing)} total responses")
+                logger.info(
+                    f"[add_ticket_response] Updating ticket with {len(existing)} total responses"
+                )
                 try:
                     patch_response = await http_client.patch(
                         f"{url}?id=eq.{ticket_id}",
                         headers=headers,
                         json={"responses": existing},
-                        timeout=30.0
+                        timeout=30.0,
                     )
                     logger.info(f"[add_ticket_response] PATCH status: {patch_response.status_code}")
                 except Exception as patch_error:
-                    logger.error(f"[add_ticket_response] HTTP PATCH error: {type(patch_error).__name__}: {str(patch_error)}")
+                    logger.error(
+                        f"[add_ticket_response] HTTP PATCH error: {type(patch_error).__name__}: {str(patch_error)}"
+                    )
                     return False
 
                 if patch_response.status_code in (200, 204):
-                    logger.info(f"[add_ticket_response] Successfully added response to ticket {ticket_id}")
+                    logger.info(
+                        f"[add_ticket_response] Successfully added response to ticket {ticket_id}"
+                    )
                     return True
                 else:
-                    logger.error(f"[add_ticket_response] Failed to update ticket: {patch_response.status_code}")
+                    logger.error(
+                        f"[add_ticket_response] Failed to update ticket: {patch_response.status_code}"
+                    )
                     logger.error(f"[add_ticket_response] Response body: {patch_response.text}")
                     return False
         except Exception as e:
@@ -1357,7 +1392,7 @@ class DatabaseManager:
         """Get payment by Stripe session ID"""
         try:
             # Check if this is a demo/test session
-            is_demo_session = session_id.startswith('cs_test_') or self.demo_mode
+            is_demo_session = session_id.startswith("cs_test_") or self.demo_mode
 
             if is_demo_session:
                 # Demo mode or test session - return None (no existing payments)
@@ -1419,7 +1454,10 @@ class DatabaseManager:
             # Production user - update in database
             # Get current user credits (use admin_client to bypass RLS)
             result = (
-                self.admin_client.table("users").select("credits_balance").eq("id", user_id).execute()
+                self.admin_client.table("users")
+                .select("credits_balance")
+                .eq("id", user_id)
+                .execute()
             )
 
             if not result.data:
@@ -1465,7 +1503,10 @@ class DatabaseManager:
             # Not a demo user - try real database
             # Get current user credits from real database (use admin_client to bypass RLS)
             result = (
-                self.admin_client.table("users").select("credits_balance").eq("id", user_id).execute()
+                self.admin_client.table("users")
+                .select("credits_balance")
+                .eq("id", user_id)
+                .execute()
             )
 
             if not result.data:
@@ -1507,7 +1548,9 @@ class DatabaseManager:
         """Reset user password (admin function)"""
         try:
             # Hash the new password
-            password_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            password_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode(
+                "utf-8"
+            )
 
             # Check if this is a demo user
             for email, user_data in DEMO_USERS.items():
@@ -1853,7 +1896,9 @@ class DatabaseManager:
             questions_with_doc_explanations = 0
             questions_needing_ai = 0
 
-            logger.info(f"Preparing {len(questions)} questions for upload (skipping AI generation for speed)...")
+            logger.info(
+                f"Preparing {len(questions)} questions for upload (skipping AI generation for speed)..."
+            )
 
             for idx, q in enumerate(questions):
                 # Use explanation from document if available, otherwise placeholder
@@ -1895,7 +1940,9 @@ class DatabaseManager:
             # Batch insert all questions immediately
             if questions_to_insert:
                 # Use admin_client to bypass RLS policies for pool question uploads
-                result = self.admin_client.table("pool_questions").insert(questions_to_insert).execute()
+                result = (
+                    self.admin_client.table("pool_questions").insert(questions_to_insert).execute()
+                )
 
                 if result.data:
                     # Update batch statistics

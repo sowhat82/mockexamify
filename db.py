@@ -817,8 +817,10 @@ class DatabaseManager:
             if user_answers is not None:
                 update_data["user_answers"] = json.dumps(user_answers)
 
+            # Use admin_client to bypass RLS policies
+            client = self.admin_client if self.admin_client else self.client
             result = (
-                self.client.table("attempts").update(update_data).eq("id", attempt_id).execute()
+                client.table("attempts").update(update_data).eq("id", attempt_id).execute()
             )
             return bool(result.data)
         except Exception as e:
@@ -854,8 +856,10 @@ class DatabaseManager:
             if correct_answers is not None:
                 update_data["correct_answers"] = correct_answers
 
+            # Use admin_client to bypass RLS policies
+            client = self.admin_client if self.admin_client else self.client
             result = (
-                self.client.table("attempts").update(update_data).eq("id", attempt_id).execute()
+                client.table("attempts").update(update_data).eq("id", attempt_id).execute()
             )
             return bool(result.data)
         except Exception as e:

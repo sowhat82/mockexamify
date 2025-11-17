@@ -294,8 +294,8 @@ def create_payment_button(
         st.error("Invalid package selected")
         return False
     
-    # Create checkout session
-    success_url = f"{base_url}/?payment=success"
+    # Create checkout session with user_id in URL for session restoration
+    success_url = f"{base_url}/?payment=success&session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{base_url}/?payment=cancelled"
 
     logger.info(f"[STRIPE] Creating checkout session for {package_key}")

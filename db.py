@@ -1087,6 +1087,21 @@ class DatabaseManager:
                 DEMO_TICKETS.append(ticket)
                 save_demo_tickets()  # Save to persistent storage
                 logger.info(f"Demo user ticket created: {fake_id} from {user_email}")
+
+                # Send email notification to admin
+                try:
+                    from email_utils import send_support_ticket_notification
+                    send_support_ticket_notification(
+                        ticket_id=fake_id,
+                        user_email=user_email,
+                        subject=ticket_data.get("subject", "No subject"),
+                        category=ticket_data.get("category", "General"),
+                        priority=ticket_data.get("priority", "Medium"),
+                        description=description or "No description provided",
+                    )
+                except Exception as email_error:
+                    logger.error(f"Failed to send email notification: {email_error}")
+
                 return fake_id
 
             # Tickets table has only: user_id, subject, message, status
@@ -1111,7 +1126,23 @@ class DatabaseManager:
             result = client.table("tickets").insert(payload).execute()
 
             if result.data and len(result.data) > 0:
-                return result.data[0].get("id")
+                ticket_id = result.data[0].get("id")
+
+                # Send email notification to admin
+                try:
+                    from email_utils import send_support_ticket_notification
+                    send_support_ticket_notification(
+                        ticket_id=ticket_id,
+                        user_email=user_email_from_ticket or "Unknown",
+                        subject=ticket_data.get("subject", "No subject"),
+                        category=ticket_data.get("category", "General"),
+                        priority=ticket_data.get("priority", "Medium"),
+                        description=message_text,
+                    )
+                except Exception as email_error:
+                    logger.error(f"Failed to send email notification: {email_error}")
+
+                return ticket_id
             return None
         except Exception as e:
             logger.error(f"Error creating support ticket: {e}")

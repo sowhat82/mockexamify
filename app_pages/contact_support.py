@@ -166,23 +166,30 @@ def show_submit_ticket_form(user: Dict[str, Any]):
                 ticket_id = run_async(create_support_ticket(ticket_data, uploaded_file))
 
                 if ticket_id:
+                    # Store success state
+                    st.session_state.ticket_submitted = True
+                    st.session_state.last_ticket_id = ticket_id
                     st.success(
                         f"✅ Ticket submitted successfully! Your ticket ID is: **{ticket_id}**"
                     )
                     st.balloons()
-
-                    # Add buttons to navigate
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button("📋 View My Tickets", use_container_width=True):
-                            st.session_state.support_tab = "my_tickets"
-                            st.rerun()
-                    with col2:
-                        if st.button("🏠 Back to Dashboard", use_container_width=True):
-                            st.session_state.page = "dashboard"
-                            st.rerun()
                 else:
                     st.error("❌ Failed to submit ticket. Please try again.")
+
+    # Show navigation buttons outside the form if ticket was just submitted
+    if st.session_state.get("ticket_submitted", False):
+        st.markdown("---")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("📋 View My Tickets", use_container_width=True):
+                st.session_state.ticket_submitted = False
+                st.session_state.support_tab = "my_tickets"
+                st.rerun()
+        with col2:
+            if st.button("🏠 Back to Dashboard", use_container_width=True):
+                st.session_state.ticket_submitted = False
+                st.session_state.page = "dashboard"
+                st.rerun()
 
 
 def show_faq_section():

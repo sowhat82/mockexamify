@@ -18,7 +18,8 @@ except ImportError:
 try:
     from dotenv import load_dotenv
 
-    load_dotenv()
+    # Use override=True to ensure .env file values take precedence over system env vars
+    load_dotenv(override=True)
 except ImportError:
     # dotenv not available, skip loading .env file
     pass

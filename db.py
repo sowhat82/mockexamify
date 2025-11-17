@@ -1328,8 +1328,9 @@ class DatabaseManager:
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
 
+            # Use admin client to bypass RLS policies
             result = (
-                self.client.table("payments")
+                self.admin_client.table("payments")
                 .insert(
                     {
                         "user_id": user_id,
@@ -1363,8 +1364,9 @@ class DatabaseManager:
                 logger.info(f"Demo/test session detected: {session_id}")
                 return None
 
+            # Use admin client to bypass RLS policies
             result = (
-                self.client.table("payments")
+                self.admin_client.table("payments")
                 .select("*")
                 .eq("stripe_session_id", session_id)
                 .execute()
@@ -1380,8 +1382,9 @@ class DatabaseManager:
             if self.demo_mode:
                 return True  # Demo mode - always succeed
 
+            # Use admin client to bypass RLS policies
             result = (
-                self.client.table("payments")
+                self.admin_client.table("payments")
                 .update(
                     {
                         "status": status,

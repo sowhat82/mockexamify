@@ -787,7 +787,9 @@ def show_authentication_page(auth: AuthUtils):
     )
 
     # Enhanced Login/Register tabs
-    tab1, tab2 = st.tabs(["🔑 Sign In", "✨ Create Account"])
+    st.markdown("<p style='text-align: center; color: #666; font-size: 0.9rem; margin-bottom: 0.5rem;'>No credit card needed to start.</p>", unsafe_allow_html=True)
+
+    tab1, tab2 = st.tabs(["🔑 Sign In", "✨ Start Free Trial"])
 
     with tab1:
         show_enhanced_login_form(auth)

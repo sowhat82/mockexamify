@@ -765,6 +765,8 @@ def show_authentication_page(auth: AuthUtils):
             unsafe_allow_html=True,
         )
 
+    st.markdown("<p style='text-align: center; color: #666; font-size: 0.95rem; margin-top: 1.5rem;'>Trusted by finance professionals preparing for CACS & CMFAS exams.</p>", unsafe_allow_html=True)
+
     st.markdown("---")
 
     # Free trial announcement with custom styling for visibility in both light and dark modes

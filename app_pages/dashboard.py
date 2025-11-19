@@ -328,6 +328,7 @@ def show_available_question_pools(user: Dict[str, Any]):
         '<p style="color: #000000;">💡 Questions are randomly selected from pools each time - get a fresh exam every attempt!</p>',
         unsafe_allow_html=True,
     )
+    st.caption("📚 More exams added continuously — CACS, CMFAS, and more coming soon.")
 
     try:
         pools = run_async(load_question_pools())

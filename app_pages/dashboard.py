@@ -328,7 +328,16 @@ def show_available_question_pools(user: Dict[str, Any]):
         '<p style="color: #000000;">💡 Questions are randomly selected from pools each time - get a fresh exam every attempt!</p>',
         unsafe_allow_html=True,
     )
-    st.caption("📚 More exams added continuously — CACS, CMFAS, and more coming soon.")
+    col_text, col_btn = st.columns([4, 1])
+    with col_text:
+        st.markdown(
+            '<p style="color: #6b7280; font-size: 0.875rem;">📚 More exams added continuously — CACS, CMFAS, and more coming soon.</p>',
+            unsafe_allow_html=True,
+        )
+    with col_btn:
+        if st.button("📝 Submit mock paper request", key="submit_mock_paper_request"):
+            st.session_state.page = "contact_support"
+            st.rerun()
 
     try:
         pools = run_async(load_question_pools())

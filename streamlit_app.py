@@ -702,6 +702,11 @@ def show_authentication_page(auth: AuthUtils):
     .stTextInput input {
         color: #000000 !important;
     }
+
+    /* Remove top whitespace on landing page */
+    .block-container {
+        padding-top: 1rem !important;
+    }
     </style>
     """,
         unsafe_allow_html=True,
@@ -830,11 +835,26 @@ New users receive 1 free credit to try a full mock paper.
         unsafe_allow_html=True,
     )
 
-    # Footer with last updated timestamp
+    # Footer with last updated timestamp and recent updates
     st.markdown("---")
     from datetime import datetime
+    import json
+    from pathlib import Path
+
     current_month_year = datetime.now().strftime("%B %Y")
     st.markdown(f"<p style='text-align: center; color: #888; font-size: 0.8rem;'>Last updated: {current_month_year}</p>", unsafe_allow_html=True)
+
+    # Load and display recent updates
+    try:
+        updates_file = Path(__file__).parent / "updates.json"
+        with open(updates_file, "r") as f:
+            updates = json.load(f)[:3]  # Get last 3 updates
+
+        with st.expander("📢 Recent Updates"):
+            for update in updates:
+                st.markdown(f"**{update['date']}** — {update['text']}")
+    except Exception:
+        pass  # Silently fail if updates file doesn't exist
 
 
 def show_enhanced_login_form(auth: AuthUtils):

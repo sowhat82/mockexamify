@@ -188,16 +188,19 @@ def show_question_pool_upload(auth):
             st.session_state.upload_in_progress = False
             st.session_state.upload_params = None
 
-            if result.get("success"):
+            if isinstance(result, dict) and result.get("success"):
                 st.success("🎉 Question pool updated successfully!")
                 st.balloons()
 
                 # Verify upload and show actual question count
                 st.markdown("---")
-                st.markdown('<h3 style="color: #000000;">✅ Upload Complete!</h3>', unsafe_allow_html=True)
+                st.markdown(
+                    '<h3 style="color: #000000;">✅ Upload Complete!</h3>', unsafe_allow_html=True
+                )
 
                 # Fetch actual current question count from database
                 from db import db
+
                 pool_id = result.get("pool_id")
                 pool_name_result = result.get("pool_name")
 
@@ -210,13 +213,17 @@ def show_question_pool_upload(auth):
                         f"✅ Upload verified! Questions are immediately available for generating mock exams."
                     )
                 else:
-                    st.warning("Upload completed but couldn't verify question count. Please check Manage Pools.")
+                    st.warning(
+                        "Upload completed but couldn't verify question count. Please check Manage Pools."
+                    )
 
                 # Navigation buttons (now outside form)
                 col1, col2, col3 = st.columns(3)
 
                 with col1:
-                    if st.button("📊 View Pool Questions", use_container_width=True, type="primary"):
+                    if st.button(
+                        "📊 View Pool Questions", use_container_width=True, type="primary"
+                    ):
                         st.session_state.page = "admin_manage_pools"
                         st.rerun()
 
@@ -229,7 +236,15 @@ def show_question_pool_upload(auth):
                         st.session_state.page = "dashboard"
                         st.rerun()
             else:
-                st.error("Failed to update question pool. Please check the logs and try again.")
+                # Handle failure case - result could be False or a dict with error
+                if isinstance(result, dict):
+                    error_msg = result.get("error", "Unknown error occurred")
+                else:
+                    error_msg = "No questions could be extracted from the uploaded file(s). Please ensure the document contains valid exam questions in a readable format."
+                st.error(f"Failed to update question pool: {error_msg}")
+                st.info(
+                    "💡 **Tips:** Try uploading a different file format (CSV, JSON) or ensure the PDF contains selectable text (not scanned images)."
+                )
 
 
 def show_single_mock_upload(auth):
@@ -747,8 +762,8 @@ async def process_pool_upload(
                 return False
 
             # Trigger background AI explanation generation (runs independently)
-            import subprocess
             import os
+            import subprocess
             import sys
 
             # Use current Python interpreter instead of hardcoded venv path
@@ -760,7 +775,7 @@ async def process_pool_upload(
                 [python_path, script_path, pool_id, batch_id],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                start_new_session=True  # Detach from parent process
+                start_new_session=True,  # Detach from parent process
             )
 
             logger.info(f"Background explanation generator started for pool {pool_id}")

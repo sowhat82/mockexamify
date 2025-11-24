@@ -15,6 +15,18 @@ from docx import Document
 
 import config
 
+# OCR support flag
+OCR_AVAILABLE = False
+try:
+    import easyocr
+    import fitz  # PyMuPDF
+    import numpy as np
+    from PIL import Image
+
+    OCR_AVAILABLE = True
+except ImportError:
+    pass
+
 
 class DocumentParser:
     """Parse PDF/Word documents and extract mock exam questions using AI"""
@@ -41,13 +53,17 @@ class DocumentParser:
                 structured_questions = self._parse_word_structured(uploaded_file)
 
                 if structured_questions:
-                    st.success(f"✅ Structured parsing successful! Extracted {len(structured_questions)} questions")
+                    st.success(
+                        f"✅ Structured parsing successful! Extracted {len(structured_questions)} questions"
+                    )
                     # Validate questions
                     valid_questions = self._validate_questions(structured_questions)
                     if valid_questions:
                         return True, valid_questions, ""
                     else:
-                        st.warning("⚠️ Structured parsing validation failed, falling back to AI extraction...")
+                        st.warning(
+                            "⚠️ Structured parsing validation failed, falling back to AI extraction..."
+                        )
 
                 else:
                     st.info("📄 Structured parsing found no questions, using AI extraction...")
@@ -82,7 +98,7 @@ class DocumentParser:
             return False, [], f"Error parsing document: {str(e)}"
 
     def _extract_text_from_pdf(self, uploaded_file) -> str:
-        """Extract text from PDF file"""
+        """Extract text from PDF file, with OCR fallback for scanned documents"""
         try:
             # Reset file pointer
             uploaded_file.seek(0)
@@ -97,9 +113,80 @@ class DocumentParser:
                 if page_text:
                     text += page_text + "\n\n"
 
-            return text.strip()
+            # Check if we got meaningful text
+            clean_text = text.strip()
+            if len(clean_text) > 100:
+                return clean_text
+
+            # Text extraction failed or minimal text - try OCR
+            st.info("📄 PDF appears to be scanned. Attempting OCR extraction...")
+
+            if not OCR_AVAILABLE:
+                st.warning(
+                    "⚠️ OCR libraries not available. Install easyocr and pymupdf for scanned PDF support."
+                )
+                return clean_text
+
+            # Use OCR
+            uploaded_file.seek(0)
+            file_bytes = uploaded_file.read()
+            ocr_text = self._ocr_pdf(file_bytes)
+
+            if ocr_text and len(ocr_text.strip()) > 100:
+                st.success(f"✅ OCR extracted {len(ocr_text)} characters from scanned PDF")
+                return ocr_text
+            else:
+                st.warning("⚠️ OCR could not extract sufficient text")
+                return clean_text
+
         except Exception as e:
             raise Exception(f"Error reading PDF: {str(e)}")
+
+    def _ocr_pdf(self, file_bytes: bytes) -> str:
+        """Extract text from scanned PDF using OCR"""
+        try:
+            st.info("🔍 Starting OCR... This may take a few minutes for large documents.")
+
+            # Open PDF with PyMuPDF
+            pdf_doc = fitz.open(stream=file_bytes, filetype="pdf")
+            num_pages = len(pdf_doc)
+            st.info(f"📄 Processing {num_pages} pages...")
+
+            # Initialize EasyOCR reader (lazy load)
+            reader = easyocr.Reader(["en"], gpu=False, verbose=False)
+
+            all_text = []
+            progress_bar = st.progress(0)
+
+            for i, page in enumerate(pdf_doc):
+                # Update progress
+                progress_bar.progress(
+                    (i + 1) / num_pages, text=f"OCR processing page {i+1}/{num_pages}..."
+                )
+
+                # Render page to image (200 DPI)
+                mat = fitz.Matrix(200 / 72, 200 / 72)
+                pix = page.get_pixmap(matrix=mat)
+
+                # Convert to PIL Image then numpy array
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                img_array = np.array(img)
+
+                # Run OCR
+                results = reader.readtext(img_array)
+                # Extract text from results
+                page_text = "\n".join([result[1] for result in results])
+                all_text.append(page_text)
+
+            pdf_doc.close()
+            progress_bar.empty()
+
+            combined_text = "\n\n".join(all_text)
+            return combined_text
+
+        except Exception as e:
+            st.error(f"OCR failed: {str(e)}")
+            return ""
 
     def _extract_text_from_word(self, uploaded_file) -> str:
         """Extract text from Word document"""
@@ -318,7 +405,9 @@ Extract all questions now:"""
         # This could be enhanced with regex-based parsing if needed
         return []
 
-    def _auto_validate_calculations(self, question: str, choices: List[str], ai_index: int) -> Tuple[int, bool]:
+    def _auto_validate_calculations(
+        self, question: str, choices: List[str], ai_index: int
+    ) -> Tuple[int, bool]:
         """
         Auto-validate calculation questions and correct AI errors.
         Returns: (corrected_index, was_corrected)
@@ -329,14 +418,18 @@ Extract all questions now:"""
 
         # Only validate if all choices are numeric
         try:
-            numeric_choices = [float(choice.replace(',', '').replace('$', '').strip()) for choice in choices]
+            numeric_choices = [
+                float(choice.replace(",", "").replace("$", "").strip()) for choice in choices
+            ]
         except (ValueError, AttributeError):
             # Not all choices are numeric, skip validation
             return ai_index, False
 
         # Pattern 1: Cross Rate Calculation (GBP/USD × USD/CNY = GBP/CNY)
-        cross_rate_match = re.search(r'(\w+)/(\w+)\s*[=:]\s*([\d.]+).*?(\w+)/(\w+)\s*[=:]\s*([\d.]+)', question)
-        if cross_rate_match and 'cross rate' in question_lower:
+        cross_rate_match = re.search(
+            r"(\w+)/(\w+)\s*[=:]\s*([\d.]+).*?(\w+)/(\w+)\s*[=:]\s*([\d.]+)", question
+        )
+        if cross_rate_match and "cross rate" in question_lower:
             try:
                 # Extract: GBP/USD = 1.6824, USD/CNY = 6.2518
                 rate1 = float(cross_rate_match.group(3))
@@ -344,8 +437,9 @@ Extract all questions now:"""
                 calculated = rate1 * rate2
 
                 # Find closest choice
-                closest_index = min(range(len(numeric_choices)),
-                                  key=lambda i: abs(numeric_choices[i] - calculated))
+                closest_index = min(
+                    range(len(numeric_choices)), key=lambda i: abs(numeric_choices[i] - calculated)
+                )
 
                 if closest_index != ai_index:
                     return closest_index, True
@@ -353,8 +447,11 @@ Extract all questions now:"""
                 pass
 
         # Pattern 2: Sharpe Ratio
-        sharpe_match = re.search(r'earned\s+([\d.]+)\s*%.*?standard deviation.*?([\d.]+)\s*%.*?risk[‑-]free.*?([\d.]+)\s*%', question)
-        if sharpe_match and 'sharpe' in question_lower:
+        sharpe_match = re.search(
+            r"earned\s+([\d.]+)\s*%.*?standard deviation.*?([\d.]+)\s*%.*?risk[‑-]free.*?([\d.]+)\s*%",
+            question,
+        )
+        if sharpe_match and "sharpe" in question_lower:
             try:
                 portfolio_return = float(sharpe_match.group(1))
                 std_dev = float(sharpe_match.group(2))
@@ -363,8 +460,10 @@ Extract all questions now:"""
                 sharpe_ratio = (portfolio_return - risk_free) / std_dev
 
                 # Find closest choice
-                closest_index = min(range(len(numeric_choices)),
-                                  key=lambda i: abs(numeric_choices[i] - sharpe_ratio))
+                closest_index = min(
+                    range(len(numeric_choices)),
+                    key=lambda i: abs(numeric_choices[i] - sharpe_ratio),
+                )
 
                 if closest_index != ai_index:
                     return closest_index, True
@@ -372,18 +471,22 @@ Extract all questions now:"""
                 pass
 
         # Pattern 3: Simple percentage calculation
-        percentage_match = re.search(r'([\d.]+)\s*%.*?of.*?\$?([\d,]+)', question)
-        if percentage_match and ('calculate' in question_lower or 'what is' in question_lower):
+        percentage_match = re.search(r"([\d.]+)\s*%.*?of.*?\$?([\d,]+)", question)
+        if percentage_match and ("calculate" in question_lower or "what is" in question_lower):
             try:
                 percentage = float(percentage_match.group(1)) / 100
-                amount = float(percentage_match.group(2).replace(',', ''))
+                amount = float(percentage_match.group(2).replace(",", ""))
                 calculated = percentage * amount
 
                 # Find closest choice
-                closest_index = min(range(len(numeric_choices)),
-                                  key=lambda i: abs(numeric_choices[i] - calculated))
+                closest_index = min(
+                    range(len(numeric_choices)), key=lambda i: abs(numeric_choices[i] - calculated)
+                )
 
-                if closest_index != ai_index and abs(numeric_choices[closest_index] - calculated) < 0.01:
+                if (
+                    closest_index != ai_index
+                    and abs(numeric_choices[closest_index] - calculated) < 0.01
+                ):
                     return closest_index, True
             except:
                 pass
@@ -440,11 +543,13 @@ Extract all questions now:"""
                 corrected_index, was_corrected = self._auto_validate_calculations(
                     q["question"].strip(),
                     [str(choice).strip() for choice in q["choices"]],
-                    correct_index
+                    correct_index,
                 )
 
                 if was_corrected:
-                    st.warning(f"Question {i+1}: Auto-corrected answer from index {correct_index} to {corrected_index}")
+                    st.warning(
+                        f"Question {i+1}: Auto-corrected answer from index {correct_index} to {corrected_index}"
+                    )
                     correct_index = corrected_index
 
                 # Clean and normalize question
@@ -542,15 +647,12 @@ The AI will intelligently extract and structure all questions automatically!
                         try:
                             q_num = cells[0].strip()
                             # Extract just the number
-                            q_num_match = re.match(r'(\d+)', q_num)
+                            q_num_match = re.match(r"(\d+)", q_num)
                             if q_num_match:
                                 q_num = int(q_num_match.group(1))
                                 answer = cells[1].strip()
                                 explanation = cells[2].strip() if len(cells) > 2 else ""
-                                answer_key[q_num] = {
-                                    'answer': answer,
-                                    'explanation': explanation
-                                }
+                                answer_key[q_num] = {"answer": answer, "explanation": explanation}
                         except (ValueError, IndexError):
                             continue
 
@@ -564,59 +666,58 @@ The AI will intelligently extract and structure all questions automatically!
                     continue
 
                 # Check if this is a question number (e.g., "1. Question text?")
-                q_match = re.match(r'^(\d+)\.\s+(.+)', text)
+                q_match = re.match(r"^(\d+)\.\s+(.+)", text)
                 if q_match:
                     # Save previous question if exists
                     if current_question and current_choices:
                         # Convert answer to index
                         correct_index = self._convert_answer_to_index(
-                            current_question.get('answer', ''),
-                            current_choices
+                            current_question.get("answer", ""), current_choices
                         )
 
-                        questions.append({
-                            'question': current_question['text'],
-                            'choices': [c['text'] for c in current_choices],
-                            'correct_index': correct_index,
-                            'explanation_seed': current_question.get('explanation', '')
-                        })
+                        questions.append(
+                            {
+                                "question": current_question["text"],
+                                "choices": [c["text"] for c in current_choices],
+                                "correct_index": correct_index,
+                                "explanation_seed": current_question.get("explanation", ""),
+                            }
+                        )
 
                     # Start new question
                     q_num = int(q_match.group(1))
                     q_text = q_match.group(2).strip()
 
                     current_question = {
-                        'number': q_num,
-                        'text': q_text,
-                        'answer': answer_key.get(q_num, {}).get('answer', ''),
-                        'explanation': answer_key.get(q_num, {}).get('explanation', '')
+                        "number": q_num,
+                        "text": q_text,
+                        "answer": answer_key.get(q_num, {}).get("answer", ""),
+                        "explanation": answer_key.get(q_num, {}).get("explanation", ""),
                     }
                     current_choices = []
 
                 # Check if this is an answer choice (e.g., "A. Choice text")
-                elif re.match(r'^[A-Z]\.\s+', text):
-                    choice_match = re.match(r'^([A-Z])\.\s+(.+)', text)
+                elif re.match(r"^[A-Z]\.\s+", text):
+                    choice_match = re.match(r"^([A-Z])\.\s+(.+)", text)
                     if choice_match:
                         choice_letter = choice_match.group(1)
                         choice_text = choice_match.group(2).strip()
-                        current_choices.append({
-                            'letter': choice_letter,
-                            'text': choice_text
-                        })
+                        current_choices.append({"letter": choice_letter, "text": choice_text})
 
             # Don't forget the last question
             if current_question and current_choices:
                 correct_index = self._convert_answer_to_index(
-                    current_question.get('answer', ''),
-                    current_choices
+                    current_question.get("answer", ""), current_choices
                 )
 
-                questions.append({
-                    'question': current_question['text'],
-                    'choices': [c['text'] for c in current_choices],
-                    'correct_index': correct_index,
-                    'explanation_seed': current_question.get('explanation', '')
-                })
+                questions.append(
+                    {
+                        "question": current_question["text"],
+                        "choices": [c["text"] for c in current_choices],
+                        "correct_index": correct_index,
+                        "explanation_seed": current_question.get("explanation", ""),
+                    }
+                )
 
             return questions
 
@@ -630,12 +731,12 @@ The AI will intelligently extract and structure all questions automatically!
             return 0
 
         # Handle multiple answers - take the first one (our system only supports single answers)
-        answers = [a.strip() for a in answer_str.split(',')]
+        answers = [a.strip() for a in answer_str.split(",")]
         first_answer = answers[0].upper()
 
         # Find the index of this choice
         for i, choice in enumerate(choices):
-            if choice['letter'] == first_answer:
+            if choice["letter"] == first_answer:
                 return i
 
         return 0  # Default to first choice if not found

@@ -1,14 +1,14 @@
 [
     {
         "date": "November 2025",
+        "text": "Added AI answer inference for questions without answer sheets"
+    },
+    {
+        "date": "November 2025",
         "text": "Added OCR support for answer sheets in images"
     },
     {
         "date": "November 2025",
         "text": "Added automatic question quality validation during upload"
-    },
-    {
-        "date": "November 2025",
-        "text": "Added more CACS Paper 2 questions"
     }
 ]

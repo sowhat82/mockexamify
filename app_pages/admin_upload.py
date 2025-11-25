@@ -4,6 +4,7 @@ Allows admins to upload mock exams via CSV/JSON/PDF/Word files
 Supports both single mock exams and question pool management
 """
 
+import asyncio
 import csv
 import io
 import json
@@ -18,6 +19,43 @@ from document_parser import document_parser
 from question_pool_manager import question_pool_manager
 
 logger = logging.getLogger(__name__)
+
+
+async def infer_answer_with_ai(question_text: str, choices: List[str]) -> int:
+    """
+    Use AI to infer the correct answer by analyzing the question and choices.
+    Returns the index of the most likely correct answer (0-based).
+    """
+    from openrouter_utils import OpenRouterUtils
+
+    openrouter = OpenRouterUtils()
+
+    # Format choices with letters
+    choices_text = "\n".join([f"{chr(65+i)}. {choice}" for i, choice in enumerate(choices)])
+
+    prompt = f"""You are an expert in finance and regulatory exams. Analyze this question and determine the correct answer.
+
+Question: {question_text}
+
+Choices:
+{choices_text}
+
+Based on your knowledge, which choice is most likely correct? Respond with ONLY the letter (A, B, C, D, or E) of the correct answer, nothing else."""
+
+    try:
+        response = await openrouter._generate_text_with_retry(prompt, max_tokens=10)
+        answer_letter = response.strip().upper()
+
+        # Convert letter to index
+        if answer_letter in ['A', 'B', 'C', 'D', 'E']:
+            return ord(answer_letter) - ord('A')
+        else:
+            # Fallback to first choice if AI returns invalid
+            return 0
+
+    except Exception as e:
+        logger.error(f"Error inferring answer with AI: {e}")
+        return 0  # Default to first choice
 
 
 def validate_question_quality(questions: List[Dict]) -> tuple[List[Dict], List[Dict], Dict[str, int]]:
@@ -802,23 +840,61 @@ async def process_pool_upload(
 
             # Show validation results if issues found
             if invalid_questions:
-                st.warning(
-                    f"⚠️ **Quality Check:** Found {len(invalid_questions)} questions with issues:\n\n"
-                    f"- Duplicate choices: {quality_stats['duplicate_choices']}\n"
-                    f"- Empty choices: {quality_stats['empty_choices']}\n"
-                    f"- Missing/invalid correct answer: {quality_stats['missing_correct_answer']}\n"
-                    f"- Insufficient choices: {quality_stats['insufficient_choices']}\n\n"
-                    f"**These questions will be skipped.** Only {len(valid_questions)} valid questions will be added."
-                )
+                # Separate questions with ONLY missing answer (can be AI-inferred) from other issues
+                missing_answer_only = [
+                    q for q in invalid_questions
+                    if q.get('validation_issues') == ['missing_correct_answer']
+                ]
+                other_issues = [q for q in invalid_questions if q not in missing_answer_only]
 
-                # Show details of invalid questions in expander
-                with st.expander("📋 View Invalid Questions"):
-                    for idx, q in enumerate(invalid_questions[:10], 1):  # Show first 10
-                        st.markdown(f"**{idx}.** {q['question'][:100]}...")
-                        st.markdown(f"   Issues: {', '.join(q['validation_issues'])}")
-                        if len(invalid_questions) > 10:
-                            st.markdown(f"   ... and {len(invalid_questions) - 10} more")
-                            break
+                if missing_answer_only:
+                    st.info(
+                        f"🤖 **Found {len(missing_answer_only)} questions without answers.**\n\n"
+                        f"These questions are otherwise valid. You can use AI to automatically infer the correct answers."
+                    )
+
+                    if st.button(f"🤖 Use AI to Infer {len(missing_answer_only)} Answers", key="ai_infer_btn"):
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+
+                        ai_fixed = []
+                        for idx, q in enumerate(missing_answer_only):
+                            status_text.info(f"🤖 Inferring answer for question {idx+1}/{len(missing_answer_only)}...")
+                            progress_bar.progress((idx + 1) / len(missing_answer_only))
+
+                            # Use AI to infer answer
+                            correct_index = await infer_answer_with_ai(q['question'], q['choices'])
+                            q['correct_answer'] = correct_index
+                            del q['validation_issues']  # Remove validation issues
+                            ai_fixed.append(q)
+
+                            # Rate limiting
+                            await asyncio.sleep(1)
+
+                        progress_bar.empty()
+                        status_text.success(f"✅ AI inferred answers for {len(ai_fixed)} questions!")
+
+                        # Add AI-fixed questions to valid questions
+                        valid_questions.extend(ai_fixed)
+                        missing_answer_only.clear()
+
+                if other_issues:
+                    st.warning(
+                        f"⚠️ **Quality Check:** Found {len(other_issues)} questions with issues:\n\n"
+                        f"- Duplicate choices: {quality_stats['duplicate_choices']}\n"
+                        f"- Empty choices: {quality_stats['empty_choices']}\n"
+                        f"- Insufficient choices: {quality_stats['insufficient_choices']}\n\n"
+                        f"**These questions will be skipped.**"
+                    )
+
+                    # Show details of invalid questions in expander
+                    with st.expander("📋 View Invalid Questions"):
+                        for idx, q in enumerate(other_issues[:10], 1):  # Show first 10
+                            st.markdown(f"**{idx}.** {q['question'][:100]}...")
+                            st.markdown(f"   Issues: {', '.join(q.get('validation_issues', []))}")
+                            if len(other_issues) > 10:
+                                st.markdown(f"   ... and {len(other_issues) - 10} more")
+                                break
 
             # Update questions_to_add to only valid questions
             questions_to_add = valid_questions

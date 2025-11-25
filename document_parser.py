@@ -635,6 +635,91 @@ Explanation: Paris is the capital and largest city of France.
 The AI will intelligently extract and structure all questions automatically!
 """
 
+    def _extract_answer_key_from_images(self, doc) -> Dict[int, Dict[str, str]]:
+        """
+        Extract answer key from images embedded in Word document using OCR
+        Returns dict mapping question number to {answer, explanation}
+        """
+        answer_key = {}
+
+        try:
+            # Initialize EasyOCR reader (lazy load)
+            reader = easyocr.Reader(["en"], gpu=False, verbose=False)
+
+            # Extract images from document
+            images_extracted = 0
+            for rel in doc.part.rels.values():
+                if "image" in rel.target_ref:
+                    try:
+                        # Get image data
+                        image_data = rel.target_part.blob
+                        image = Image.open(io.BytesIO(image_data))
+
+                        # Convert to numpy array for easyocr
+                        img_array = np.array(image)
+
+                        # Perform OCR
+                        result = reader.readtext(img_array, detail=0)
+                        ocr_text = " ".join(result)
+
+                        # Parse answer sheet patterns
+                        parsed_answers = self._parse_answer_sheet_text(ocr_text)
+                        answer_key.update(parsed_answers)
+
+                        images_extracted += 1
+
+                        # Only process first few images (answer sheets usually at start)
+                        if images_extracted >= 3:
+                            break
+
+                    except Exception as e:
+                        continue
+
+        except Exception as e:
+            # Silently fail if OCR not available or error
+            pass
+
+        return answer_key
+
+    def _parse_answer_sheet_text(self, text: str) -> Dict[int, Dict[str, str]]:
+        """
+        Parse various answer sheet formats from OCR text
+        Supports patterns like:
+        - "1. A  2. B  3. C"
+        - "1) A  2) B  3) C"
+        - "Q1: A  Q2: B"
+        - Grid format with numbers and letters
+        """
+        answers = {}
+
+        # Pattern 1: "1. A" or "1) A" or "1: A"
+        pattern1 = r'(\d+)[\.\)\:]\s*([A-E])\b'
+        matches = re.findall(pattern1, text, re.IGNORECASE)
+        for q_num, answer in matches:
+            answers[int(q_num)] = {"answer": answer.upper(), "explanation": ""}
+
+        # Pattern 2: "Q1 A" or "Question 1 A"
+        if not answers:
+            pattern2 = r'[Qq](?:uestion)?\s*(\d+)\s+([A-E])\b'
+            matches = re.findall(pattern2, text, re.IGNORECASE)
+            for q_num, answer in matches:
+                answers[int(q_num)] = {"answer": answer.upper(), "explanation": ""}
+
+        # Pattern 3: Grid format - numbers on one line, letters on next
+        # e.g., "1 2 3 4 5" followed by "A B C D E"
+        if not answers:
+            lines = text.split('\n')
+            for i in range(len(lines) - 1):
+                numbers = re.findall(r'\b(\d+)\b', lines[i])
+                letters = re.findall(r'\b([A-E])\b', lines[i + 1], re.IGNORECASE)
+                if len(numbers) == len(letters):
+                    for q_num, answer in zip(numbers, letters):
+                        answers[int(q_num)] = {"answer": answer.upper(), "explanation": ""}
+                    if answers:
+                        break
+
+        return answers
+
     def _parse_word_structured(self, uploaded_file) -> List[Dict[str, Any]]:
         """
         Parse Word document using structured approach (faster and more accurate than AI)
@@ -649,7 +734,14 @@ The AI will intelligently extract and structure all questions automatically!
             questions = []
             answer_key = {}
 
-            # First, try to find answer key table
+            # First, try to extract answer key from images (OCR)
+            if OCR_AVAILABLE:
+                image_answer_key = self._extract_answer_key_from_images(doc)
+                answer_key.update(image_answer_key)
+                if image_answer_key:
+                    st.success(f"✅ OCR extracted {len(image_answer_key)} answers from answer sheet image")
+
+            # Next, try to find answer key table (text-based)
             for table in doc.tables:
                 for i, row in enumerate(table.rows):
                     if i == 0:  # Skip header row

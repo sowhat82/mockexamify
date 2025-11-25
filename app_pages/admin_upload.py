@@ -26,9 +26,9 @@ async def infer_answer_with_ai(question_text: str, choices: List[str]) -> int:
     Use AI to infer the correct answer by analyzing the question and choices.
     Returns the index of the most likely correct answer (0-based).
     """
-    from openrouter_utils import OpenRouterUtils
+    from openrouter_utils import OpenRouterManager
 
-    openrouter = OpenRouterUtils()
+    openrouter = OpenRouterManager()
 
     # Format choices with letters
     choices_text = "\n".join([f"{chr(65+i)}. {choice}" for i, choice in enumerate(choices)])

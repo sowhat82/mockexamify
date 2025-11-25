@@ -847,36 +847,36 @@ async def process_pool_upload(
                 ]
                 other_issues = [q for q in invalid_questions if q not in missing_answer_only]
 
+                # Automatically use AI to infer missing answers
                 if missing_answer_only:
                     st.info(
                         f"🤖 **Found {len(missing_answer_only)} questions without answers.**\n\n"
-                        f"These questions are otherwise valid. You can use AI to automatically infer the correct answers."
+                        f"Automatically using AI to infer correct answers..."
                     )
 
-                    if st.button(f"🤖 Use AI to Infer {len(missing_answer_only)} Answers", key="ai_infer_btn"):
-                        progress_bar = st.progress(0)
-                        status_text = st.empty()
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
 
-                        ai_fixed = []
-                        for idx, q in enumerate(missing_answer_only):
-                            status_text.info(f"🤖 Inferring answer for question {idx+1}/{len(missing_answer_only)}...")
-                            progress_bar.progress((idx + 1) / len(missing_answer_only))
+                    ai_fixed = []
+                    for idx, q in enumerate(missing_answer_only):
+                        status_text.info(f"🤖 Inferring answer for question {idx+1}/{len(missing_answer_only)}...")
+                        progress_bar.progress((idx + 1) / len(missing_answer_only))
 
-                            # Use AI to infer answer
-                            correct_index = await infer_answer_with_ai(q['question'], q['choices'])
-                            q['correct_answer'] = correct_index
-                            del q['validation_issues']  # Remove validation issues
-                            ai_fixed.append(q)
+                        # Use AI to infer answer
+                        correct_index = await infer_answer_with_ai(q['question'], q['choices'])
+                        q['correct_answer'] = correct_index
+                        del q['validation_issues']  # Remove validation issues
+                        ai_fixed.append(q)
 
-                            # Rate limiting
-                            await asyncio.sleep(1)
+                        # Rate limiting
+                        await asyncio.sleep(1)
 
-                        progress_bar.empty()
-                        status_text.success(f"✅ AI inferred answers for {len(ai_fixed)} questions!")
+                    progress_bar.empty()
+                    status_text.success(f"✅ AI automatically inferred answers for {len(ai_fixed)} questions!")
 
-                        # Add AI-fixed questions to valid questions
-                        valid_questions.extend(ai_fixed)
-                        missing_answer_only.clear()
+                    # Add AI-fixed questions to valid questions
+                    valid_questions.extend(ai_fixed)
+                    missing_answer_only.clear()
 
                 if other_issues:
                     st.warning(

@@ -519,6 +519,18 @@ Extract all questions now:"""
                     st.warning(f"Question {i+1}: Need at least 2 choices, skipping")
                     continue
 
+                # Check for empty choices
+                empty_choices = sum(1 for c in q["choices"] if not c or (isinstance(c, str) and not c.strip()))
+                if empty_choices > 0:
+                    st.warning(f"Question {i+1}: Has {empty_choices} empty choice(s), skipping")
+                    continue
+
+                # Check for duplicate choices (exact matches)
+                non_empty_choices = [c for c in q["choices"] if c and (not isinstance(c, str) or c.strip())]
+                if len(non_empty_choices) != len(set(non_empty_choices)):
+                    st.warning(f"Question {i+1}: Has duplicate choices, skipping")
+                    continue
+
                 if "correct_index" not in q:
                     st.warning(f"Question {i+1}: Missing correct_index, skipping")
                     continue

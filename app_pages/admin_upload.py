@@ -20,6 +20,66 @@ from question_pool_manager import question_pool_manager
 logger = logging.getLogger(__name__)
 
 
+def validate_question_quality(questions: List[Dict]) -> tuple[List[Dict], List[Dict], Dict[str, int]]:
+    """
+    Validate question quality and filter out problematic questions.
+
+    Returns:
+        (valid_questions, invalid_questions, quality_stats)
+    """
+    valid_questions = []
+    invalid_questions = []
+    quality_stats = {
+        "duplicate_choices": 0,
+        "empty_choices": 0,
+        "missing_correct_answer": 0,
+        "insufficient_choices": 0,
+    }
+
+    for q in questions:
+        issues = []
+
+        # Check 1: Ensure choices exist and is a list
+        choices = q.get("choices", [])
+        if not isinstance(choices, list):
+            try:
+                choices = json.loads(choices) if isinstance(choices, str) else []
+            except:
+                choices = []
+
+        # Check 2: Insufficient choices (need at least 2)
+        if len(choices) < 2:
+            issues.append("insufficient_choices")
+            quality_stats["insufficient_choices"] += 1
+
+        # Check 3: Empty choices
+        empty_count = sum(1 for c in choices if not c or (isinstance(c, str) and not c.strip()))
+        if empty_count > 0:
+            issues.append("empty_choices")
+            quality_stats["empty_choices"] += 1
+
+        # Check 4: Duplicate choices (exact matches)
+        non_empty_choices = [c for c in choices if c and (not isinstance(c, str) or c.strip())]
+        if len(non_empty_choices) != len(set(non_empty_choices)):
+            issues.append("duplicate_choices")
+            quality_stats["duplicate_choices"] += 1
+
+        # Check 5: Missing or invalid correct answer
+        correct_answer = q.get("correct_answer")
+        if correct_answer is None or not isinstance(correct_answer, int) or correct_answer < 0 or correct_answer >= len(choices):
+            issues.append("missing_correct_answer")
+            quality_stats["missing_correct_answer"] += 1
+
+        # Categorize question
+        if issues:
+            q["validation_issues"] = issues
+            invalid_questions.append(q)
+        else:
+            valid_questions.append(q)
+
+    return valid_questions, invalid_questions, quality_stats
+
+
 def show_admin_upload():
     """Display admin upload mock exam page"""
     auth = AuthUtils(config.API_BASE_URL)
@@ -735,6 +795,33 @@ async def process_pool_upload(
                     f"🤖 AI detection: {ai_duplicates_found} semantic duplicates found "
                     f"(threshold: {similarity_threshold*100}%)"
                 )
+
+        # Validate question quality before saving
+        if questions_to_add:
+            valid_questions, invalid_questions, quality_stats = validate_question_quality(questions_to_add)
+
+            # Show validation results if issues found
+            if invalid_questions:
+                st.warning(
+                    f"⚠️ **Quality Check:** Found {len(invalid_questions)} questions with issues:\n\n"
+                    f"- Duplicate choices: {quality_stats['duplicate_choices']}\n"
+                    f"- Empty choices: {quality_stats['empty_choices']}\n"
+                    f"- Missing/invalid correct answer: {quality_stats['missing_correct_answer']}\n"
+                    f"- Insufficient choices: {quality_stats['insufficient_choices']}\n\n"
+                    f"**These questions will be skipped.** Only {len(valid_questions)} valid questions will be added."
+                )
+
+                # Show details of invalid questions in expander
+                with st.expander("📋 View Invalid Questions"):
+                    for idx, q in enumerate(invalid_questions[:10], 1):  # Show first 10
+                        st.markdown(f"**{idx}.** {q['question'][:100]}...")
+                        st.markdown(f"   Issues: {', '.join(q['validation_issues'])}")
+                        if len(invalid_questions) > 10:
+                            st.markdown(f"   ... and {len(invalid_questions) - 10} more")
+                            break
+
+            # Update questions_to_add to only valid questions
+            questions_to_add = valid_questions
 
         # Create upload batch record
         batch_id = await db.create_upload_batch(

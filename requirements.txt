@@ -27,6 +27,8 @@ psutil>=5.9.0
 PyPDF2>=3.0.0
 python-docx>=0.8.11
 openpyxl>=3.1.0
+easyocr>=1.7.0
+pymupdf>=1.23.0
 # Additional utilities
 aiofiles>=23.0.0
 python-dateutil>=2.8.2

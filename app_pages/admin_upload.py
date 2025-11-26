@@ -834,6 +834,36 @@ async def process_pool_upload(
                     f"(threshold: {similarity_threshold*100}%)"
                 )
 
+        # Auto-fix common text corruption issues
+        if questions_to_add:
+            from question_text_validator import validate_question_batch
+
+            progress_placeholder.info("🔧 Checking for text corruption and auto-fixing...")
+
+            validation_result = validate_question_batch(questions_to_add)
+            questions_to_add = validation_result['questions']
+            text_stats = validation_result['stats']
+
+            # Show auto-fix results if any fixes were applied
+            if text_stats.get('fixed', 0) > 0:
+                fixes_summary = []
+                for fix_type, count in text_stats.get('fixes_by_type', {}).items():
+                    fixes_summary.append(f"  • {fix_type}: {count}x")
+
+                stats_placeholder.success(
+                    f"✨ Auto-fixed {text_stats['fixed']} questions:\n" +
+                    "\n".join(fixes_summary)
+                )
+
+            # Show warnings if any
+            if text_stats.get('questions_with_warnings'):
+                warning_count = len(text_stats['questions_with_warnings'])
+                with st.expander(f"⚠️ {warning_count} questions have warnings (click to review)"):
+                    for idx, item in enumerate(text_stats['questions_with_warnings'][:10], 1):
+                        st.markdown(f"**{idx}.** {item['text']}")
+                        for warning in item['warnings']:
+                            st.markdown(f"  - ⚠️ {warning}")
+
         # Validate question quality before saving
         if questions_to_add:
             valid_questions, invalid_questions, quality_stats = validate_question_quality(questions_to_add)

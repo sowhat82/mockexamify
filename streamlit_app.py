@@ -635,6 +635,22 @@ def main():
     # Initialize auth utility
     auth = AuthUtils(config.API_BASE_URL)
 
+    # Run health check for incomplete AI explanations (once per session)
+    if "health_check_completed" not in st.session_state:
+        try:
+            import threading
+            from explanation_health_check import run_health_check_sync
+
+            # Run in background thread to avoid blocking app startup
+            health_check_thread = threading.Thread(target=run_health_check_sync, daemon=True)
+            health_check_thread.start()
+
+            st.session_state.health_check_completed = True
+            logger.info("✅ Health check initiated in background")
+        except Exception as e:
+            logger.error(f"Failed to start health check: {e}")
+            st.session_state.health_check_completed = True  # Don't retry on error
+
     # Handle payment callbacks
     query_params = st.query_params
     logger.info(

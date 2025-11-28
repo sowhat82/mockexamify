@@ -31,10 +31,53 @@ except ImportError:
 class DocumentParser:
     """Parse PDF/Word documents and extract mock exam questions using AI"""
 
+    # Patterns that indicate missing context
+    INCOMPLETE_PATTERNS = [
+        r'^The basis of which',
+        r'^This product',
+        r'^According to the case study',
+        r'^Based on the scenario',
+        r'^In the example',
+        r'^The product described',
+        r'^Under this arrangement',
+        r'^For this investment',
+        r'^In this case',
+        r'^The structure outlined',
+        r'^The instrument mentioned',
+        r'basis.*mandatory\s*redemption.*determined',
+        r'payout.*maturity.*determined by the\s*$',
+        r'determined by the\s*Choices',
+        r'^Referring to',
+        r'^For the',
+        r'^With reference to',
+    ]
+
     def __init__(self):
         self.api_key = config.OPENROUTER_API_KEY
         self.model = config.OPENROUTER_MODEL
         self.base_url = config.OPENROUTER_BASE_URL
+
+    def _detect_incomplete_question(self, question_text: str) -> Optional[str]:
+        """
+        Detect if a question references missing context.
+        Returns the reason if incomplete, None if complete.
+        """
+        question_text = question_text.strip()
+
+        # Check against patterns
+        for pattern in self.INCOMPLETE_PATTERNS:
+            if re.search(pattern, question_text, re.IGNORECASE):
+                return f"references missing context"
+
+        # Check if question starts with article + noun without context
+        if re.match(r'^The\s+\w+\s+(of|for|in)\s+which', question_text, re.IGNORECASE):
+            return "incomplete sentence structure"
+
+        # Check for references to "this/that product/fund/instrument" without context
+        if re.search(r'\b(this|that)\s+(fund|product|instrument|security|option|structure)\b', question_text, re.IGNORECASE):
+            return "references 'this/that' without context"
+
+        return None
 
     def parse_document(self, uploaded_file, pool_id=None, pool_name=None) -> Tuple[bool, List[Dict[str, Any]], str]:
         """
@@ -658,6 +701,15 @@ Extract all questions now:"""
                         f"Question {i+1}: Auto-corrected answer from index {correct_index} to {corrected_index}"
                     )
                     correct_index = corrected_index
+
+                # Check for incomplete questions (missing context)
+                incomplete_reason = self._detect_incomplete_question(q["question"])
+                if incomplete_reason:
+                    st.warning(
+                        f"Question {i+1}: Skipping - {incomplete_reason}. "
+                        f"Question text: '{q['question'][:80]}...'"
+                    )
+                    continue
 
                 # Clean and normalize question
                 cleaned_question = {

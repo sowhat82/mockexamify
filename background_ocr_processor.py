@@ -306,6 +306,14 @@ async def process_scanned_pdf(file_path: str, pool_id: str, pool_name: str, sour
 
         if success:
             logger.info(f"✅ Successfully added {len(valid_questions)} questions to pool {pool_name}")
+
+            # Trigger health check to catch any incomplete explanations
+            try:
+                from explanation_health_check import auto_check_and_restart_incomplete_pools
+                logger.info("Running post-upload health check for incomplete explanations...")
+                await auto_check_and_restart_incomplete_pools()
+            except Exception as e:
+                logger.error(f"Failed to run post-upload health check: {e}")
         else:
             logger.error(f"❌ Failed to add questions to pool")
 

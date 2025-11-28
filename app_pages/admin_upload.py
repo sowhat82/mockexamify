@@ -973,6 +973,18 @@ async def process_pool_upload(
 
             logger.info(f"Background explanation generator started for pool {pool_id}")
 
+            # Run health check to catch any incomplete explanations (including existing questions)
+            try:
+                import threading
+                from explanation_health_check import run_health_check_sync
+
+                # Run in background thread to avoid blocking upload completion
+                health_check_thread = threading.Thread(target=run_health_check_sync, daemon=True)
+                health_check_thread.start()
+                logger.info("✅ Post-upload health check initiated in background")
+            except Exception as e:
+                logger.error(f"Failed to start post-upload health check: {e}")
+
         # Display final results
         progress_placeholder.empty()
         stats_placeholder.empty()

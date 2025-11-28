@@ -38,6 +38,8 @@ INCOMPLETE_PATTERNS = [
     r'^The instrument mentioned',
     r'^The investment product',  # References specific product without context
     r'^The investment.*profile',  # References specific investment without context
+    r'^Today is the maturity date',  # References specific maturity event without context
+    r'the fund has not been auto-redeemed',  # References specific fund event
     r'basis.*mandatory\s*redemption.*determined',
     r'payout.*maturity.*determined by the\s*$',
     r'determined by the\s*Choices',

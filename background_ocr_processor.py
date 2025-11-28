@@ -48,6 +48,25 @@ INCOMPLETE_PATTERNS = [
     r'^With reference to',
 ]
 
+# OCR corruption patterns
+OCR_CORRUPTION_PATTERNS = [
+    (r'\$[oO]\.', 'Dollar sign followed by letter o/O instead of zero'),
+    (r'\bordinai-y\b', 'ordinai-y instead of ordinary'),
+    (r'\bordinan/\b', 'ordinan/ instead of ordinary'),
+    (r'\bstmctures\b', 'stmctures instead of structures'),
+    (r'\binvestrnent\b', 'investrnent instead of investment'),
+    (r'\bgovernrnent\b', 'governrnent instead of government'),
+    (r'\bmanagernent\b', 'managernent instead of management'),
+    (r'\bperforrnance\b', 'performrnance instead of performance'),
+    (r'\brnake\b', 'rnake instead of make'),
+    (r'\brnay\b', 'rnay instead of may'),
+    (r'\brnust\b', 'rnust instead of must'),
+    (r'\brnore\b', 'rnore instead of more'),
+    (r'\b[Il]00\%', 'Letter I or l instead of 1 in 100%'),
+    (r'\s{4,}', 'Four or more consecutive spaces'),
+    (r'determined by the\s*Choices', 'Question text bleeding into choices'),
+]
+
 
 def detect_incomplete_question(question_text: str) -> Optional[str]:
     """
@@ -70,6 +89,17 @@ def detect_incomplete_question(question_text: str) -> Optional[str]:
     if re.search(r'\b(this|that)\s+(?:\w+\s+)*(fund|product|instrument|security|option|structure)\b', question_text, re.IGNORECASE):
         return "References 'this/that fund/product/instrument' without context"
 
+    return None
+
+
+def detect_ocr_corruption(question_text: str) -> Optional[str]:
+    """
+    Detect OCR corruption in question text (spelling errors, malformed text).
+    Returns the first corruption found, None if clean.
+    """
+    for pattern, description in OCR_CORRUPTION_PATTERNS:
+        if re.search(pattern, question_text, re.IGNORECASE):
+            return description
     return None
 
 
@@ -267,8 +297,18 @@ async def process_scanned_pdf(file_path: str, pool_id: str, pool_name: str, sour
                 invalid_count += 1
                 continue
 
-            # Check for incomplete questions (missing context)
+            # Check for OCR corruption (malformed text)
             question_text = q.get("question", "")
+            corruption_reason = detect_ocr_corruption(question_text)
+
+            if corruption_reason:
+                logger.warning(f"Question {idx}: OCR corruption detected - {corruption_reason}")
+                logger.warning(f"  Question text: {question_text[:100]}...")
+                logger.warning(f"  Skipping corrupted question")
+                invalid_count += 1
+                continue
+
+            # Check for incomplete questions (missing context)
             incomplete_reason = detect_incomplete_question(question_text)
 
             if incomplete_reason:

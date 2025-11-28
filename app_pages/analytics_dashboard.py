@@ -150,7 +150,7 @@ def calculate_performance_metrics(attempts: List) -> Dict[str, Any]:
                 time_spent.append(attempt.time_spent_seconds)
 
             # Track difficulty performance (if available)
-            difficulty = getattr(attempt, "difficulty", "medium").lower()
+            difficulty = (getattr(attempt, "difficulty", "medium") or "medium").lower()
             if difficulty in difficulty_performance:
                 difficulty_performance[difficulty].append(score)
 

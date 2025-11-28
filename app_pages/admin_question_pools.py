@@ -303,7 +303,7 @@ def show_edit_question_form(question: Dict[str, Any]):
         current_difficulty = question.get("difficulty", "Medium")
         # Handle case-insensitive difficulty matching
         difficulty_map = {"easy": "Easy", "medium": "Medium", "hard": "Hard"}
-        current_difficulty_display = difficulty_map.get(current_difficulty.lower(), "Medium")
+        current_difficulty_display = difficulty_map.get((current_difficulty or "Medium").lower(), "Medium")
 
         new_difficulty = st.selectbox(
             "Difficulty",

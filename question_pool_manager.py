@@ -30,10 +30,12 @@ class QuestionPoolManager:
         Used for exact duplicate detection
         """
         # Normalize question text (lowercase, strip whitespace)
-        q_text = question.get("question", "").lower().strip()
+        # Handle None values by converting to empty string
+        q_text = (question.get("question") or "").lower().strip()
 
         # Normalize choices (lowercase, strip whitespace, sort)
-        choices = [c.lower().strip() for c in question.get("choices", [])]
+        # Handle None values in choices
+        choices = [(c or "").lower().strip() for c in question.get("choices", [])]
         choices_str = "|".join(sorted(choices))
 
         # Create hash from question + choices

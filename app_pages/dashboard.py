@@ -586,7 +586,7 @@ def show_enhanced_mock_card(mock_obj: Any, container, user: Dict[str, Any]):
         can_afford = user_credits >= price
 
         # Determine difficulty color
-        difficulty = mock.get("difficulty", "medium").lower()
+        difficulty = (mock.get("difficulty") or "medium").lower()
         difficulty_colors = {"easy": "#27ae60", "medium": "#f39c12", "hard": "#e74c3c"}
         difficulty_color = difficulty_colors.get(difficulty, "#95a5a6")
 
@@ -866,7 +866,7 @@ def apply_exam_filters(
         filtered = [
             mock
             for mock in filtered
-            if mock.get("difficulty", "").lower() == difficulty_filter.lower()
+            if (mock.get("difficulty") or "").lower() == difficulty_filter.lower()
         ]
 
     # Price filter

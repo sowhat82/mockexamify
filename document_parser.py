@@ -33,46 +33,46 @@ class DocumentParser:
 
     # Patterns that indicate missing context
     INCOMPLETE_PATTERNS = [
-        r'^The basis of which',
-        r'^This product',
-        r'^According to the case study',
-        r'^Based on the scenario',
-        r'^In the example',
-        r'^The product described',
-        r'^Under this arrangement',
-        r'^For this investment',
-        r'^In this case',
-        r'^The structure outlined',
-        r'^The instrument mentioned',
-        r'^The investment product',  # References specific product without context
-        r'^The investment.*profile',  # References specific investment without context
-        r'^Today is the maturity date',  # References specific maturity event without context
-        r'the fund has not been auto-redeemed',  # References specific fund event
-        r'basis.*mandatory\s*redemption.*determined',
-        r'payout.*maturity.*determined by the\s*$',
-        r'determined by the\s*Choices',
-        r'^Referring to',
-        r'^For the',
-        r'^With reference to',
+        r"^The basis of which",
+        r"^This product",
+        r"^According to the case study",
+        r"^Based on the scenario",
+        r"^In the example",
+        r"^The product described",
+        r"^Under this arrangement",
+        r"^For this investment",
+        r"^In this case",
+        r"^The structure outlined",
+        r"^The instrument mentioned",
+        r"^The investment product",  # References specific product without context
+        r"^The investment.*profile",  # References specific investment without context
+        r"^Today is the maturity date",  # References specific maturity event without context
+        r"the fund has not been auto-redeemed",  # References specific fund event
+        r"basis.*mandatory\s*redemption.*determined",
+        r"payout.*maturity.*determined by the\s*$",
+        r"determined by the\s*Choices",
+        r"^Referring to",
+        r"^For the",
+        r"^With reference to",
     ]
 
     # OCR corruption patterns
     OCR_CORRUPTION_PATTERNS = [
-        (r'\$[oO]\.', 'Dollar sign followed by letter o/O instead of zero'),
-        (r'\bordinai-y\b', 'ordinai-y instead of ordinary'),
-        (r'\bordinan/\b', 'ordinan/ instead of ordinary'),
-        (r'\bstmctures\b', 'stmctures instead of structures'),
-        (r'\binvestrnent\b', 'investrnent instead of investment'),
-        (r'\bgovernrnent\b', 'governrnent instead of government'),
-        (r'\bmanagernent\b', 'managernent instead of management'),
-        (r'\bperforrnance\b', 'performrnance instead of performance'),
-        (r'\brnake\b', 'rnake instead of make'),
-        (r'\brnay\b', 'rnay instead of may'),
-        (r'\brnust\b', 'rnust instead of must'),
-        (r'\brnore\b', 'rnore instead of more'),
-        (r'\b[Il]00\%', 'Letter I or l instead of 1 in 100%'),
-        (r'\s{4,}', 'Four or more consecutive spaces'),
-        (r'determined by the\s*Choices', 'Question text bleeding into choices'),
+        (r"\$[oO]\.", "Dollar sign followed by letter o/O instead of zero"),
+        (r"\bordinai-y\b", "ordinai-y instead of ordinary"),
+        (r"\bordinan/\b", "ordinan/ instead of ordinary"),
+        (r"\bstmctures\b", "stmctures instead of structures"),
+        (r"\binvestrnent\b", "investrnent instead of investment"),
+        (r"\bgovernrnent\b", "governrnent instead of government"),
+        (r"\bmanagernent\b", "managernent instead of management"),
+        (r"\bperforrnance\b", "performrnance instead of performance"),
+        (r"\brnake\b", "rnake instead of make"),
+        (r"\brnay\b", "rnay instead of may"),
+        (r"\brnust\b", "rnust instead of must"),
+        (r"\brnore\b", "rnore instead of more"),
+        (r"\b[Il]00\%", "Letter I or l instead of 1 in 100%"),
+        (r"\s{4,}", "Four or more consecutive spaces"),
+        (r"determined by the\s*Choices", "Question text bleeding into choices"),
     ]
 
     def __init__(self):
@@ -90,15 +90,19 @@ class DocumentParser:
         # Check against patterns
         for pattern in self.INCOMPLETE_PATTERNS:
             if re.search(pattern, question_text, re.IGNORECASE):
-                return f"references missing context"
+                return "references missing context"
 
         # Check if question starts with article + noun without context
-        if re.match(r'^The\s+\w+\s+(of|for|in)\s+which', question_text, re.IGNORECASE):
+        if re.match(r"^The\s+\w+\s+(of|for|in)\s+which", question_text, re.IGNORECASE):
             return "incomplete sentence structure"
 
         # Check for references to "this/that product/fund/instrument" without context
         # Allow for adjectives like "this Structured fund", "that new product"
-        if re.search(r'\b(this|that)\s+(?:\w+\s+)*(fund|product|instrument|security|option|structure)\b', question_text, re.IGNORECASE):
+        if re.search(
+            r"\b(this|that)\s+(?:\w+\s+)*(fund|product|instrument|security|option|structure)\b",
+            question_text,
+            re.IGNORECASE,
+        ):
             return "references 'this/that' without context"
 
         return None
@@ -113,7 +117,9 @@ class DocumentParser:
                 return description
         return None
 
-    def parse_document(self, uploaded_file, pool_id=None, pool_name=None) -> Tuple[bool, List[Dict[str, Any]], str]:
+    def parse_document(
+        self, uploaded_file, pool_id=None, pool_name=None
+    ) -> Tuple[bool, List[Dict[str, Any]], str]:
         """
         Parse uploaded document and extract questions
 
@@ -207,7 +213,9 @@ class DocumentParser:
                 return clean_text
 
             # Text extraction failed or minimal text - this is a scanned PDF
-            st.info(f"📄 PDF appears to be scanned ({num_pages} pages). Checking if background processing is needed...")
+            st.info(
+                f"📄 PDF appears to be scanned ({num_pages} pages). Checking if background processing is needed..."
+            )
 
             if not OCR_AVAILABLE:
                 st.warning(
@@ -253,7 +261,7 @@ class DocumentParser:
             temp_path = os.path.join(temp_dir, temp_filename)
 
             uploaded_file.seek(0)
-            with open(temp_path, 'wb') as f:
+            with open(temp_path, "wb") as f:
                 f.write(uploaded_file.read())
 
             # Trigger background OCR processor
@@ -321,7 +329,7 @@ class DocumentParser:
                 # Update progress
                 progress_bar.progress(
                     (i + 1) / pages_to_process,
-                    text=f"🔍 OCR processing page {i+1}/{pages_to_process}..."
+                    text=f"🔍 OCR processing page {i+1}/{pages_to_process}...",
                 )
 
                 # Render page to image (150 DPI - faster than 200, still good quality)
@@ -337,7 +345,7 @@ class DocumentParser:
                     results = reader.readtext(
                         img_array,
                         paragraph=True,  # Group text into paragraphs (faster)
-                        batch_size=4     # Process in small batches
+                        batch_size=4,  # Process in small batches
                     )
                     # Extract text from results
                     page_text = "\n".join([result[1] for result in results])
@@ -352,7 +360,9 @@ class DocumentParser:
             combined_text = "\n\n".join(all_text)
 
             if combined_text:
-                st.success(f"✅ OCR completed: {len(combined_text)} characters extracted from {pages_to_process} pages")
+                st.success(
+                    f"✅ OCR completed: {len(combined_text)} characters extracted from {pages_to_process} pages"
+                )
 
             return combined_text
 
@@ -476,29 +486,27 @@ INSTRUCTIONS:
    - "scenario": optional context/scenario (string or null)
    - "explanation_seed": optional hint for explanation (string or null)
 
-EXAMPLE OUTPUT FORMAT:
+EXAMPLE OUTPUT FORMAT (DO NOT COPY THESE EXAMPLES - EXTRACT ONLY FROM DOCUMENT):
 [
   {{
-    "question": "What is the capital of France?",
-    "choices": ["London", "Paris", "Berlin", "Madrid"],
-    "correct_index": 1,
-    "scenario": null,
-    "explanation_seed": "France is a country in Western Europe"
-  }},
-  {{
-    "question": "Which programming language is known for web development?",
-    "choices": ["Python", "JavaScript", "C++", "Assembly"],
-    "correct_index": 1,
-    "scenario": "In modern web applications",
-    "explanation_seed": "JavaScript runs in browsers"
+    "question": "What is the yield of Investment A?",
+    "choices": ["2.5%", "3.0%", "3.5%", "4.0%"],
+    "correct_index": 2,
+    "scenario": "Investment A has a coupon rate of 5% and trades at $102",
+    "explanation_seed": "Current yield calculation"
   }}
 ]
 
-IMPORTANT:
+CRITICAL RULES:
+- Extract ONLY questions that appear in the DOCUMENT TEXT above
+- DO NOT include the example questions in your output
+- DO NOT generate or hallucinate questions - extract only what exists in the document
 - Return ONLY the JSON array, no other text
 - correct_index must be 0-based (0, 1, 2, 3...)
 - Include at least 2 choices per question
-- If you cannot find clear questions, return an empty array: []
+- If you cannot find clear questions in the document, return an empty array: []
+- ONLY extract questions related to finance, investments, regulations, or business topics
+- REJECT and do NOT extract general trivia, programming, geography, or unrelated topics
 
 Extract all questions now:"""
 
@@ -565,7 +573,7 @@ Extract all questions now:"""
                 try:
                     questions = json.loads(json_match.group(0))
                     return questions if isinstance(questions, list) else []
-                except:
+                except json.JSONDecodeError:
                     pass
             return []
 
@@ -615,7 +623,7 @@ Extract all questions now:"""
 
                 if closest_index != ai_index:
                     return closest_index, True
-            except:
+            except (ValueError, AttributeError, KeyError):
                 pass
 
         # Pattern 2: Sharpe Ratio
@@ -639,7 +647,7 @@ Extract all questions now:"""
 
                 if closest_index != ai_index:
                     return closest_index, True
-            except:
+            except (ValueError, AttributeError, KeyError):
                 pass
 
         # Pattern 3: Simple percentage calculation
@@ -660,11 +668,125 @@ Extract all questions now:"""
                     and abs(numeric_choices[closest_index] - calculated) < 0.01
                 ):
                     return closest_index, True
-            except:
+            except (ValueError, AttributeError, KeyError):
                 pass
 
         # No correction needed
         return ai_index, False
+
+    def _is_finance_related(self, question_text: str, choices: List[str]) -> bool:
+        """
+        Check if a question is finance/investment/business related.
+        Returns True if finance-related, False if general knowledge/trivia.
+        """
+        # Convert to lowercase for matching
+        text_lower = (question_text + " " + " ".join(choices)).lower()
+
+        # Finance/investment keywords (positive indicators)
+        finance_keywords = [
+            "investment",
+            "portfolio",
+            "fund",
+            "dividend",
+            "yield",
+            "coupon",
+            "bond",
+            "equity",
+            "stock",
+            "share",
+            "capital",
+            "return",
+            "risk",
+            "maturity",
+            "redemption",
+            "price",
+            "rate",
+            "index",
+            "basket",
+            "derivative",
+            "option",
+            "warrant",
+            "note",
+            "structured",
+            "security",
+            "asset",
+            "liability",
+            "financial",
+            "market",
+            "trading",
+            "broker",
+            "investor",
+            "client",
+            "regulatory",
+            "compliance",
+            "mas",
+            "cmfas",
+            "sfa",
+            "faa",
+            "cacs",
+            "interest",
+            "principal",
+            "credit",
+            "default",
+            "issuer",
+            "counterparty",
+            "underlying",
+            "performance",
+            "sharpe",
+            "volatility",
+            "correlation",
+            "payout",
+            "premium",
+            "strike",
+            "call",
+            "put",
+            "expiry",
+            "settlement",
+        ]
+
+        # General knowledge keywords (negative indicators - red flags)
+        general_knowledge_keywords = [
+            "capital of",
+            "programming language",
+            "javascript",
+            "python",
+            "java",
+            "france",
+            "paris",
+            "london",
+            "geography",
+            "history",
+            "science",
+            "chemistry",
+            "physics",
+            "biology",
+            "mathematics",
+            "algebra",
+            "what is 2+2",
+            "output of print",
+            "capital city",
+            "country",
+            "president",
+            "prime minister",
+            "famous for",
+            "invented by",
+        ]
+
+        # Check for general knowledge red flags
+        for keyword in general_knowledge_keywords:
+            if keyword in text_lower:
+                return False
+
+        # Check for finance keywords
+        finance_match_count = sum(1 for keyword in finance_keywords if keyword in text_lower)
+
+        # If we find multiple finance keywords, it's likely finance-related
+        if finance_match_count >= 2:
+            return True
+
+        # If no strong signals either way, be conservative and allow it
+        # (better to have a false positive than reject valid questions)
+        return True
 
     def _validate_questions(self, questions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Validate and clean extracted questions"""
@@ -692,13 +814,17 @@ Extract all questions now:"""
                     continue
 
                 # Check for empty choices
-                empty_choices = sum(1 for c in q["choices"] if not c or (isinstance(c, str) and not c.strip()))
+                empty_choices = sum(
+                    1 for c in q["choices"] if not c or (isinstance(c, str) and not c.strip())
+                )
                 if empty_choices > 0:
                     st.warning(f"Question {i+1}: Has {empty_choices} empty choice(s), skipping")
                     continue
 
                 # Check for duplicate choices (exact matches)
-                non_empty_choices = [c for c in q["choices"] if c and (not isinstance(c, str) or c.strip())]
+                non_empty_choices = [
+                    c for c in q["choices"] if c and (not isinstance(c, str) or c.strip())
+                ]
                 if len(non_empty_choices) != len(set(non_empty_choices)):
                     st.warning(f"Question {i+1}: Has duplicate choices, skipping")
                     continue
@@ -750,6 +876,14 @@ Extract all questions now:"""
                 if incomplete_reason:
                     st.warning(
                         f"Question {i+1}: Skipping - {incomplete_reason}. "
+                        f"Question text: '{q['question'][:80]}...'"
+                    )
+                    continue
+
+                # Check if question is finance/business related (not general trivia)
+                if not self._is_finance_related(q["question"], q["choices"]):
+                    st.warning(
+                        f"Question {i+1}: Skipping - detected as general knowledge/trivia, not finance-related. "
                         f"Question text: '{q['question'][:80]}...'"
                     )
                     continue
@@ -862,10 +996,10 @@ The AI will intelligently extract and structure all questions automatically!
                         if images_extracted >= 3:
                             break
 
-                    except Exception as e:
+                    except Exception:
                         continue
 
-        except Exception as e:
+        except Exception:
             # Silently fail if OCR not available or error
             pass
 
@@ -883,14 +1017,14 @@ The AI will intelligently extract and structure all questions automatically!
         answers = {}
 
         # Pattern 1: "1. A" or "1) A" or "1: A"
-        pattern1 = r'(\d+)[\.\)\:]\s*([A-E])\b'
+        pattern1 = r"(\d+)[\.\)\:]\s*([A-E])\b"
         matches = re.findall(pattern1, text, re.IGNORECASE)
         for q_num, answer in matches:
             answers[int(q_num)] = {"answer": answer.upper(), "explanation": ""}
 
         # Pattern 2: "Q1 A" or "Question 1 A"
         if not answers:
-            pattern2 = r'[Qq](?:uestion)?\s*(\d+)\s+([A-E])\b'
+            pattern2 = r"[Qq](?:uestion)?\s*(\d+)\s+([A-E])\b"
             matches = re.findall(pattern2, text, re.IGNORECASE)
             for q_num, answer in matches:
                 answers[int(q_num)] = {"answer": answer.upper(), "explanation": ""}
@@ -898,10 +1032,10 @@ The AI will intelligently extract and structure all questions automatically!
         # Pattern 3: Grid format - numbers on one line, letters on next
         # e.g., "1 2 3 4 5" followed by "A B C D E"
         if not answers:
-            lines = text.split('\n')
+            lines = text.split("\n")
             for i in range(len(lines) - 1):
-                numbers = re.findall(r'\b(\d+)\b', lines[i])
-                letters = re.findall(r'\b([A-E])\b', lines[i + 1], re.IGNORECASE)
+                numbers = re.findall(r"\b(\d+)\b", lines[i])
+                letters = re.findall(r"\b([A-E])\b", lines[i + 1], re.IGNORECASE)
                 if len(numbers) == len(letters):
                     for q_num, answer in zip(numbers, letters):
                         answers[int(q_num)] = {"answer": answer.upper(), "explanation": ""}
@@ -929,7 +1063,9 @@ The AI will intelligently extract and structure all questions automatically!
                 image_answer_key = self._extract_answer_key_from_images(doc)
                 answer_key.update(image_answer_key)
                 if image_answer_key:
-                    st.success(f"✅ OCR extracted {len(image_answer_key)} answers from answer sheet image")
+                    st.success(
+                        f"✅ OCR extracted {len(image_answer_key)} answers from answer sheet image"
+                    )
 
             # Next, try to find answer key table (text-based)
             for table in doc.tables:

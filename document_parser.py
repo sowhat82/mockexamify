@@ -56,6 +56,25 @@ class DocumentParser:
         r'^With reference to',
     ]
 
+    # OCR corruption patterns
+    OCR_CORRUPTION_PATTERNS = [
+        (r'\$[oO]\.', 'Dollar sign followed by letter o/O instead of zero'),
+        (r'\bordinai-y\b', 'ordinai-y instead of ordinary'),
+        (r'\bordinan/\b', 'ordinan/ instead of ordinary'),
+        (r'\bstmctures\b', 'stmctures instead of structures'),
+        (r'\binvestrnent\b', 'investrnent instead of investment'),
+        (r'\bgovernrnent\b', 'governrnent instead of government'),
+        (r'\bmanagernent\b', 'managernent instead of management'),
+        (r'\bperforrnance\b', 'performrnance instead of performance'),
+        (r'\brnake\b', 'rnake instead of make'),
+        (r'\brnay\b', 'rnay instead of may'),
+        (r'\brnust\b', 'rnust instead of must'),
+        (r'\brnore\b', 'rnore instead of more'),
+        (r'\b[Il]00\%', 'Letter I or l instead of 1 in 100%'),
+        (r'\s{4,}', 'Four or more consecutive spaces'),
+        (r'determined by the\s*Choices', 'Question text bleeding into choices'),
+    ]
+
     def __init__(self):
         self.api_key = config.OPENROUTER_API_KEY
         self.model = config.OPENROUTER_MODEL
@@ -82,6 +101,16 @@ class DocumentParser:
         if re.search(r'\b(this|that)\s+(?:\w+\s+)*(fund|product|instrument|security|option|structure)\b', question_text, re.IGNORECASE):
             return "references 'this/that' without context"
 
+        return None
+
+    def _detect_ocr_corruption(self, question_text: str) -> Optional[str]:
+        """
+        Detect OCR corruption in question text (spelling errors, malformed text).
+        Returns the first corruption found, None if clean.
+        """
+        for pattern, description in self.OCR_CORRUPTION_PATTERNS:
+            if re.search(pattern, question_text, re.IGNORECASE):
+                return description
         return None
 
     def parse_document(self, uploaded_file, pool_id=None, pool_name=None) -> Tuple[bool, List[Dict[str, Any]], str]:
@@ -706,6 +735,15 @@ Extract all questions now:"""
                         f"Question {i+1}: Auto-corrected answer from index {correct_index} to {corrected_index}"
                     )
                     correct_index = corrected_index
+
+                # Check for OCR corruption (malformed text)
+                corruption_reason = self._detect_ocr_corruption(q["question"])
+                if corruption_reason:
+                    st.warning(
+                        f"Question {i+1}: Skipping - OCR corruption detected ({corruption_reason}). "
+                        f"Question text: '{q['question'][:80]}...'"
+                    )
+                    continue
 
                 # Check for incomplete questions (missing context)
                 incomplete_reason = self._detect_incomplete_question(q["question"])

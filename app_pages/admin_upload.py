@@ -528,7 +528,7 @@ def show_single_mock_upload(auth):
                     st.error("Failed to create mock exam. Please try again.")
 
 
-def parse_uploaded_file(uploaded_file) -> List[Dict[str, Any]]:
+def parse_uploaded_file(uploaded_file, pool_id=None, pool_name=None) -> List[Dict[str, Any]]:
     """Parse uploaded CSV/JSON/PDF/Word file into questions list"""
     file_extension = uploaded_file.name.split(".")[-1].lower()
 
@@ -539,7 +539,7 @@ def parse_uploaded_file(uploaded_file) -> List[Dict[str, Any]]:
     elif file_extension in ["pdf", "docx", "doc"]:
         # Use AI-powered document parser
         st.info("🤖 Using AI to extract questions from document...")
-        success, questions, error = document_parser.parse_document(uploaded_file)
+        success, questions, error = document_parser.parse_document(uploaded_file, pool_id, pool_name)
 
         if not success:
             raise ValueError(f"Document parsing failed: {error}")
@@ -743,8 +743,8 @@ async def process_pool_upload(
             )
 
             try:
-                # Parse questions from file
-                questions = parse_uploaded_file(uploaded_file)
+                # Parse questions from file (pass pool info for background OCR processing)
+                questions = parse_uploaded_file(uploaded_file, pool_id, pool_name)
                 total_extracted += len(questions)
 
                 # Add source filename to each question

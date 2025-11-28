@@ -36,9 +36,14 @@ class DocumentParser:
         self.model = config.OPENROUTER_MODEL
         self.base_url = config.OPENROUTER_BASE_URL
 
-    def parse_document(self, uploaded_file) -> Tuple[bool, List[Dict[str, Any]], str]:
+    def parse_document(self, uploaded_file, pool_id=None, pool_name=None) -> Tuple[bool, List[Dict[str, Any]], str]:
         """
         Parse uploaded document and extract questions
+
+        Args:
+            uploaded_file: The uploaded file object
+            pool_id: Optional pool ID for background OCR processing
+            pool_name: Optional pool name for background OCR processing
 
         Returns:
             (success, questions_list, error_message)
@@ -70,11 +75,16 @@ class DocumentParser:
 
             # Extract text from document for AI parsing
             if file_extension == "pdf":
-                text = self._extract_text_from_pdf(uploaded_file)
+                text = self._extract_text_from_pdf(uploaded_file, pool_id, pool_name)
             elif file_extension in ["docx", "doc"]:
                 text = self._extract_text_from_word(uploaded_file)
             else:
                 return False, [], f"Unsupported file type: {file_extension}"
+
+            # Check if background processing was triggered
+            if text == "__BACKGROUND_PROCESSING__":
+                # Return success with empty list - questions will be added by background process
+                return True, [], ""
 
             if not text or len(text.strip()) < 50:
                 return False, [], "Could not extract sufficient text from document"
@@ -97,7 +107,7 @@ class DocumentParser:
         except Exception as e:
             return False, [], f"Error parsing document: {str(e)}"
 
-    def _extract_text_from_pdf(self, uploaded_file) -> str:
+    def _extract_text_from_pdf(self, uploaded_file, pool_id=None, pool_name=None) -> str:
         """Extract text from PDF file, with OCR fallback for scanned documents"""
         try:
             # Reset file pointer
@@ -106,6 +116,7 @@ class DocumentParser:
             # Read PDF
             pdf_reader = PyPDF2.PdfReader(uploaded_file)
             text = ""
+            num_pages = len(pdf_reader.pages)
 
             # Extract text from all pages
             for page in pdf_reader.pages:
@@ -118,8 +129,8 @@ class DocumentParser:
             if len(clean_text) > 100:
                 return clean_text
 
-            # Text extraction failed or minimal text - try OCR
-            st.info("📄 PDF appears to be scanned. Attempting OCR extraction...")
+            # Text extraction failed or minimal text - this is a scanned PDF
+            st.info(f"📄 PDF appears to be scanned ({num_pages} pages). Checking if background processing is needed...")
 
             if not OCR_AVAILABLE:
                 st.warning(
@@ -127,7 +138,12 @@ class DocumentParser:
                 )
                 return clean_text
 
-            # Use OCR
+            # If document is large (>25 pages), use background processing
+            if num_pages > 25 and pool_id and pool_name:
+                return self._trigger_background_ocr(uploaded_file, pool_id, pool_name, num_pages)
+
+            # For smaller documents, process inline with OCR
+            st.info(f"📄 Processing {num_pages} pages with OCR (this may take a few minutes)...")
             uploaded_file.seek(0)
             file_bytes = uploaded_file.read()
             ocr_text = self._ocr_pdf(file_bytes)
@@ -142,15 +158,79 @@ class DocumentParser:
         except Exception as e:
             raise Exception(f"Error reading PDF: {str(e)}")
 
-    def _ocr_pdf(self, file_bytes: bytes) -> str:
-        """Extract text from scanned PDF using OCR"""
-        try:
-            st.info("🔍 Starting OCR... This may take a few minutes for large documents.")
+    def _trigger_background_ocr(self, uploaded_file, pool_id, pool_name, num_pages) -> str:
+        """
+        Save PDF and trigger background OCR processing for large documents
 
+        Returns a special marker that indicates background processing was started
+        """
+        import os
+        import subprocess
+        import sys
+        import tempfile
+
+        try:
+            # Save PDF to temporary file
+            temp_dir = tempfile.gettempdir()
+            temp_filename = f"ocr_pending_{pool_id}_{uploaded_file.name}"
+            temp_path = os.path.join(temp_dir, temp_filename)
+
+            uploaded_file.seek(0)
+            with open(temp_path, 'wb') as f:
+                f.write(uploaded_file.read())
+
+            # Trigger background OCR processor
+            python_path = sys.executable
+            script_path = os.path.join(os.getcwd(), "background_ocr_processor.py")
+
+            subprocess.Popen(
+                [python_path, script_path, temp_path, pool_id, pool_name, uploaded_file.name],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+
+            st.success(
+                f"✅ Large scanned PDF detected ({num_pages} pages)\n\n"
+                f"📤 Background OCR processing started! Questions will be added to the pool automatically when processing completes.\n\n"
+                f"⏱️ Estimated time: {num_pages * 15 // 60} minutes\n\n"
+                f"💡 You can close this page and check back later - processing continues in the background."
+            )
+
+            # Return a special marker that tells the upload process to skip this file
+            # (it will be processed in background)
+            return "__BACKGROUND_PROCESSING__"
+
+        except Exception as e:
+            st.error(f"Failed to start background OCR processing: {e}")
+            # Fall back to inline OCR with page limit
+            uploaded_file.seek(0)
+            file_bytes = uploaded_file.read()
+            return self._ocr_pdf(file_bytes)
+
+    def _ocr_pdf(self, file_bytes: bytes, max_pages: int = 25) -> str:
+        """
+        Extract text from scanned PDF using OCR
+
+        Args:
+            file_bytes: PDF file content
+            max_pages: Maximum number of pages to process (to avoid timeouts)
+        """
+        try:
             # Open PDF with PyMuPDF
             pdf_doc = fitz.open(stream=file_bytes, filetype="pdf")
-            num_pages = len(pdf_doc)
-            st.info(f"📄 Processing {num_pages} pages...")
+            total_pages = len(pdf_doc)
+
+            # Limit pages to avoid timeout
+            pages_to_process = min(total_pages, max_pages)
+
+            if total_pages > max_pages:
+                st.warning(
+                    f"⚠️ PDF has {total_pages} pages. Processing first {max_pages} pages to avoid timeout. "
+                    f"For full document processing, please split into smaller files."
+                )
+            else:
+                st.info(f"📄 Processing {total_pages} pages with OCR...")
 
             # Initialize EasyOCR reader (lazy load)
             reader = easyocr.Reader(["en"], gpu=False, verbose=False)
@@ -158,34 +238,49 @@ class DocumentParser:
             all_text = []
             progress_bar = st.progress(0)
 
-            for i, page in enumerate(pdf_doc):
+            for i in range(pages_to_process):
+                page = pdf_doc[i]
+
                 # Update progress
                 progress_bar.progress(
-                    (i + 1) / num_pages, text=f"OCR processing page {i+1}/{num_pages}..."
+                    (i + 1) / pages_to_process,
+                    text=f"🔍 OCR processing page {i+1}/{pages_to_process}..."
                 )
 
-                # Render page to image (200 DPI)
-                mat = fitz.Matrix(200 / 72, 200 / 72)
+                # Render page to image (150 DPI - faster than 200, still good quality)
+                mat = fitz.Matrix(150 / 72, 150 / 72)
                 pix = page.get_pixmap(matrix=mat)
 
                 # Convert to PIL Image then numpy array
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                 img_array = np.array(img)
 
-                # Run OCR
-                results = reader.readtext(img_array)
-                # Extract text from results
-                page_text = "\n".join([result[1] for result in results])
-                all_text.append(page_text)
+                # Run OCR with optimized settings
+                try:
+                    results = reader.readtext(
+                        img_array,
+                        paragraph=True,  # Group text into paragraphs (faster)
+                        batch_size=4     # Process in small batches
+                    )
+                    # Extract text from results
+                    page_text = "\n".join([result[1] for result in results])
+                    all_text.append(page_text)
+                except Exception as e:
+                    st.warning(f"⚠️ OCR failed on page {i+1}: {str(e)}")
+                    continue
 
             pdf_doc.close()
             progress_bar.empty()
 
             combined_text = "\n\n".join(all_text)
+
+            if combined_text:
+                st.success(f"✅ OCR completed: {len(combined_text)} characters extracted from {pages_to_process} pages")
+
             return combined_text
 
         except Exception as e:
-            st.error(f"OCR failed: {str(e)}")
+            st.error(f"❌ OCR failed: {str(e)}")
             return ""
 
     def _extract_text_from_word(self, uploaded_file) -> str:

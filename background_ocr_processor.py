@@ -64,7 +64,8 @@ def detect_incomplete_question(question_text: str) -> Optional[str]:
         return "Starts with 'The X of/for/in which' pattern"
 
     # Check for references to "this/that product/fund/instrument" without context
-    if re.search(r'\b(this|that)\s+(fund|product|instrument|security|option|structure)\b', question_text, re.IGNORECASE):
+    # Allow for adjectives like "this Structured fund", "that new product"
+    if re.search(r'\b(this|that)\s+(?:\w+\s+)*(fund|product|instrument|security|option|structure)\b', question_text, re.IGNORECASE):
         return "References 'this/that fund/product/instrument' without context"
 
     return None

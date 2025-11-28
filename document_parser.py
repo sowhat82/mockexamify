@@ -76,7 +76,8 @@ class DocumentParser:
             return "incomplete sentence structure"
 
         # Check for references to "this/that product/fund/instrument" without context
-        if re.search(r'\b(this|that)\s+(fund|product|instrument|security|option|structure)\b', question_text, re.IGNORECASE):
+        # Allow for adjectives like "this Structured fund", "that new product"
+        if re.search(r'\b(this|that)\s+(?:\w+\s+)*(fund|product|instrument|security|option|structure)\b', question_text, re.IGNORECASE):
             return "references 'this/that' without context"
 
         return None

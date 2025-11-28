@@ -66,7 +66,8 @@ def detect_incomplete_questions(questions: List[Dict]) -> List[Tuple[Dict, str]]
             continue
 
         # Check for references to "this/that product/fund/instrument" without context
-        if re.search(r'\b(this|that)\s+(fund|product|instrument|security|option|structure)\b', question_text, re.IGNORECASE):
+        # Allow for adjectives like "this Structured fund", "that new product"
+        if re.search(r'\b(this|that)\s+(?:\w+\s+)*(fund|product|instrument|security|option|structure)\b', question_text, re.IGNORECASE):
             if not any(item[0] == q for item in incomplete):
                 incomplete.append((q, "References 'this/that fund/product/instrument' without context"))
             continue

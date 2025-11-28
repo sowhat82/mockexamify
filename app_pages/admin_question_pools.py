@@ -115,9 +115,7 @@ def show_pool_questions(pool_id: str):
     col1, col2, col3 = st.columns([2, 1, 1])
 
     with col1:
-        search_term = st.text_input(
-            "🔍 Search questions", placeholder="Type to search..."
-        )
+        search_term = st.text_input("🔍 Search questions", placeholder="Type to search...")
 
     with col2:
         sort_by = st.selectbox(
@@ -280,9 +278,7 @@ def show_edit_question_form(question: Dict[str, Any]):
 
         # Choices
         choices_text = "\n".join(choices)
-        new_choices_text = st.text_area(
-            "Choices (one per line)", value=choices_text, height=150
-        )
+        new_choices_text = st.text_area("Choices (one per line)", value=choices_text, height=150)
 
         # Correct answer
         new_correct_answer = st.number_input(
@@ -303,7 +299,9 @@ def show_edit_question_form(question: Dict[str, Any]):
         current_difficulty = question.get("difficulty", "Medium")
         # Handle case-insensitive difficulty matching
         difficulty_map = {"easy": "Easy", "medium": "Medium", "hard": "Hard"}
-        current_difficulty_display = difficulty_map.get((current_difficulty or "Medium").lower(), "Medium")
+        current_difficulty_display = difficulty_map.get(
+            (current_difficulty or "Medium").lower(), "Medium"
+        )
 
         new_difficulty = st.selectbox(
             "Difficulty",
@@ -424,10 +422,7 @@ async def delete_pool(pool_id: str) -> bool:
 
         # In production, set is_active to False instead of hard delete
         response = (
-            client.table("question_pools")
-            .update({"is_active": False})
-            .eq("id", pool_id)
-            .execute()
+            client.table("question_pools").update({"is_active": False}).eq("id", pool_id).execute()
         )
 
         return bool(response.data)

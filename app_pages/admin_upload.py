@@ -9,6 +9,9 @@ import csv
 import io
 import json
 import logging
+import os
+import re
+from datetime import datetime
 from typing import Any, Dict, List
 
 import streamlit as st
@@ -56,6 +59,125 @@ Based on your knowledge, which choice is most likely correct? Respond with ONLY 
     except Exception as e:
         logger.error(f"Error inferring answer with AI: {e}")
         return 0  # Default to first choice
+
+
+def get_background_upload_status():
+    """
+    Parse the background OCR processor log to get current status.
+
+    Returns:
+        dict with status info or None if no log exists
+    """
+    log_file = "background_ocr_processor.log"
+
+    if not os.path.exists(log_file):
+        return None
+
+    try:
+        # Read last 100 lines for performance
+        with open(log_file, 'r') as f:
+            lines = f.readlines()
+            recent_lines = lines[-100:] if len(lines) > 100 else lines
+
+        if not recent_lines:
+            return None
+
+        # Parse status from log lines
+        status = {
+            'is_running': False,
+            'filename': None,
+            'pool_name': None,
+            'progress': None,
+            'total_pages': None,
+            'current_page': None,
+            'questions_found': None,
+            'valid_questions': None,
+            'last_update': None,
+            'completed': False,
+            'error': None,
+        }
+
+        # Parse log entries
+        for line in recent_lines:
+            # Extract timestamp
+            timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', line)
+            if timestamp_match:
+                status['last_update'] = timestamp_match.group(1)
+
+            # Extract filename from "File: /tmp/..." or "Starting background OCR processing for:"
+            if 'File: ' in line:
+                file_match = re.search(r'File: (.+)', line)
+                if file_match:
+                    filepath = file_match.group(1).strip()
+                    # Extract just the filename from the path
+                    status['filename'] = filepath.split('_', 2)[-1] if '_' in filepath else filepath.split('/')[-1]
+
+            # Check for start marker
+            if 'Starting background OCR processing' in line:
+                status['is_running'] = True
+                status['completed'] = False
+                # Extract filename from "for: filename.pdf"
+                filename_match = re.search(r'for: (.+?)$', line)
+                if filename_match:
+                    status['filename'] = filename_match.group(1).strip()
+
+            if 'Background OCR processor started' in line:
+                status['is_running'] = True
+                status['completed'] = False
+
+            # Extract pool name from "Pool: Name (id)" or "Adding questions to pool:"
+            if 'Pool: ' in line:
+                pool_match = re.search(r'Pool: (.+?) \(', line)
+                if pool_match:
+                    status['pool_name'] = pool_match.group(1)
+
+            if 'Adding questions to pool' in line or 'Successfully added' in line:
+                pool_match = re.search(r'pool (.+?)(?:\s|$|\.)', line)
+                if pool_match and not status['pool_name']:
+                    status['pool_name'] = pool_match.group(1)
+
+            # Extract progress
+            if 'Progress:' in line:
+                progress_match = re.search(r'Progress: (\d+)/(\d+) pages', line)
+                if progress_match:
+                    status['current_page'] = int(progress_match.group(1))
+                    status['total_pages'] = int(progress_match.group(2))
+                    status['progress'] = f"{status['current_page']}/{status['total_pages']} pages"
+
+            # Extract questions found
+            if 'Extracted' in line and 'questions' in line:
+                q_match = re.search(r'Extracted (\d+) questions', line)
+                if q_match:
+                    status['questions_found'] = int(q_match.group(1))
+
+            # Extract validation results
+            if 'Validation complete:' in line:
+                valid_match = re.search(r'(\d+) valid', line)
+                if valid_match:
+                    status['valid_questions'] = int(valid_match.group(1))
+
+            # Check for completion
+            if 'Successfully added' in line and 'questions to pool' in line:
+                status['completed'] = True
+                status['is_running'] = False
+                added_match = re.search(r'Successfully added (\d+) questions', line)
+                if added_match:
+                    status['valid_questions'] = int(added_match.group(1))
+
+            # Check for errors
+            if 'ERROR' in line or 'Error' in line:
+                status['error'] = line.split('ERROR')[-1].strip() if 'ERROR' in line else line.split('Error')[-1].strip()
+                status['is_running'] = False
+
+        # Only return status if we found relevant log entries
+        if status['filename'] or status['pool_name'] or status['is_running'] or status['completed']:
+            return status
+
+        return None
+
+    except Exception as e:
+        logger.error(f"Error reading background log: {e}")
+        return None
 
 
 def validate_question_quality(questions: List[Dict]) -> tuple[List[Dict], List[Dict], Dict[str, int]]:
@@ -134,6 +256,56 @@ def show_admin_upload():
             st.rerun()
 
     st.markdown("# 📤 Upload Questions")
+
+    # Show background upload status if exists
+    bg_status = get_background_upload_status()
+    if bg_status:
+        if bg_status['is_running']:
+            st.info("🔄 **Background Upload in Progress**")
+            with st.container():
+                cols = st.columns([2, 1, 1])
+                with cols[0]:
+                    if bg_status['filename']:
+                        st.write(f"📄 File: **{bg_status['filename']}**")
+                    if bg_status['pool_name']:
+                        st.write(f"💼 Pool: **{bg_status['pool_name']}**")
+                with cols[1]:
+                    if bg_status['progress']:
+                        st.metric("Progress", bg_status['progress'])
+                with cols[2]:
+                    if bg_status['questions_found']:
+                        st.metric("Questions", bg_status['questions_found'])
+
+                if bg_status['last_update']:
+                    st.caption(f"Last update: {bg_status['last_update']}")
+
+                # Auto-refresh every 10 seconds if running
+                st.markdown("*This page will auto-refresh...*")
+                import time
+                time.sleep(10)
+                st.rerun()
+
+        elif bg_status['completed']:
+            st.success("✅ **Last Background Upload Completed**")
+            with st.container():
+                cols = st.columns([2, 1, 1])
+                with cols[0]:
+                    if bg_status['filename']:
+                        st.write(f"📄 File: **{bg_status['filename']}**")
+                    if bg_status['pool_name']:
+                        st.write(f"💼 Pool: **{bg_status['pool_name']}**")
+                with cols[1]:
+                    if bg_status['valid_questions'] is not None:
+                        st.metric("Questions Added", bg_status['valid_questions'])
+                with cols[2]:
+                    if bg_status['last_update']:
+                        st.write(f"🕐 {bg_status['last_update']}")
+
+        elif bg_status['error']:
+            st.error("❌ **Last Background Upload Failed**")
+            st.write(f"Error: {bg_status['error']}")
+
+        st.markdown("---")
 
     # Mode selection
     upload_mode = st.radio(

@@ -103,6 +103,90 @@ def detect_ocr_corruption(question_text: str) -> Optional[str]:
     return None
 
 
+def create_status_record(pool_id: str, pool_name: str, filename: str, total_pages: int) -> Optional[str]:
+    """Create a new background upload status record in the database"""
+    try:
+        from db import db
+
+        data = {
+            'pool_id': pool_id,
+            'pool_name': pool_name,
+            'filename': filename,
+            'status': 'running',
+            'total_pages': total_pages,
+            'current_page': 0
+        }
+
+        result = db.admin_client.table('background_upload_status').insert(data).execute()
+
+        if result.data:
+            status_id = result.data[0]['id']
+            logger.info(f"Created status record: {status_id}")
+            return status_id
+        return None
+    except Exception as e:
+        logger.error(f"Error creating status record: {e}")
+        return None
+
+
+def update_status_progress(status_id: str, current_page: int):
+    """Update the progress of an upload"""
+    if not status_id:
+        return
+
+    try:
+        from db import db
+
+        db.admin_client.table('background_upload_status').update({
+            'current_page': current_page,
+            'updated_at': 'now()'
+        }).eq('id', status_id).execute()
+    except Exception as e:
+        logger.error(f"Error updating status progress: {e}")
+
+
+def update_status_complete(status_id: str, valid_questions: int, healed_count: int, skipped_count: int):
+    """Mark upload as completed"""
+    if not status_id:
+        return
+
+    try:
+        from db import db
+
+        db.admin_client.table('background_upload_status').update({
+            'status': 'completed',
+            'valid_questions': valid_questions,
+            'healed_count': healed_count,
+            'skipped_count': skipped_count,
+            'completed_at': 'now()',
+            'updated_at': 'now()'
+        }).eq('id', status_id).execute()
+
+        logger.info(f"Status marked as completed: {valid_questions} questions")
+    except Exception as e:
+        logger.error(f"Error updating status to completed: {e}")
+
+
+def update_status_failed(status_id: str, error_message: str):
+    """Mark upload as failed"""
+    if not status_id:
+        return
+
+    try:
+        from db import db
+
+        db.admin_client.table('background_upload_status').update({
+            'status': 'failed',
+            'error_message': error_message,
+            'completed_at': 'now()',
+            'updated_at': 'now()'
+        }).eq('id', status_id).execute()
+
+        logger.error(f"Status marked as failed: {error_message}")
+    except Exception as e:
+        logger.error(f"Error updating status to failed: {e}")
+
+
 async def attempt_heal_question(question: Dict, full_text: str, question_index: int) -> Tuple[bool, Optional[Dict]]:
     """
     Attempt to heal an incomplete question by finding and merging context from the full OCR text.
@@ -191,6 +275,8 @@ async def process_scanned_pdf(file_path: str, pool_id: str, pool_name: str, sour
     logger.info(f"Starting background OCR processing for: {source_filename}")
     logger.info(f"Pool: {pool_name} (ID: {pool_id})")
 
+    status_id = None  # Initialize status_id for error handling
+
     try:
         # Read the file
         with open(file_path, 'rb') as f:
@@ -211,6 +297,9 @@ async def process_scanned_pdf(file_path: str, pool_id: str, pool_name: str, sour
         pdf_doc = fitz.open(stream=file_bytes, filetype="pdf")
         total_pages = len(pdf_doc)
         logger.info(f"PDF has {total_pages} pages - processing all pages in background")
+
+        # Create status record in database
+        status_id = create_status_record(pool_id, pool_name, source_filename, total_pages)
 
         # Initialize EasyOCR reader
         reader = easyocr.Reader(["en"], gpu=False, verbose=False)
@@ -240,13 +329,17 @@ async def process_scanned_pdf(file_path: str, pool_id: str, pool_name: str, sour
                 page_text = "\n".join([result[1] for result in results])
                 all_text.append(page_text)
 
-                # Log progress every 5 pages
+                # Update progress every 5 pages
                 if (i + 1) % 5 == 0:
                     logger.info(f"Progress: {i+1}/{total_pages} pages completed")
+                    update_status_progress(status_id, i+1)
 
             except Exception as e:
                 logger.error(f"OCR failed on page {i+1}: {e}")
                 continue
+
+        # Final progress update
+        update_status_progress(status_id, total_pages)
 
         pdf_doc.close()
 
@@ -352,6 +445,10 @@ async def process_scanned_pdf(file_path: str, pool_id: str, pool_name: str, sour
         if success:
             logger.info(f"✅ Successfully added {len(valid_questions)} questions to pool {pool_name}")
 
+            # Update status to completed
+            total_skipped = invalid_count + incomplete_skipped
+            update_status_complete(status_id, len(valid_questions), healed_count, total_skipped)
+
             # Trigger health check to catch any incomplete explanations
             try:
                 from explanation_health_check import auto_check_and_restart_incomplete_pools
@@ -361,6 +458,7 @@ async def process_scanned_pdf(file_path: str, pool_id: str, pool_name: str, sour
                 logger.error(f"Failed to run post-upload health check: {e}")
         else:
             logger.error(f"❌ Failed to add questions to pool")
+            update_status_failed(status_id, "Failed to add questions to pool")
 
         # Clean up temporary file
         try:
@@ -372,7 +470,9 @@ async def process_scanned_pdf(file_path: str, pool_id: str, pool_name: str, sour
         logger.info("Background OCR processing complete!")
 
     except Exception as e:
+        error_msg = f"Fatal error: {str(e)}"
         logger.error(f"Fatal error in background OCR processing: {e}", exc_info=True)
+        update_status_failed(status_id, error_msg)
 
 
 async def main():

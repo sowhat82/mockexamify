@@ -63,134 +63,59 @@ Based on your knowledge, which choice is most likely correct? Respond with ONLY 
 
 def get_background_upload_status():
     """
-    Parse the background OCR processor log to get current status.
+    Get the latest background upload status from the database.
 
     Returns:
-        dict with status info or None if no log exists
+        dict with status info or None if no status exists
     """
-    log_file = "background_ocr_processor.log"
-
-    if not os.path.exists(log_file):
-        return None
-
     try:
-        # Read last 100 lines for performance
-        with open(log_file, 'r') as f:
-            lines = f.readlines()
-            recent_lines = lines[-100:] if len(lines) > 100 else lines
+        from db import db
 
-        if not recent_lines:
+        # Get the most recent status record
+        result = db.admin_client.table('background_upload_status').select('*').order('started_at', desc=True).limit(1).execute()
+
+        if not result.data:
             return None
 
-        # Parse status from log lines
-        status = {
-            'is_running': False,
-            'filename': None,
-            'pool_name': None,
-            'progress': None,
-            'total_pages': None,
-            'current_page': None,
-            'questions_found': None,
-            'valid_questions': None,
-            'last_update': None,
-            'completed': False,
-            'error': None,
-        }
+        record = result.data[0]
 
         # Singapore timezone (GMT+8)
         SGT = timezone(timedelta(hours=8))
 
-        # Parse log entries
-        for line in recent_lines:
-            # Extract timestamp and convert to GMT+8
-            timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', line)
-            if timestamp_match:
-                timestamp_str = timestamp_match.group(1)
-                try:
-                    # Parse as UTC timestamp
-                    dt_utc = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
-                    dt_utc = dt_utc.replace(tzinfo=timezone.utc)
-                    # Convert to Singapore time (GMT+8)
-                    dt_sgt = dt_utc.astimezone(SGT)
-                    # Format: "29 Nov 2025, 11:30 AM SGT"
-                    status['last_update'] = dt_sgt.strftime('%d %b %Y, %I:%M %p SGT')
-                except ValueError:
-                    # Fallback to original string if parsing fails
-                    status['last_update'] = timestamp_str
+        # Parse timestamps
+        updated_at = record.get('updated_at')
+        if updated_at:
+            try:
+                dt_utc = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+                dt_sgt = dt_utc.astimezone(SGT)
+                last_update = dt_sgt.strftime('%d %b %Y, %I:%M %p SGT')
+            except:
+                last_update = updated_at
+        else:
+            last_update = None
 
-            # Extract filename from "File: /tmp/..." or "Starting background OCR processing for:"
-            if 'File: ' in line:
-                file_match = re.search(r'File: (.+)', line)
-                if file_match:
-                    filepath = file_match.group(1).strip()
-                    # Extract just the filename from the path
-                    status['filename'] = filepath.split('_', 2)[-1] if '_' in filepath else filepath.split('/')[-1]
+        # Build status dict
+        status = {
+            'is_running': record['status'] == 'running',
+            'completed': record['status'] == 'completed',
+            'failed': record['status'] == 'failed',
+            'filename': record.get('filename'),
+            'pool_name': record.get('pool_name'),
+            'total_pages': record.get('total_pages'),
+            'current_page': record.get('current_page'),
+            'progress': f"{record.get('current_page', 0)}/{record.get('total_pages', 0)} pages" if record.get('total_pages') else None,
+            'questions_found': record.get('questions_found'),
+            'valid_questions': record.get('valid_questions'),
+            'healed_count': record.get('healed_count', 0),
+            'skipped_count': record.get('skipped_count', 0),
+            'error': record.get('error_message'),
+            'last_update': last_update,
+        }
 
-            # Check for start marker
-            if 'Starting background OCR processing' in line:
-                status['is_running'] = True
-                status['completed'] = False
-                # Extract filename from "for: filename.pdf"
-                filename_match = re.search(r'for: (.+?)$', line)
-                if filename_match:
-                    status['filename'] = filename_match.group(1).strip()
-
-            if 'Background OCR processor started' in line:
-                status['is_running'] = True
-                status['completed'] = False
-
-            # Extract pool name from "Pool: Name (id)" or "Adding questions to pool:"
-            if 'Pool: ' in line:
-                pool_match = re.search(r'Pool: (.+?) \(', line)
-                if pool_match:
-                    status['pool_name'] = pool_match.group(1)
-
-            if 'Adding questions to pool' in line or 'Successfully added' in line:
-                pool_match = re.search(r'pool (.+?)(?:\s|$|\.)', line)
-                if pool_match and not status['pool_name']:
-                    status['pool_name'] = pool_match.group(1)
-
-            # Extract progress
-            if 'Progress:' in line:
-                progress_match = re.search(r'Progress: (\d+)/(\d+) pages', line)
-                if progress_match:
-                    status['current_page'] = int(progress_match.group(1))
-                    status['total_pages'] = int(progress_match.group(2))
-                    status['progress'] = f"{status['current_page']}/{status['total_pages']} pages"
-
-            # Extract questions found
-            if 'Extracted' in line and 'questions' in line:
-                q_match = re.search(r'Extracted (\d+) questions', line)
-                if q_match:
-                    status['questions_found'] = int(q_match.group(1))
-
-            # Extract validation results
-            if 'Validation complete:' in line:
-                valid_match = re.search(r'(\d+) valid', line)
-                if valid_match:
-                    status['valid_questions'] = int(valid_match.group(1))
-
-            # Check for completion
-            if 'Successfully added' in line and 'questions to pool' in line:
-                status['completed'] = True
-                status['is_running'] = False
-                added_match = re.search(r'Successfully added (\d+) questions', line)
-                if added_match:
-                    status['valid_questions'] = int(added_match.group(1))
-
-            # Check for errors
-            if 'ERROR' in line or 'Error' in line:
-                status['error'] = line.split('ERROR')[-1].strip() if 'ERROR' in line else line.split('Error')[-1].strip()
-                status['is_running'] = False
-
-        # Only return status if we found relevant log entries
-        if status['filename'] or status['pool_name'] or status['is_running'] or status['completed']:
-            return status
-
-        return None
+        return status
 
     except Exception as e:
-        logger.error(f"Error reading background log: {e}")
+        logger.error(f"Error reading background upload status from database: {e}")
         return None
 
 

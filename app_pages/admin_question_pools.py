@@ -31,6 +31,9 @@ def show_admin_question_pools():
     st.markdown("# 💼 Question Pool Management")
     st.markdown("View and manage your question pools")
 
+    # Version indicator (for deployment verification)
+    st.caption("Version: 2025-11-29 (Bulk Select Enabled)")
+
     # Load question pools
     pools = run_async(load_question_pools())
 
@@ -75,16 +78,16 @@ def show_admin_question_pools():
                 )
 
             with col2:
-                if st.button(f"👁️ View Questions", key=f"view_{pool['id']}"):
+                if st.button("👁️ View Questions", key=f"view_{pool['id']}"):
                     st.session_state.viewing_pool = pool["id"]
                     st.rerun()
 
-                if st.button(f"➕ Add More Questions", key=f"add_{pool['id']}"):
+                if st.button("➕ Add More Questions", key=f"add_{pool['id']}"):
                     st.session_state.page = "admin_upload"
                     st.session_state.pool_name = pool["pool_name"]
                     st.rerun()
 
-                if st.button(f"🗑️ Delete Pool", key=f"delete_{pool['id']}", type="secondary"):
+                if st.button("🗑️ Delete Pool", key=f"delete_{pool['id']}", type="secondary"):
                     st.session_state.confirm_delete_pool = pool["id"]
                     st.rerun()
 
@@ -111,6 +114,10 @@ def show_pool_questions(pool_id: str):
             st.rerun()
         return
 
+    # Initialize selected questions in session state
+    if f"selected_questions_{pool_id}" not in st.session_state:
+        st.session_state[f"selected_questions_{pool_id}"] = set()
+
     # Filter and search
     col1, col2, col3 = st.columns([2, 1, 1])
 
@@ -126,6 +133,8 @@ def show_pool_questions(pool_id: str):
     with col3:
         if st.button("⬅️ Back to Pools"):
             del st.session_state.viewing_pool
+            if f"selected_questions_{pool_id}" in st.session_state:
+                del st.session_state[f"selected_questions_{pool_id}"]
             st.rerun()
 
     # Filter questions based on search
@@ -153,6 +162,55 @@ def show_pool_questions(pool_id: str):
 
     st.markdown(f"**Showing {len(filtered_questions)} of {len(questions)} questions**")
 
+    # Bulk selection controls
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
+
+    selected_set = st.session_state[f"selected_questions_{pool_id}"]
+
+    with col1:
+        if st.button("✅ Select All", use_container_width=True):
+            st.session_state[f"selected_questions_{pool_id}"] = {
+                q["id"] for q in filtered_questions
+            }
+            st.rerun()
+
+    with col2:
+        if st.button("❌ Deselect All", use_container_width=True):
+            st.session_state[f"selected_questions_{pool_id}"] = set()
+            st.rerun()
+
+    with col3:
+        if len(selected_set) > 0:
+            if st.button(
+                f"🗑️ Delete {len(selected_set)} Selected", type="primary", use_container_width=True
+            ):
+                st.session_state.confirm_bulk_delete = True
+                st.rerun()
+
+    with col4:
+        if len(selected_set) > 0:
+            st.markdown(f"**{len(selected_set)} questions selected**")
+
+    # Show bulk delete confirmation
+    if hasattr(st.session_state, "confirm_bulk_delete") and st.session_state.confirm_bulk_delete:
+        st.warning(f"⚠️ Are you sure you want to delete {len(selected_set)} selected questions?")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✅ Yes, Delete Selected", type="primary", use_container_width=True):
+                success_count = run_async(bulk_delete_questions(list(selected_set)))
+                if success_count > 0:
+                    st.success(f"✅ Deleted {success_count} questions!")
+                    st.session_state[f"selected_questions_{pool_id}"] = set()
+                    del st.session_state.confirm_bulk_delete
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to delete questions")
+        with col2:
+            if st.button("❌ Cancel", use_container_width=True):
+                del st.session_state.confirm_bulk_delete
+                st.rerun()
+        st.markdown("---")
+
     # Display questions
     for idx, question in enumerate(filtered_questions, 1):
         # Clean up the preview text - remove extra whitespace, newlines, and normalize spaces
@@ -170,8 +228,20 @@ def show_pool_questions(pool_id: str):
         # 5. Truncate to 100 characters
         preview_text = preview_text[:100] if len(preview_text) > 100 else preview_text
 
-        with st.expander(f"Q{idx}: {preview_text}{'...' if len(preview_text) >= 100 else ''}"):
-            display_question_details(question)
+        # Checkbox for selection
+        col1, col2 = st.columns([0.1, 0.9])
+        with col1:
+            is_selected = question["id"] in selected_set
+            if st.checkbox(
+                "", value=is_selected, key=f"select_{question['id']}", label_visibility="collapsed"
+            ):
+                selected_set.add(question["id"])
+            else:
+                selected_set.discard(question["id"])
+
+        with col2:
+            with st.expander(f"Q{idx}: {preview_text}{'...' if len(preview_text) >= 100 else ''}"):
+                display_question_details(question)
 
 
 def display_question_details(question: Dict[str, Any]):
@@ -242,21 +312,33 @@ def display_question_details(question: Dict[str, Any]):
     st.html(details_html)
 
     # Action buttons
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
 
     with col1:
-        if st.button(f"✏️ Edit", key=f"edit_{question['id']}"):
+        if st.button("✏️ Edit", key=f"edit_{question['id']}"):
             st.session_state.editing_question = question["id"]
             st.rerun()
 
     with col2:
-        if st.button(f"🗑️ Delete", key=f"delete_q_{question['id']}", type="secondary"):
+        if st.button("🔧 Self-Heal", key=f"heal_{question['id']}", type="primary"):
+            st.session_state.healing_question = question["id"]
+            st.rerun()
+
+    with col3:
+        if st.button("🗑️ Delete", key=f"delete_q_{question['id']}", type="secondary"):
             success = run_async(delete_question(question["id"]))
             if success:
                 st.success("Question deleted!")
                 st.rerun()
             else:
                 st.error("Failed to delete question")
+
+    # Show self-heal interface if this question is being healed
+    if (
+        hasattr(st.session_state, "healing_question")
+        and st.session_state.healing_question == question["id"]
+    ):
+        show_self_heal_interface(question)
 
 
 def show_edit_question_form(question: Dict[str, Any]):
@@ -355,6 +437,102 @@ def show_edit_question_form(question: Dict[str, Any]):
 
         if cancel:
             del st.session_state.editing_question
+            st.rerun()
+
+
+def show_self_heal_interface(question: Dict[str, Any]):
+    """Display self-heal interface for AI-powered question fixing"""
+    st.markdown("---")
+    st.markdown("### 🔧 AI Self-Heal")
+
+    # Check if we already have healed version in session state
+    if not hasattr(st.session_state, f"healed_{question['id']}"):
+        # Show loading message and call AI
+        with st.spinner("🤖 AI is analyzing and fixing the question..."):
+            healed_data = run_async(self_heal_question(question))
+
+            if healed_data:
+                st.session_state[f"healed_{question['id']}"] = healed_data
+                st.rerun()
+            else:
+                st.error("❌ AI failed to heal the question. Please try again or edit manually.")
+                if st.button("⬅️ Back"):
+                    del st.session_state.healing_question
+                    st.rerun()
+                return
+
+    # Display the healed version
+    healed_data = st.session_state[f"healed_{question['id']}"]
+
+    # Parse original choices
+    original_choices = (
+        json.loads(question["choices"])
+        if isinstance(question["choices"], str)
+        else question["choices"]
+    )
+
+    st.markdown("#### 📊 Proposed Changes")
+
+    # Show comparison
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("**❌ Original Question:**")
+        st.markdown(f"```\n{question['question_text']}\n```")
+        st.markdown("**Original Choices:**")
+        for i, choice in enumerate(original_choices):
+            marker = "✅" if i == question["correct_answer"] else "◯"
+            st.markdown(f"{marker} {i}: {choice}")
+        if question.get("explanation"):
+            st.markdown(f"**Explanation:** {question['explanation']}")
+
+    with col2:
+        st.markdown("**✅ Healed Question:**")
+        st.markdown(f"```\n{healed_data['question_text']}\n```")
+        st.markdown("**Healed Choices:**")
+        for i, choice in enumerate(healed_data["choices"]):
+            marker = "✅" if i == healed_data["correct_answer"] else "◯"
+            st.markdown(f"{marker} {i}: {choice}")
+        if healed_data.get("explanation"):
+            st.markdown(f"**Explanation:** {healed_data['explanation']}")
+
+    # Show what was fixed
+    if healed_data.get("fixes_applied"):
+        st.markdown("#### 🔍 Issues Fixed:")
+        for fix in healed_data["fixes_applied"]:
+            st.markdown(f"- {fix}")
+
+    # Action buttons
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("✅ Apply Changes", type="primary", use_container_width=True):
+            # Apply the healed version
+            updated_data = {
+                "question_text": healed_data["question_text"],
+                "choices": json.dumps(healed_data["choices"]),
+                "correct_answer": healed_data["correct_answer"],
+                "explanation": healed_data.get("explanation"),
+                "difficulty": healed_data.get("difficulty", question.get("difficulty", "Medium")),
+            }
+
+            success = run_async(update_question(question["id"], updated_data))
+
+            if success:
+                st.success("✅ Question healed and saved successfully!")
+                # Clean up session state
+                del st.session_state.healing_question
+                if f"healed_{question['id']}" in st.session_state:
+                    del st.session_state[f"healed_{question['id']}"]
+                st.rerun()
+            else:
+                st.error("❌ Failed to save healed question")
+
+    with col2:
+        if st.button("❌ Cancel", use_container_width=True):
+            del st.session_state.healing_question
+            if f"healed_{question['id']}" in st.session_state:
+                del st.session_state[f"healed_{question['id']}"]
             st.rerun()
 
 
@@ -470,6 +648,132 @@ async def update_question(question_id: str, updated_data: Dict[str, Any]) -> boo
     except Exception as e:
         st.error(f"Error updating question: {str(e)}")
         return False
+
+
+async def bulk_delete_questions(question_ids: List[str]) -> int:
+    """
+    Delete multiple questions at once.
+    Returns the number of successfully deleted questions.
+    """
+    try:
+        from db import db
+
+        if db.demo_mode:
+            return len(question_ids)
+
+        # Use admin_client to bypass RLS for bulk deletion
+        client = db.admin_client if db.admin_client else db.client
+
+        success_count = 0
+        for question_id in question_ids:
+            try:
+                response = client.table("pool_questions").delete().eq("id", question_id).execute()
+                if response.data:
+                    success_count += 1
+            except Exception as e:
+                st.warning(f"Failed to delete question {question_id}: {str(e)}")
+                continue
+
+        return success_count
+    except Exception as e:
+        st.error(f"Error during bulk delete: {str(e)}")
+        return 0
+
+
+async def self_heal_question(question: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Use AI to fix spelling errors, grammar issues, and logic problems in a question.
+    Returns healed question data with fixes_applied list.
+    """
+    try:
+        from openrouter_utils import OpenRouterManager
+
+        # Parse choices
+        choices = (
+            json.loads(question["choices"])
+            if isinstance(question["choices"], str)
+            else question["choices"]
+        )
+
+        # Build the AI prompt
+        prompt = f"""You are an expert exam question editor. Analyze and fix the following exam question for:
+1. Spelling errors
+2. Grammar issues
+3. Logic problems
+4. Clarity improvements
+5. Answer correctness (verify the correct answer makes sense)
+
+**Original Question:**
+{question['question_text']}
+
+**Choices:**
+{chr(10).join([f"{i}. {choice}" for i, choice in enumerate(choices)])}
+
+**Current Correct Answer Index:** {question['correct_answer']}
+
+**Current Explanation:** {question.get('explanation', 'None')}
+
+Please return a JSON object with:
+{{
+    "question_text": "Fixed question text",
+    "choices": ["Fixed choice 0", "Fixed choice 1", ...],
+    "correct_answer": corrected_index_if_needed,
+    "explanation": "Improved explanation",
+    "difficulty": "{question.get('difficulty', 'Medium')}",
+    "fixes_applied": ["List of fixes made, e.g. 'Fixed spelling: investrnent -> investment'"]
+}}
+
+IMPORTANT:
+- Only fix actual errors. If something is already correct, keep it as is.
+- Preserve the meaning and intent of the original question.
+- Make sure the correct answer is actually correct after your fixes.
+- If you change the correct answer index, explain why in fixes_applied.
+- Return ONLY valid JSON, no markdown formatting or code blocks.
+"""
+
+        openrouter = OpenRouterManager()
+
+        # Call AI with retry
+        response = await openrouter._generate_text_with_retry(
+            prompt, max_tokens=2000, temperature=0.3
+        )
+
+        # Parse JSON response
+        try:
+            # Try to extract JSON if wrapped in markdown
+            if "```json" in response:
+                json_start = response.find("```json") + 7
+                json_end = response.find("```", json_start)
+                response = response[json_start:json_end].strip()
+            elif "```" in response:
+                json_start = response.find("```") + 3
+                json_end = response.find("```", json_start)
+                response = response[json_start:json_end].strip()
+
+            healed_data = json.loads(response)
+
+            # Validate the response has required fields
+            required_fields = ["question_text", "choices", "correct_answer"]
+            if not all(field in healed_data for field in required_fields):
+                st.error(f"AI response missing required fields: {healed_data}")
+                return None
+
+            # Ensure fixes_applied is a list
+            if "fixes_applied" not in healed_data:
+                healed_data["fixes_applied"] = [
+                    "No specific issues found, minor improvements applied"
+                ]
+
+            return healed_data
+
+        except json.JSONDecodeError as e:
+            st.error(f"Failed to parse AI response as JSON: {e}")
+            st.error(f"Raw response: {response}")
+            return None
+
+    except Exception as e:
+        st.error(f"Error during self-heal: {str(e)}")
+        return None
 
 
 # Main entry point

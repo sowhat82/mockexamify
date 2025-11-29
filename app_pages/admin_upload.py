@@ -11,7 +11,7 @@ import json
 import logging
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List
 
 import streamlit as st
@@ -97,12 +97,26 @@ def get_background_upload_status():
             'error': None,
         }
 
+        # Singapore timezone (GMT+8)
+        SGT = timezone(timedelta(hours=8))
+
         # Parse log entries
         for line in recent_lines:
-            # Extract timestamp
+            # Extract timestamp and convert to GMT+8
             timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', line)
             if timestamp_match:
-                status['last_update'] = timestamp_match.group(1)
+                timestamp_str = timestamp_match.group(1)
+                try:
+                    # Parse as UTC timestamp
+                    dt_utc = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
+                    dt_utc = dt_utc.replace(tzinfo=timezone.utc)
+                    # Convert to Singapore time (GMT+8)
+                    dt_sgt = dt_utc.astimezone(SGT)
+                    # Format: "29 Nov 2025, 11:30 AM SGT"
+                    status['last_update'] = dt_sgt.strftime('%d %b %Y, %I:%M %p SGT')
+                except ValueError:
+                    # Fallback to original string if parsing fails
+                    status['last_update'] = timestamp_str
 
             # Extract filename from "File: /tmp/..." or "Starting background OCR processing for:"
             if 'File: ' in line:

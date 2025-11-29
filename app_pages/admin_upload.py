@@ -115,7 +115,9 @@ def get_background_upload_status():
         return status
 
     except Exception as e:
-        logger.error(f"Error reading background upload status from database: {e}")
+        # Silently fail if table doesn't exist or other DB error
+        # This allows the app to work even if migration hasn't been applied
+        logger.debug(f"Background upload status not available: {e}")
         return None
 
 
@@ -197,7 +199,12 @@ def show_admin_upload():
     st.markdown("# 📤 Upload Questions")
 
     # Show background upload status if exists
-    bg_status = get_background_upload_status()
+    try:
+        bg_status = get_background_upload_status()
+    except Exception as e:
+        logger.warning(f"Could not fetch background upload status: {e}")
+        bg_status = None
+
     if bg_status:
         if bg_status['is_running']:
             st.info("🔄 **Background Upload in Progress**")

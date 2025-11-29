@@ -86,7 +86,9 @@ class DocumentParser:
         self.model = config.OPENROUTER_MODEL
         self.base_url = config.OPENROUTER_BASE_URL
 
-    def _detect_incomplete_question(self, question_text: str, scenario: Optional[str] = None) -> Optional[str]:
+    def _detect_incomplete_question(
+        self, question_text: str, scenario: Optional[str] = None
+    ) -> Optional[str]:
         """
         Detect if a question references missing context.
         Returns the reason if incomplete, None if complete.
@@ -905,8 +907,7 @@ Extract all questions now:"""
                 # Check for incomplete questions (missing context)
                 # Pass the scenario so questions with term sheets are allowed to reference "this product", etc.
                 incomplete_reason = self._detect_incomplete_question(
-                    q["question"],
-                    scenario=q.get("scenario")
+                    q["question"], scenario=q.get("scenario")
                 )
                 if incomplete_reason:
                     st.warning(

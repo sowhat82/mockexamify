@@ -32,6 +32,8 @@ class DocumentParser:
     """Parse PDF/Word documents and extract mock exam questions using AI"""
 
     # Patterns that indicate missing context
+    # NOTE: These patterns only apply when NO scenario is provided
+    # If a scenario/term sheet exists, these patterns are allowed
     INCOMPLETE_PATTERNS = [
         r"^The basis of which",
         r"^This product",
@@ -54,6 +56,10 @@ class DocumentParser:
         r"^Referring to",
         r"^For the",
         r"^With reference to",
+        r"^With the spot",  # "With the spot HSI trades..."
+        r"^Assuming throughout",  # "Assuming throughout the entire period..."
+        r"^Assuming that the",  # "Assuming that the HSI trades..."
+        r"^With a (more|less|longer|shorter)",  # "With a longer investment tenure..."
     ]
 
     # OCR corruption patterns
@@ -80,12 +86,21 @@ class DocumentParser:
         self.model = config.OPENROUTER_MODEL
         self.base_url = config.OPENROUTER_BASE_URL
 
-    def _detect_incomplete_question(self, question_text: str) -> Optional[str]:
+    def _detect_incomplete_question(self, question_text: str, scenario: Optional[str] = None) -> Optional[str]:
         """
         Detect if a question references missing context.
         Returns the reason if incomplete, None if complete.
+
+        Args:
+            question_text: The question text to validate
+            scenario: Optional scenario/term sheet context. If provided, questions can reference "this", "the HSI", etc.
         """
         question_text = question_text.strip()
+
+        # If a scenario is provided, the question can reference context (it's complete)
+        # This allows questions like "What is the return of this product?" when a term sheet is attached
+        if scenario and len(scenario.strip()) > 50:  # Meaningful scenario (not just a short note)
+            return None
 
         # Check against patterns
         for pattern in self.INCOMPLETE_PATTERNS:
@@ -463,7 +478,16 @@ DOCUMENT TEXT:
 
 INSTRUCTIONS:
 1. Identify all multiple-choice questions in the text
-2. **CRITICAL - FIX OCR ERRORS**: The text may contain OCR errors where words are split into individual letters with spaces or line breaks. Fix these errors:
+
+2. **IMPORTANT - EXTRACT TERM SHEETS & CASE STUDIES**: Many exam documents contain:
+   - Term sheets describing investment products (e.g., "HSI Range Accrual Note")
+   - Case studies with product specifications
+   - Scenario descriptions before a series of questions
+
+   When you find such contextual information, extract it and attach it to ALL related questions in the "scenario" field.
+   Questions that reference "this product", "the HSI", "this RAN", etc. are VALID if they have the term sheet in their scenario.
+
+3. **CRITICAL - FIX OCR ERRORS**: The text may contain OCR errors where words are split into individual letters with spaces or line breaks. Fix these errors:
    - Example: "p e r s h a r e" should be "per share"
    - Example: "r e c e i v e d" should be "received"
    - Example: "d i v i d e n d s o f" should be "dividends of"
@@ -472,28 +496,35 @@ INSTRUCTIONS:
    - Fix formatting issues like conjoined words (e.g., "pershareand" → "per share and")
    - Preserve mathematical symbols like $, %, numbers
 
-3. For each question, extract:
+4. For each question, extract:
    - The question text (with OCR errors corrected)
    - All answer choices (typically A, B, C, D or 1, 2, 3, 4)
    - The correct answer
-   - Any scenario/context provided before the question
+   - **CRITICAL**: Any term sheet/case study/scenario that provides context for this question
    - Any explanation or additional notes
 
-4. Format your response as a JSON array of questions. Each question should have:
+5. Format your response as a JSON array of questions. Each question should have:
    - "question": the question text (string, OCR errors fixed)
    - "choices": array of answer choice texts (array of strings, OCR errors fixed)
    - "correct_index": zero-based index of correct answer (integer, 0-3)
-   - "scenario": optional context/scenario (string or null)
+   - "scenario": **IMPORTANT** - Include the full term sheet/case study/scenario text if the question references it (string or null)
    - "explanation_seed": optional hint for explanation (string or null)
 
 EXAMPLE OUTPUT FORMAT (DO NOT COPY THESE EXAMPLES - EXTRACT ONLY FROM DOCUMENT):
 [
   {{
-    "question": "What is the yield of Investment A?",
-    "choices": ["2.5%", "3.0%", "3.5%", "4.0%"],
+    "question": "What is the maximum return of this product?",
+    "choices": ["5%", "10%", "15%", "20%"],
     "correct_index": 2,
-    "scenario": "Investment A has a coupon rate of 5% and trades at $102",
-    "explanation_seed": "Current yield calculation"
+    "scenario": "ABC Range Accrual Note: Principal $100,000, Tenor: 2 years, Reference Index: HSI, Coupon: 7.5% p.a. if HSI stays within range, Maximum Return: 15% p.a.",
+    "explanation_seed": "Term sheet specifies maximum return"
+  }},
+  {{
+    "question": "If the HSI breaches the barrier, what happens?",
+    "choices": ["Full principal loss", "Partial principal loss", "No coupon payment", "Early redemption"],
+    "correct_index": 2,
+    "scenario": "ABC Range Accrual Note: Principal $100,000, Tenor: 2 years, Reference Index: HSI, Coupon: 7.5% p.a. if HSI stays within range, Maximum Return: 15% p.a.",
+    "explanation_seed": "Barrier breach affects coupon"
   }}
 ]
 
@@ -872,7 +903,11 @@ Extract all questions now:"""
                     continue
 
                 # Check for incomplete questions (missing context)
-                incomplete_reason = self._detect_incomplete_question(q["question"])
+                # Pass the scenario so questions with term sheets are allowed to reference "this product", etc.
+                incomplete_reason = self._detect_incomplete_question(
+                    q["question"],
+                    scenario=q.get("scenario")
+                )
                 if incomplete_reason:
                     st.warning(
                         f"Question {i+1}: Skipping - {incomplete_reason}. "

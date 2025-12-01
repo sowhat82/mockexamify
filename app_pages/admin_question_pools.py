@@ -111,6 +111,10 @@ def show_pool_questions(pool_id: str):
             st.rerun()
         return
 
+    # Initialize selected questions in session state
+    if 'selected_questions' not in st.session_state:
+        st.session_state.selected_questions = set()
+
     # Filter and search
     col1, col2, col3 = st.columns([2, 1, 1])
 
@@ -126,6 +130,7 @@ def show_pool_questions(pool_id: str):
     with col3:
         if st.button("⬅️ Back to Pools"):
             del st.session_state.viewing_pool
+            st.session_state.selected_questions = set()  # Clear selections
             st.rerun()
 
     # Filter questions based on search
@@ -151,7 +156,59 @@ def show_pool_questions(pool_id: str):
     elif sort_by == "Most Incorrect":
         filtered_questions.sort(key=lambda x: x.get("times_incorrect", 0), reverse=True)
 
-    st.markdown(f"**Showing {len(filtered_questions)} of {len(questions)} questions**")
+    # Bulk actions section
+    # Count currently selected questions
+    selected_count = len(st.session_state.selected_questions)
+
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1:
+        st.markdown(f"**Showing {len(filtered_questions)} of {len(questions)} questions**")
+
+    with col2:
+        # Select/Deselect all visible questions
+        if st.button("☑️ Select All Visible", key="select_all_visible"):
+            # Add all filtered question IDs to selection
+            for q in filtered_questions:
+                st.session_state.selected_questions.add(q['id'])
+            st.rerun()
+
+    with col3:
+        if st.button("⬜ Clear Selection", key="clear_selection"):
+            st.session_state.selected_questions = set()
+            st.rerun()
+
+    # Delete selected button (only show if questions are selected)
+    if selected_count > 0:
+        st.markdown("---")
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.warning(f"⚠️ {selected_count} question(s) selected")
+        with col2:
+            if st.button(f"🗑️ Delete {selected_count} Selected", key="delete_selected_btn", type="primary"):
+                st.session_state.confirm_bulk_delete = True
+                st.rerun()
+
+        # Show confirmation dialog
+        if st.session_state.get('confirm_bulk_delete', False):
+            st.error(f"⚠️ Are you sure you want to delete {selected_count} question(s)? This cannot be undone!")
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("✅ Yes, Delete", key="confirm_bulk_delete_yes"):
+                    # Perform bulk delete
+                    success_count = 0
+                    for question_id in list(st.session_state.selected_questions):
+                        if run_async(delete_question(question_id)):
+                            success_count += 1
+
+                    st.success(f"✅ Successfully deleted {success_count} question(s)")
+                    st.session_state.selected_questions = set()
+                    st.session_state.confirm_bulk_delete = False
+                    st.rerun()
+            with col2:
+                if st.button("❌ Cancel", key="confirm_bulk_delete_no"):
+                    st.session_state.confirm_bulk_delete = False
+                    st.rerun()
+            st.markdown("---")
 
     # Display questions
     for idx, question in enumerate(filtered_questions, 1):
@@ -170,8 +227,24 @@ def show_pool_questions(pool_id: str):
         # 5. Truncate to 100 characters
         preview_text = preview_text[:100] if len(preview_text) > 100 else preview_text
 
-        with st.expander(f"Q{idx}: {preview_text}{'...' if len(preview_text) >= 100 else ''}"):
-            display_question_details(question)
+        # Create checkbox and expander in columns
+        col1, col2 = st.columns([0.5, 9.5])
+
+        with col1:
+            # Checkbox for selecting this question
+            question_id = question['id']
+            is_selected = question_id in st.session_state.selected_questions
+
+            if st.checkbox("", value=is_selected, key=f"select_{question_id}_{idx}", label_visibility="collapsed"):
+                # Add to selection
+                st.session_state.selected_questions.add(question_id)
+            else:
+                # Remove from selection
+                st.session_state.selected_questions.discard(question_id)
+
+        with col2:
+            with st.expander(f"Q{idx}: {preview_text}{'...' if len(preview_text) >= 100 else ''}"):
+                display_question_details(question)
 
 
 def display_question_details(question: Dict[str, Any]):

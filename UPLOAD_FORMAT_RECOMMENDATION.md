@@ -280,14 +280,35 @@ The system instructs AI to:
 
 ### Image-Based Questions
 
-**Current Status:** **NOT SUPPORTED** in current schema
+**Recommended Approach:** **Describe images in text** (no schema changes needed)
 
-- No `image_url` or `image_data` field in `pool_questions`
-- Would require schema migration to add image support
-- Potential columns:
-  - `image_url` TEXT (for external hosting)
-  - `image_data` BYTEA or JSONB (for base64 or metadata)
-  - `has_image` BOOLEAN flag
+Instead of storing actual images, convert visual content to detailed text descriptions:
+
+**Example:**
+```
+Original: [Image of candlestick chart]
+Question: "What pattern is shown in the chart?"
+
+Converted:
+Question: "Based on the following chart description, what pattern is shown?
+
+Chart Description:
+- Chart Type: Candlestick chart for HSBC stock
+- Time Period: 5 trading days (Mon-Fri)
+- Day 1: Open HKD 65, Close HKD 63, Low HKD 62, High HKD 66
+- Day 2: Open HKD 63, Close HKD 61, Low HKD 60, High HKD 64
+- Day 3: Open HKD 61, Close HKD 64, Low HKD 60.5, High HKD 65
+- Day 4: Open HKD 64, Close HKD 67, Low HKD 63.5, High HKD 68
+- Day 5: Open HKD 67, Close HKD 69, Low HKD 66.5, High HKD 70
+- Pattern: Lower lows followed by higher highs and higher closes"
+```
+
+**Benefits:**
+- ✅ No database schema changes required
+- ✅ Text-searchable and accessible
+- ✅ Works with current JSON/CSV upload formats
+- ✅ No image hosting/loading performance issues
+- ✅ AI can easily process text descriptions
 
 ---
 
@@ -487,28 +508,32 @@ question,choice_1,choice_2,choice_3,choice_4,correct_index,scenario,difficulty,t
 
 ---
 
-### 🎨 **Future-Proof Format: Extended JSON with Images**
+### 🎨 **Handling Image-Based Questions: Text Description Approach**
 
-**For when image support is added:**
+**Instead of embedding images, use detailed text descriptions:**
 
 ```json
 {
   "pool_name": "CACS2 Paper 2",
   "questions": [
     {
-      "question": "What type of chart is shown?",
-      "choices": ["Bar chart", "Candlestick chart", "Line chart", "Histogram"],
+      "question": "What type of chart pattern is shown?",
+      "choices": ["Bar chart", "Candlestick chart showing bullish reversal", "Line chart", "Histogram"],
       "correct_index": 1,
-      "image": {
-        "type": "base64",
-        "data": "data:image/png;base64,iVBORw0KGgoAAAANS...",
-        "alt_text": "Candlestick chart showing HSBC stock performance"
-      },
-      "correct_index": 1
+      "scenario": "Chart Data Visualization:\n\nA stock price chart displays the following candlestick pattern over 5 days:\n- Day 1: Long red candle (bearish) - Open: $100, Close: $95, Range: $93-$101\n- Day 2: Short red candle - Open: $95, Close: $94, Range: $93-$96\n- Day 3: Doji (indecision) - Open: $94, Close: $94.5, Range: $92-$97\n- Day 4: Long green candle (bullish) - Open: $95, Close: $102, Range: $94-$103\n- Day 5: Green candle continuation - Open: $102, Close: $105, Range: $101-$106\n\nThe pattern shows a transition from selling pressure to buying pressure, with the last two candles engulfing the prior downtrend.",
+      "explanation_seed": "Bullish reversal pattern with engulfing candles",
+      "topic_tags": ["technical analysis", "candlestick patterns", "chart reading"]
     }
   ]
 }
 ```
+
+**Best Practices for Image Descriptions:**
+1. **Be specific** - Include exact values, dates, labels
+2. **Describe visual patterns** - Colors, shapes, trends
+3. **Maintain context** - What type of chart/diagram/table
+4. **Include all text** - Labels, legends, annotations
+5. **Preserve relationships** - Relative positions, comparisons
 
 ---
 
@@ -714,20 +739,11 @@ async def upload_to_supabase(pool_data: Dict, questions_data: List[Dict]):
 
 ## 11. MIGRATION PATH FOR FUTURE ENHANCEMENTS
 
-### Adding Image Support
+### Note on Image Support
 
-```sql
--- Add image columns to pool_questions
-ALTER TABLE pool_questions
-ADD COLUMN image_url TEXT,
-ADD COLUMN image_alt_text TEXT,
-ADD COLUMN has_image BOOLEAN DEFAULT FALSE;
+**Images are handled via text descriptions** (see section 5 for examples). No schema changes needed.
 
--- Create index for image queries
-CREATE INDEX idx_pool_questions_has_image ON pool_questions(has_image) WHERE has_image = TRUE;
-```
-
-### Adding Shared Context Blocks (if needed)
+### Adding Shared Context Blocks (Optional Enhancement)
 
 ```sql
 -- Create context blocks table
@@ -760,9 +776,10 @@ CREATE INDEX idx_pool_questions_context ON pool_questions(context_id);
 1. ✅ Direct compatibility with current database structure
 2. ✅ Supports complex scenarios without escaping issues
 3. ✅ AI-friendly (matches current AI extraction output)
-4. ✅ Extensible for future features (images, multi-part)
+4. ✅ Handles image-based questions via text descriptions (no schema changes needed)
 5. ✅ Validates easily with JSON schemas
 6. ✅ No data loss from CSV limitations
+7. ✅ Extensible for future features (multi-part flows, additional metadata)
 
 **For Agents Generating Upload Files:**
 

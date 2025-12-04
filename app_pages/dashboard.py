@@ -240,6 +240,7 @@ def show_admin_panel():
     st.markdown("---")
     st.markdown("## 👨‍💼 Admin Panel")
 
+    # First row of admin buttons
     admin_col1, admin_col2, admin_col3, admin_col4 = st.columns(4)
 
     with admin_col1:
@@ -264,6 +265,20 @@ def show_admin_panel():
         if st.button("📊 Analytics Dashboard", use_container_width=True, type="primary"):
             st.toast("[DEBUG] Analytics Dashboard button clicked")
             st.session_state.page = "admin_dashboard"
+            st.rerun()
+
+    # Second row of admin buttons
+    admin_col5, admin_col6, admin_col7, admin_col8 = st.columns(4)
+
+    with admin_col5:
+        # Get pending reports count for badge
+        from db import db
+        pending_reports = run_async(db.get_pending_reports_count())
+        badge = f" ({pending_reports})" if pending_reports > 0 else ""
+
+        if st.button(f"🚨 Reported Questions{badge}", use_container_width=True, type="secondary" if pending_reports > 0 else "primary"):
+            st.toast("[DEBUG] Reported Questions button clicked")
+            st.session_state.page = "admin_reported_questions"
             st.rerun()
 
 

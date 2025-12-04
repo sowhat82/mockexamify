@@ -106,6 +106,7 @@ try:
     from app_pages.admin_dashboard import show_admin_dashboard
     from app_pages.admin_manage import show_admin_manage
     from app_pages.admin_question_pools import show_admin_question_pools
+    from app_pages.admin_reported_questions import show_admin_reported_questions
     from app_pages.admin_upload import show_admin_upload
 except ImportError as e:
     # Fallback if admin pages aren't available yet
@@ -122,6 +123,9 @@ except ImportError as e:
 
     def show_admin_question_pools():
         st.info("Question pools functionality coming soon!")
+
+    def show_admin_reported_questions():
+        st.info("Reported questions functionality coming soon!")
 
 
 # Configure Streamlit page
@@ -1355,6 +1359,8 @@ def show_authenticated_app(auth: AuthUtils):
         show_admin_manage()
     elif page == "admin_question_pools":
         show_admin_question_pools()
+    elif page == "admin_reported_questions":
+        show_admin_reported_questions()
     elif page == "admin_tickets":
         show_admin_tickets()
     elif page == "terms_of_service":

@@ -1858,6 +1858,8 @@ class DatabaseManager:
             for q in selected:
                 formatted_questions.append(
                     {
+                        "id": q["id"],  # Include question ID for reporting
+                        "pool_id": q["pool_id"],  # Include pool ID for replacements
                         "question": q["question_text"],
                         "choices": (
                             json.loads(q["choices"])
@@ -2014,6 +2016,117 @@ class DatabaseManager:
 
         except Exception as e:
             logger.error(f"Error updating batch stats: {e}")
+            return False
+
+    async def report_question(
+        self, question_id: str, user_id: Optional[str] = None, mock_id: Optional[str] = None, reason: Optional[str] = None
+    ) -> bool:
+        """Report a question as corrupted or impossible to answer"""
+        try:
+            logger.info(f"[REPORT] Starting report - question_id: {question_id}, user_id: {user_id}, mock_id: {mock_id}")
+
+            if self.demo_mode:
+                logger.info(f"Demo mode: Would report question {question_id}")
+                return True
+
+            report_data = {
+                "question_id": question_id,
+                "reported_by": user_id,
+                "mock_id": mock_id,
+                "report_reason": reason,
+                "status": "pending"
+            }
+
+            logger.info(f"[REPORT] Report data: {report_data}")
+
+            # Use admin client if user_id is None (demo users) to bypass RLS policies
+            client = self.admin_client if user_id is None else self.client
+            result = client.table("reported_questions").insert(report_data).execute()
+
+            logger.info(f"[REPORT] Insert result: {result}")
+
+            if result.data:
+                logger.info(f"Question {question_id} reported successfully")
+                return True
+
+            logger.error(f"[REPORT] No data returned from insert")
+            return False
+
+        except Exception as e:
+            logger.error(f"Error reporting question: {e}", exc_info=True)
+            return False
+
+    async def get_reported_questions(self, status: Optional[str] = None, limit: int = 100) -> List[Dict]:
+        """Get reported questions (admin only)"""
+        try:
+            if self.demo_mode:
+                return []
+
+            # Use admin_client to bypass RLS and see all reports
+            query = self.admin_client.from_("reported_questions_with_details").select("*")
+
+            if status:
+                query = query.eq("status", status)
+
+            result = query.order("reported_at", desc=True).limit(limit).execute()
+
+            return result.data if result.data else []
+
+        except Exception as e:
+            logger.error(f"Error getting reported questions: {e}")
+            return []
+
+    async def get_pending_reports_count(self) -> int:
+        """Get count of pending reported questions (admin only)"""
+        try:
+            if self.demo_mode:
+                return 0
+
+            # Use admin_client to bypass RLS
+            result = (
+                self.admin_client.table("reported_questions")
+                .select("id", count="exact")
+                .eq("status", "pending")
+                .execute()
+            )
+
+            return result.count if hasattr(result, 'count') else 0
+
+        except Exception as e:
+            logger.error(f"Error getting pending reports count: {e}")
+            return 0
+
+    async def update_report_status(
+        self, report_id: str, status: str, admin_notes: Optional[str] = None, admin_id: Optional[str] = None
+    ) -> bool:
+        """Update the status of a reported question (admin only)"""
+        try:
+            if self.demo_mode:
+                return True
+
+            update_data = {
+                "status": status,
+                "reviewed_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+            if admin_notes:
+                update_data["admin_notes"] = admin_notes
+
+            if admin_id:
+                update_data["reviewed_by"] = admin_id
+
+            # Use admin_client to bypass RLS
+            result = (
+                self.admin_client.table("reported_questions")
+                .update(update_data)
+                .eq("id", report_id)
+                .execute()
+            )
+
+            return len(result.data) > 0 if result.data else False
+
+        except Exception as e:
+            logger.error(f"Error updating report status: {e}")
             return False
 
 

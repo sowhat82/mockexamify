@@ -13,6 +13,11 @@ from db import db
 def show_admin_reported_questions():
     """Admin page to view and manage reported questions"""
 
+    # Back to Dashboard button
+    if st.button("← Back to Dashboard", type="secondary"):
+        st.session_state.page = "dashboard"
+        st.rerun()
+
     st.markdown("# 🚨 Reported Questions")
     st.markdown("View and manage questions reported by users as corrupted or problematic")
     st.markdown("---")

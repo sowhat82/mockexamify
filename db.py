@@ -1924,6 +1924,27 @@ class DatabaseManager:
                 # Demo mode - just return success
                 return True
 
+            # VALIDATION: Validate questions before uploading
+            from question_validator import QuestionValidator
+
+            logger.info(f"Validating {len(questions)} questions before upload...")
+            valid_questions, rejected_questions = QuestionValidator.validate_batch(
+                questions, strict=False  # Allow non-critical warnings
+            )
+
+            if rejected_questions:
+                logger.warning(f"⚠️  {len(rejected_questions)} questions rejected during validation:")
+                for item in rejected_questions:
+                    logger.warning(f"  Question #{item['index'] + 1}: {item['errors']}")
+
+                # Use only valid questions
+                questions = valid_questions
+                logger.info(f"Proceeding with {len(valid_questions)} validated questions")
+
+            if not questions:
+                logger.error("No valid questions to upload after validation!")
+                return False
+
             # Prepare questions for insertion
             questions_to_insert = []
             questions_with_doc_explanations = 0

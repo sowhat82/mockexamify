@@ -389,14 +389,18 @@ def start_pool_exam(pool_exam_config: Dict[str, Any], user: Dict[str, Any]):
 
 
 def handle_question_report(user: Dict[str, Any]):
-    """Handle a question report and replace with a new question"""
+    """Handle a question report and replace with a new question (if not yet answered)"""
     report_data = st.session_state.pending_report
     question_index = report_data["question_index"]
     question_id = report_data["question_id"]
     reason = report_data.get("reason", "")
 
+    # Check if question was already submitted
+    is_already_answered = question_index in st.session_state.submitted_questions
+
     # Show processing message
-    with st.spinner("Reporting question and fetching a replacement..."):
+    spinner_text = "Reporting question..." if is_already_answered else "Reporting question and fetching a replacement..."
+    with st.spinner(spinner_text):
         # Submit report to database
         # Only set user_id if it's a valid UUID (not for demo users)
         raw_user_id = user.get("id") if user else None
@@ -422,33 +426,37 @@ def handle_question_report(user: Dict[str, Any]):
                 st.rerun()
             return
 
-        # Get pool_id from current questions (for pool exams)
-        # For regular mocks, we'll just skip the question
-        current_question = st.session_state.questions[question_index]
-        pool_id = current_question.get("pool_id")
-
-        replacement_question = None
-
-        if pool_id:
-            # Get existing question IDs to avoid duplicates
-            existing_ids = [q.get("id") for q in st.session_state.questions if q.get("id")]
-
-            # Try to get a replacement question from the same pool
-            all_pool_questions = run_async(db.get_random_pool_questions(pool_id, 100))
-
-            # Filter out questions already in the exam
-            available_questions = [q for q in all_pool_questions if q.get("id") not in existing_ids]
-
-            if available_questions:
-                replacement_question = available_questions[0]
-
-        # If we got a replacement, use it; otherwise keep the reported question but mark it
-        if replacement_question:
-            st.session_state.questions[question_index] = replacement_question
-            st.session_state.report_success_message = "✅ Question reported successfully! A new question has been loaded."
+        # If question was already answered, just report it without replacement
+        if is_already_answered:
+            st.session_state.report_success_message = "✅ Question reported successfully! Admin will review your report."
         else:
-            # No replacement available - just mark the question as reported
-            st.session_state.report_success_message = "⚠️ Question reported successfully! However, no replacement questions are available in this pool."
+            # Get pool_id from current questions (for pool exams)
+            # For regular mocks, we'll just skip the question
+            current_question = st.session_state.questions[question_index]
+            pool_id = current_question.get("pool_id")
+
+            replacement_question = None
+
+            if pool_id:
+                # Get existing question IDs to avoid duplicates
+                existing_ids = [q.get("id") for q in st.session_state.questions if q.get("id")]
+
+                # Try to get a replacement question from the same pool
+                all_pool_questions = run_async(db.get_random_pool_questions(pool_id, 100))
+
+                # Filter out questions already in the exam
+                available_questions = [q for q in all_pool_questions if q.get("id") not in existing_ids]
+
+                if available_questions:
+                    replacement_question = available_questions[0]
+
+            # If we got a replacement, use it; otherwise keep the reported question but mark it
+            if replacement_question:
+                st.session_state.questions[question_index] = replacement_question
+                st.session_state.report_success_message = "✅ Question reported successfully! A new question has been loaded."
+            else:
+                # No replacement available - just mark the question as reported
+                st.session_state.report_success_message = "⚠️ Question reported successfully! However, no replacement questions are available in this pool."
 
     # Clear the pending report
     del st.session_state.pending_report
@@ -777,9 +785,19 @@ def display_question(question: Dict[str, Any], question_index: int, user: Dict[s
                 submit_single_question(question_index)
                 st.rerun()
 
-        # Report Question button (only available before submitting)
-        st.markdown("<br>", unsafe_allow_html=True)
-        with st.expander("⚠️ Report Question Issue", expanded=False):
+    # Report Question button (available both before and after submission)
+    st.markdown("<br>", unsafe_allow_html=True)
+    with st.expander("⚠️ Report Question Issue", expanded=False):
+        # Different messaging based on whether question was submitted
+        if is_submitted:
+            st.markdown("""
+                <div style="color: #856404; background: #fff3cd; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                    <strong>Found a problem with this question?</strong><br>
+                    Report corrupted questions, wrong answers, or unclear explanations to help improve the question pool.
+                    Your report will be reviewed by an admin.
+                </div>
+            """, unsafe_allow_html=True)
+        else:
             st.markdown("""
                 <div style="color: #856404; background: #fff3cd; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
                     <strong>Found a problem with this question?</strong><br>
@@ -788,19 +806,20 @@ def display_question(question: Dict[str, Any], question_index: int, user: Dict[s
                 </div>
             """, unsafe_allow_html=True)
 
-            report_reason = st.text_area(
-                "Reason (optional)",
-                placeholder="E.g., Missing answer options, unclear question, has letter references like (a), (b) without context...",
-                key=f"report_reason_{question_index}",
-                max_chars=500
-            )
+        report_reason = st.text_area(
+            "Reason (optional)",
+            placeholder="E.g., Missing answer options, unclear question, has letter references like (a), (b) without context...",
+            key=f"report_reason_{question_index}",
+            max_chars=500
+        )
 
-            col_a, col_b = st.columns(2)
-            with col_a:
-                # Button will set its key in session state, which is checked at the top of display_question()
-                st.button("🚨 Report & Get New Question", key=f"report_{question_index}", type="secondary", use_container_width=True)
-            with col_b:
-                st.markdown("<div style='padding: 0.5rem; color: #6c757d; text-align: center; font-size: 0.9rem;'>⚠️ Cannot undo</div>", unsafe_allow_html=True)
+        col_a, col_b = st.columns(2)
+        with col_a:
+            # Button will set its key in session state, which is checked at the top of display_question()
+            button_text = "🚨 Report Question" if is_submitted else "🚨 Report & Get New Question"
+            st.button(button_text, key=f"report_{question_index}", type="secondary", use_container_width=True)
+        with col_b:
+            st.markdown("<div style='padding: 0.5rem; color: #6c757d; text-align: center; font-size: 0.9rem;'>⚠️ Cannot undo</div>", unsafe_allow_html=True)
 
     # FEATURE HIDDEN: Answer confidence tracking
     # Hiding for future release - uncomment to enable

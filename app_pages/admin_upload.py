@@ -893,9 +893,10 @@ async def process_pool_upload(
                     f"(threshold: {similarity_threshold*100}%)"
                 )
 
-        # Auto-fix common text corruption issues
+        # Auto-fix common text corruption issues and validate questions
         if questions_to_add:
             from question_text_validator import validate_question_batch
+            from question_validator import QuestionValidator
 
             progress_placeholder.info("🔧 Checking for text corruption and auto-fixing...")
 
@@ -922,6 +923,50 @@ async def process_pool_upload(
                         st.markdown(f"**{idx}.** {item['text']}")
                         for warning in item['warnings']:
                             st.markdown(f"  - ⚠️ {warning}")
+
+            # Validate questions for critical errors (missing context, case studies, etc.)
+            progress_placeholder.info("🔍 Validating questions for completeness...")
+
+            validated_questions = []
+            rejected_questions = []
+
+            for q in questions_to_add:
+                is_valid, errors = QuestionValidator.validate_question(q)
+
+                if not is_valid:
+                    # Extract CRITICAL errors
+                    critical_errors = [e for e in errors if 'CRITICAL' in e]
+                    q['validation_errors'] = critical_errors
+                    rejected_questions.append(q)
+                else:
+                    validated_questions.append(q)
+
+            # Show validation results if questions were rejected
+            if rejected_questions:
+                st.error(
+                    f"❌ **Validation Failed: {len(rejected_questions)} questions rejected**\n\n"
+                    f"These questions have CRITICAL errors and cannot be uploaded:"
+                )
+
+                with st.expander(f"📋 View {len(rejected_questions)} Rejected Questions"):
+                    for idx, q in enumerate(rejected_questions[:20], 1):  # Show first 20
+                        st.markdown(f"**{idx}.** {q['question'][:100]}...")
+                        for error in q['validation_errors']:
+                            st.markdown(f"   🚫 {error}")
+                        st.markdown("---")
+
+                    if len(rejected_questions) > 20:
+                        st.markdown(f"... and {len(rejected_questions) - 20} more")
+
+                st.info(
+                    f"💡 **{len(validated_questions)} questions passed validation** and will be uploaded.\n\n"
+                    f"To fix rejected questions:\n"
+                    f"- Add detailed scenario/case study context in the 'scenario' field\n"
+                    f"- Or rewrite questions to be self-contained with all necessary information"
+                )
+
+            # Update questions_to_add to only include validated questions
+            questions_to_add = validated_questions
 
         # Validate question quality before saving
         if questions_to_add:

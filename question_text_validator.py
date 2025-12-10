@@ -20,6 +20,32 @@ class QuestionTextValidator:
         (r'\bir\s+', 'is ', 'Fixed: ir → is'),
         (r'\b(a|the|is|are)\s+r\s+(strategy|spread|option|fund|investment|portfolio|market|risk|return|account|security)', r'\1 \2', 'Fixed: removed single letter corruption'),
 
+        # OCR word-splitting errors (spaces in middle of words)
+        (r'\bCharli\s+e\b', 'Charlie', 'Fixed: Charli e → Charlie'),
+        (r'\bpa\s+rt\b', 'part', 'Fixed: pa rt → part'),
+        (r'\bma\s+rket\b', 'market', 'Fixed: ma rket → market'),
+        (r'\btrou\s+ble\b', 'trouble', 'Fixed: trou ble → trouble'),
+        (r'\bsuspicion\s+s\b', 'suspicions', 'Fixed: suspicion s → suspicions'),
+        (r'\bfi\s+nancial\b', 'financial', 'Fixed: fi nancial → financial'),
+        (r'\bgo\s+od\b', 'good', 'Fixed: go od → good'),
+        (r'\bvar\s+ious\b', 'various', 'Fixed: var ious → various'),
+        (r'\borde\s+r\b', 'order', 'Fixed: orde r → order'),
+        (r'\bdoe\s+s\b', 'does', 'Fixed: doe s → does'),
+        (r'\bbasi\s+s\b', 'basis', 'Fixed: basi s → basis'),
+        (r'\brea\s+lized\b', 'realized', 'Fixed: rea lized → realized'),
+        (r'\bprofi\s+t\b', 'profit', 'Fixed: profi t → profit'),
+        (r'\bi\s+nvestment\b', 'investment', 'Fixed: i nvestment → investment'),
+        (r'\bfo\s+r\b', 'for', 'Fixed: fo r → for'),
+        (r'\btha\s+t\b', 'that', 'Fixed: tha t → that'),
+        (r'\brequ\s+ires\b', 'requires', 'Fixed: requ ires → requires'),
+        (r'\boffenc\s+e\b', 'offence', 'Fixed: offenc e → offence'),
+        (r'\bar\s+e\s+covered\b', 'are covered', 'Fixed: ar e covered → are covered'),
+        (r'\bsuspect\s+ed\b', 'suspected', 'Fixed: suspect ed → suspected'),
+        (r'\bcustom\b', 'customer', 'Fixed: custom → customer'),
+
+        # Grammar fixes
+        (r'\bHe suspect\b', 'He suspects', 'Fixed: He suspect → He suspects'),
+
         # Multiple spaces
         (r'  +', ' ', 'Fixed: multiple spaces'),
 

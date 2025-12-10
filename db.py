@@ -2060,9 +2060,9 @@ class DatabaseManager:
 
             logger.info(f"[REPORT] Report data: {report_data}")
 
-            # Use admin client if user_id is None (demo users) to bypass RLS policies
-            client = self.admin_client if user_id is None else self.client
-            result = client.table("reported_questions").insert(report_data).execute()
+            # Always use admin_client to bypass RLS policies
+            # This works for both demo users and authenticated users
+            result = self.admin_client.table("reported_questions").insert(report_data).execute()
 
             logger.info(f"[REPORT] Insert result: {result}")
 

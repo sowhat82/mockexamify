@@ -54,6 +54,7 @@ class QuestionTextValidator:
         (r'\bcorp\s+orate\b', 'corporate', 'Fixed: corp orate → corporate'),
         (r'\bCompan\s+y\b', 'Company', 'Fixed: Compan y → Company'),
         (r'\bCP\s+F\b', 'CPF', 'Fixed: CP F → CPF'),
+        (r'\breimburse\s+ment\b', 'reimbursement', 'Fixed: reimburse ment → reimbursement'),
 
         # Grammar fixes
         (r'\bHe suspect\b', 'He suspects', 'Fixed: He suspect → He suspects'),

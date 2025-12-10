@@ -35,6 +35,7 @@ class QuestionValidator:
 
         normalized['choices'] = question.get('choices')
         normalized['explanation'] = question.get('explanation')
+        normalized['scenario'] = question.get('scenario', '')
 
         # Check required fields
         required_fields = ['question_text', 'choices', 'correct_answer']
@@ -70,7 +71,8 @@ class QuestionValidator:
 
         # Validate question text for missing context
         question_text_errors = QuestionValidator._validate_question_text(
-            normalized['question_text']
+            normalized['question_text'],
+            normalized['scenario']
         )
         errors.extend(question_text_errors)
 
@@ -83,14 +85,23 @@ class QuestionValidator:
             )
             errors.extend(explanation_errors)
 
-        return len(errors) == 0, errors
+        # Only fail if there are CRITICAL errors (not just warnings)
+        has_critical_errors = any('CRITICAL' in err for err in errors)
+        return not has_critical_errors, errors
 
     @staticmethod
-    def _validate_question_text(question_text: str) -> List[str]:
-        """Validate the question text for missing context issues"""
+    def _validate_question_text(question_text: str, scenario: str = '') -> List[str]:
+        """
+        Validate the question text for missing context issues
+
+        Args:
+            question_text: The question text to validate
+            scenario: Optional scenario/context. If provided and substantial, some checks are skipped.
+        """
         errors = []
 
         q_lower = question_text.lower()
+        has_adequate_scenario = scenario and len(scenario.strip()) >= 50
 
         # Pattern 1: "Given the following information/details" without actual data
         if 'given the following' in q_lower or 'using the following' in q_lower:
@@ -129,6 +140,36 @@ class QuestionValidator:
                 "CRITICAL: Question ends with ':' indicating incomplete question. "
                 "Complete the question or remove the colon."
             )
+
+        # Pattern 5: Questions that reference specific people without adequate scenario
+        # Look for questions asking "who did/didn't contravene/violate" or "who is/isn't guilty"
+        if not has_adequate_scenario:
+            # Common patterns in case study questions
+            case_study_patterns = [
+                (r'\b(?:contravened?|violat(?:ed?|ing))\s+(?:the\s+)?(?:insider\s+trading\s+act|sfa|securities\s+act)',
+                 'references violations without case study'),
+                (r'\b(?:is|are|was|were)\s+guilty\s+of\s+(?:insider\s+trading|market\s+manipulation)',
+                 'references guilt determination without case study'),
+                (r'\b(?:had|has)\s+(?:contravened?|violat(?:ed?|ing))',
+                 'references past violations without context'),
+            ]
+
+            for pattern, reason in case_study_patterns:
+                if re.search(pattern, q_lower):
+                    # Check if the question also mentions multiple specific people (proper names)
+                    # Common test names: Sally, Kelly, Denny, Mary, Bernard, Alfred, Harry, Jeff
+                    # Also match "Director X" or "Mr/Ms X" patterns
+                    name_pattern = r'\b(?:Sally|Kelly|Denny|Mary|Bernard|Alfred|Harry|Jeff|Director\s+\w+|Mr\.?\s+\w+|Ms\.?\s+\w+|TR\s+\w+)\b'
+                    names_found = re.findall(name_pattern, question_text, re.IGNORECASE)
+
+                    if len(names_found) >= 1:  # At least one person mentioned
+                        errors.append(
+                            f"CRITICAL: Question {reason} describing what each person did. "
+                            f"Found references to: {', '.join(set(names_found))}. "
+                            f"Either include a detailed scenario/case study in the 'scenario' field, "
+                            f"or rewrite the question to be self-contained."
+                        )
+                        break  # Only report once
 
         return errors
 

@@ -41,7 +41,19 @@ class QuestionTextValidator:
         (r'\boffenc\s+e\b', 'offence', 'Fixed: offenc e → offence'),
         (r'\bar\s+e\s+covered\b', 'are covered', 'Fixed: ar e covered → are covered'),
         (r'\bsuspect\s+ed\b', 'suspected', 'Fixed: suspect ed → suspected'),
-        (r'\bcustom\b', 'customer', 'Fixed: custom → customer'),
+        (r'\bcustom\b(?!\s+duty)', 'customer', 'Fixed: custom → customer'),
+
+        # Additional OCR patterns found
+        (r'\ballowe\s+d\b', 'allowed', 'Fixed: allowe d → allowed'),
+        (r'\bneeds\s+t\s+o\b', 'needs to', 'Fixed: needs t o → needs to'),
+        (r'\bunless\s+t\s+he\b', 'unless the', 'Fixed: unless t he → unless the'),
+        (r'\bbelon\s+g\b', 'belong', 'Fixed: belon g → belong'),
+        (r'\bMember\s+w\s+ill\b', 'Member will', 'Fixed: Member w ill → Member will'),
+        (r'\bthe\s+o\s+rder\b', 'the order', 'Fixed: the o rder → the order'),
+        (r'\bsecurity\s+i\s+s\b', 'security is', 'Fixed: security i s → security is'),
+        (r'\bcorp\s+orate\b', 'corporate', 'Fixed: corp orate → corporate'),
+        (r'\bCompan\s+y\b', 'Company', 'Fixed: Compan y → Company'),
+        (r'\bCP\s+F\b', 'CPF', 'Fixed: CP F → CPF'),
 
         # Grammar fixes
         (r'\bHe suspect\b', 'He suspects', 'Fixed: He suspect → He suspects'),

@@ -1,0 +1,41 @@
+-- Fix security definer issue on reported_questions_with_details view
+-- This changes the view from SECURITY DEFINER to SECURITY INVOKER
+-- which is the recommended secure approach according to Supabase best practices
+
+-- Instructions:
+-- 1. Go to Supabase Dashboard (https://supabase.com/dashboard)
+-- 2. Select your project
+-- 3. Click "SQL Editor" in the left sidebar
+-- 4. Click "New Query"
+-- 5. Copy and paste the SQL below
+-- 6. Click "Run"
+
+DROP VIEW IF EXISTS reported_questions_with_details;
+
+CREATE VIEW reported_questions_with_details
+WITH (security_invoker = true)
+AS
+SELECT
+    rq.id,
+    rq.question_id,
+    rq.reported_by,
+    rq.mock_id,
+    rq.report_reason,
+    rq.reported_at,
+    rq.status,
+    rq.admin_notes,
+    rq.reviewed_at,
+    rq.reviewed_by,
+    pq.question_text,
+    pq.choices,
+    pq.correct_answer,
+    pq.pool_id,
+    qp.pool_name,
+    u.email as reporter_email
+FROM reported_questions rq
+LEFT JOIN pool_questions pq ON rq.question_id = pq.id
+LEFT JOIN question_pools qp ON pq.pool_id = qp.id
+LEFT JOIN users u ON rq.reported_by = u.id
+ORDER BY rq.reported_at DESC;
+
+GRANT SELECT ON reported_questions_with_details TO authenticated;

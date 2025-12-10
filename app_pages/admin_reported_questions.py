@@ -96,7 +96,14 @@ def display_reported_question(report: Dict[str, Any], idx: int):
         with col1:
             st.markdown(f"**Question ID:** `{report.get('question_id')}`")
             st.markdown(f"**Pool:** {pool_name}")
-            st.markdown(f"**Reported by:** {report.get('reporter_email', 'Anonymous')}")
+
+            # Handle reporter display
+            reporter_email = report.get('reporter_email')
+            if reporter_email and reporter_email.lower() != 'none':
+                st.markdown(f"**Reported by:** {reporter_email}")
+            else:
+                st.markdown(f"**Reported by:** Demo User / Anonymous")
+
             st.markdown(f"**Reported at:** {report.get('reported_at', 'N/A')}")
             st.markdown(f"**Status:** {status.upper()}")
 

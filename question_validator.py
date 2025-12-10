@@ -46,7 +46,7 @@ class QuestionValidator:
             return False, errors
 
         # Validate choices
-        choices = question['choices']
+        choices = normalized['choices']
         if isinstance(choices, str):
             try:
                 choices = json.loads(choices)
@@ -62,11 +62,17 @@ class QuestionValidator:
             errors.append(f"Must have at least 2 choices, found {len(choices)}")
 
         # Validate correct_answer index
-        correct_index = question['correct_answer']
+        correct_index = normalized['correct_answer']
         if not isinstance(correct_index, int):
             errors.append(f"correct_answer must be an integer, got {type(correct_index)}")
         elif correct_index < 0 or correct_index >= len(choices):
             errors.append(f"correct_answer index {correct_index} out of range (0-{len(choices)-1})")
+
+        # Validate question text for missing context
+        question_text_errors = QuestionValidator._validate_question_text(
+            normalized['question_text']
+        )
+        errors.extend(question_text_errors)
 
         # Validate explanation if present
         if 'explanation' in question and question['explanation']:
@@ -78,6 +84,53 @@ class QuestionValidator:
             errors.extend(explanation_errors)
 
         return len(errors) == 0, errors
+
+    @staticmethod
+    def _validate_question_text(question_text: str) -> List[str]:
+        """Validate the question text for missing context issues"""
+        errors = []
+
+        q_lower = question_text.lower()
+
+        # Pattern 1: "Given the following information/details" without actual data
+        if 'given the following' in q_lower or 'using the following' in q_lower:
+            # Check if question is too short and lacks numbers/data
+            has_numbers = any(c.isdigit() for c in question_text)
+            if not has_numbers or len(question_text) < 100:
+                errors.append(
+                    "CRITICAL: Question says 'given the following' but doesn't provide the data. "
+                    "Either include the data or rephrase the question."
+                )
+
+        # Pattern 2: "Evaluate/Consider the following statements" without statements
+        if ('evaluate the following' in q_lower or 'consider the following' in q_lower) and 'statement' in q_lower:
+            # Real statements would have numbers like "Statement 1" or "1." or "i."
+            has_statements = any(pattern in question_text for pattern in [
+                'Statement 1', 'statement 1', '1.', '2.', 'i.', 'ii.', 'iii.', 'I.', 'II.'
+            ])
+            if not has_statements:
+                errors.append(
+                    "CRITICAL: Question asks to evaluate statements but doesn't list them. "
+                    "Include the actual statements in the question text."
+                )
+
+        # Pattern 3: "Based on the following" without context
+        if 'based on the following' in q_lower and len(question_text) < 120:
+            has_context = any(pattern in question_text for pattern in [':', ';', '\n', '•', '-'])
+            if not has_context:
+                errors.append(
+                    "CRITICAL: Question says 'based on the following' but doesn't provide context. "
+                    "Include the required information."
+                )
+
+        # Pattern 4: Question ends with a colon (incomplete)
+        if question_text.strip().endswith(':'):
+            errors.append(
+                "CRITICAL: Question ends with ':' indicating incomplete question. "
+                "Complete the question or remove the colon."
+            )
+
+        return errors
 
     @staticmethod
     def _validate_explanation(explanation: str, choices: List[str], correct_index: int) -> List[str]:

@@ -233,6 +233,45 @@ class OpenRouterManager:
             logger.error(f"Error enhancing question: {e}")
             return question
 
+    async def fix_question_errors(
+        self, question_text: str, choices: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Conservative AI fix for OCR errors, typos, and grammar issues.
+
+        Args:
+            question_text: The question text to fix
+            choices: List of answer choices to fix
+
+        Returns:
+            Dict with keys:
+                - fixed_question: Corrected question text
+                - fixed_choices: List of corrected choices
+                - changes_made: Dict of changes
+                - has_changes: Boolean indicating if any fixes were made
+        """
+        try:
+            prompt = self._create_fix_errors_prompt(question_text, choices)
+            response = await self._generate_text_with_retry(
+                prompt, max_tokens=3000, temperature=0.3  # Low temperature for conservative fixes
+            )
+
+            # Parse the AI response
+            fix_result = self._parse_fix_errors_response(response, question_text, choices)
+
+            return fix_result
+
+        except Exception as e:
+            logger.error(f"Error fixing question errors: {e}")
+            # Return original content unchanged on error
+            return {
+                "fixed_question": question_text,
+                "fixed_choices": choices,
+                "changes_made": {"question": [], "choices": {}},
+                "has_changes": False,
+                "error": str(e)
+            }
+
     async def generate_study_tips(self, topic: str, user_performance: Dict[str, Any]) -> str:
         """Generate personalized study tips based on user performance"""
         try:
@@ -585,6 +624,105 @@ Consider:
 4. Educational value
 5. Absence of ambiguity
 """
+
+    def _create_fix_errors_prompt(self, question_text: str, choices: List[str]) -> str:
+        """Create prompt for conservative error fixing"""
+        choices_formatted = "\n".join([f"{i}: {choice}" for i, choice in enumerate(choices)])
+
+        return f"""You are a conservative text correction assistant. Your ONLY job is to fix obvious errors without changing meaning.
+
+STRICT RULES:
+1. Fix ONLY these types of errors:
+   - OCR errors (spaces in middle of words: "Charli e" → "Charlie", "pa rt" → "part", "reimburse ment" → "reimbursement")
+   - Spelling mistakes ("recieve" → "receive", "seperate" → "separate")
+   - Grammar errors ("He suspect" → "He suspects", "they was" → "they were")
+   - Subject-verb agreement ("The company have" → "The company has")
+   - Multiple spaces or punctuation errors
+
+2. DO NOT:
+   - Change question meaning or intent
+   - Rewrite for "clarity" or "better phrasing"
+   - Add or remove content
+   - Change technical terms or financial terminology
+   - Simplify complex sentences
+   - Change numbers, dates, or proper nouns
+   - Fix things that are not clearly errors
+
+3. If you're unsure whether something is an error, DO NOT change it.
+
+QUESTION TEXT:
+{question_text}
+
+ANSWER CHOICES:
+{choices_formatted}
+
+Respond with JSON ONLY. No extra text before or after the JSON:
+{{{{
+  "fixed_question": "corrected question text (or original if no errors)",
+  "fixed_choices": ["corrected choice 0", "corrected choice 1", "corrected choice 2", "corrected choice 3"],
+  "changes_made": {{{{
+    "question": ["Fixed: Charli e → Charlie", "Fixed: He suspect → He suspects"],
+    "choices": {{{{
+      "0": ["Fixed: reimburse ment → reimbursement"],
+      "1": []
+    }}}}
+  }}}},
+  "has_changes": true
+}}}}
+
+If NO errors are found at all, return:
+{{{{
+  "fixed_question": "{question_text}",
+  "fixed_choices": {json.dumps(choices)},
+  "changes_made": {{{{"question": [], "choices": {{}}}}}},
+  "has_changes": false
+}}}}
+
+Be extremely conservative. Only fix OBVIOUS errors."""
+
+    def _parse_fix_errors_response(
+        self, response: str, original_question: str, original_choices: List[str]
+    ) -> Dict[str, Any]:
+        """Parse AI response for error fixes"""
+        try:
+            # Extract JSON from response
+            json_start = response.find("{")
+            json_end = response.rfind("}") + 1
+
+            if json_start >= 0 and json_end > json_start:
+                json_str = response[json_start:json_end]
+                result = json.loads(json_str)
+
+                # Validate the response structure
+                if not all(key in result for key in ["fixed_question", "fixed_choices", "changes_made"]):
+                    logger.warning("Invalid response structure from AI, using original content")
+                    return {
+                        "fixed_question": original_question,
+                        "fixed_choices": original_choices,
+                        "changes_made": {"question": [], "choices": {}},
+                        "has_changes": False
+                    }
+
+                # Ensure has_changes is present
+                if "has_changes" not in result:
+                    # Determine if there are any changes
+                    result["has_changes"] = bool(
+                        result.get("changes_made", {}).get("question", []) or
+                        result.get("changes_made", {}).get("choices", {})
+                    )
+
+                return result
+
+        except Exception as e:
+            logger.error(f"Error parsing fix errors response: {e}")
+
+        # Fallback: return original content unchanged
+        return {
+            "fixed_question": original_question,
+            "fixed_choices": original_choices,
+            "changes_made": {"question": [], "choices": {}},
+            "has_changes": False
+        }
 
     def _parse_mock_questions(self, response: str) -> List[Dict[str, Any]]:
         """Parse AI response to extract mock exam questions"""
@@ -1062,3 +1200,21 @@ async def generate_syllabus_coverage_questions(
 async def analyze_question_difficulty(question: Dict[str, Any]) -> Dict[str, Any]:
     """Analyze question difficulty and characteristics"""
     return await openrouter_manager.analyze_question_difficulty(question)
+
+
+async def fix_question_errors(question_text: str, choices: List[str]) -> Dict[str, Any]:
+    """
+    Conservative AI fix for OCR errors, typos, and grammar issues.
+
+    Args:
+        question_text: The question text to fix
+        choices: List of answer choices to fix
+
+    Returns:
+        Dict with keys:
+            - fixed_question: Corrected question text
+            - fixed_choices: List of corrected choices
+            - changes_made: Dict of changes
+            - has_changes: Boolean indicating if any fixes were made
+    """
+    return await openrouter_manager.fix_question_errors(question_text, choices)

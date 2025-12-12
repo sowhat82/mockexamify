@@ -177,13 +177,17 @@ def show_pool_questions(pool_id: str):
             st.session_state.selected_questions = set()
             st.rerun()
 
-    # Delete selected button (only show if questions are selected)
+    # Bulk action buttons (only show if questions are selected)
     if selected_count > 0:
         st.markdown("---")
-        col1, col2 = st.columns([3, 1])
+        col1, col2, col3 = st.columns([2, 1, 1])
         with col1:
             st.warning(f"⚠️ {selected_count} question(s) selected")
         with col2:
+            if st.button(f"🤖 AI Fix {selected_count} Selected", key="ai_fix_selected_btn", type="secondary"):
+                st.session_state.ai_fix_mode = True
+                st.rerun()
+        with col3:
             if st.button(f"🗑️ Delete {selected_count} Selected", key="delete_selected_btn", type="primary"):
                 st.session_state.confirm_bulk_delete = True
                 st.rerun()
@@ -209,6 +213,11 @@ def show_pool_questions(pool_id: str):
                     st.session_state.confirm_bulk_delete = False
                     st.rerun()
             st.markdown("---")
+
+    # Show AI fix preview if in AI fix mode
+    if st.session_state.get('ai_fix_mode', False):
+        show_ai_fix_preview()
+        return  # Don't show normal question list while in AI fix mode
 
     # Display questions
     for idx, question in enumerate(filtered_questions, 1):
@@ -543,6 +552,235 @@ async def update_question(question_id: str, updated_data: Dict[str, Any]) -> boo
     except Exception as e:
         st.error(f"Error updating question: {str(e)}")
         return False
+
+
+async def process_ai_fixes(question_ids: List[str]) -> List[Dict[str, Any]]:
+    """
+    Process AI fixes for selected questions.
+
+    Returns list of fix suggestions with before/after content.
+    """
+    from openrouter_utils import fix_question_errors
+    from db import db
+    import logging
+
+    logger = logging.getLogger(__name__)
+    fix_results = []
+
+    for question_id in question_ids:
+        try:
+            # Load question from database
+            response = db.admin_client.table("pool_questions").select("*").eq("id", question_id).execute()
+
+            if not response.data:
+                logger.warning(f"Question {question_id} not found")
+                continue
+
+            question = response.data[0]
+            question_text = question['question_text']
+            choices = json.loads(question['choices']) if isinstance(question['choices'], str) else question['choices']
+
+            # Call AI to fix
+            fix_result = await fix_question_errors(question_text, choices)
+
+            fix_results.append({
+                "question_id": question_id,
+                "original_question": question_text,
+                "fixed_question": fix_result['fixed_question'],
+                "original_choices": choices,
+                "fixed_choices": fix_result['fixed_choices'],
+                "changes_made": fix_result['changes_made'],
+                "has_changes": fix_result.get('has_changes', True),
+                "error": fix_result.get('error')
+            })
+
+        except Exception as e:
+            logger.error(f"Error processing fix for question {question_id}: {e}")
+            fix_results.append({
+                "question_id": question_id,
+                "has_changes": False,
+                "error": str(e)
+            })
+
+    return fix_results
+
+
+def apply_approved_fixes(fix_results: List[Dict[str, Any]]):
+    """Apply approved fixes to database"""
+    approved_ids = st.session_state.approved_fixes
+    success_count = 0
+    error_count = 0
+
+    for fix in fix_results:
+        if fix['question_id'] in approved_ids:
+            # Update question in database
+            updated_data = {
+                'question_text': fix['fixed_question'],
+                'choices': json.dumps(fix['fixed_choices'])
+            }
+            if run_async(update_question(fix['question_id'], updated_data)):
+                success_count += 1
+            else:
+                error_count += 1
+
+    if error_count > 0:
+        st.warning(f"⚠️ {error_count} fix(es) failed to apply")
+
+    return success_count
+
+
+def show_ai_fix_preview():
+    """Display AI fix preview with approval interface"""
+
+    st.markdown("## 🤖 AI Fix Preview")
+    st.markdown("Review the suggested fixes below. Approve or skip each fix.")
+
+    # Get fix results from session state (computed once)
+    if 'ai_fix_results' not in st.session_state:
+        with st.spinner("🤖 AI is analyzing questions for errors..."):
+            question_ids = list(st.session_state.selected_questions)
+            fix_results = run_async(process_ai_fixes(question_ids))
+            st.session_state.ai_fix_results = fix_results
+
+    fix_results = st.session_state.ai_fix_results
+
+    # Filter to only show questions with changes
+    questions_with_changes = [f for f in fix_results if f.get('has_changes', False)]
+    questions_with_errors = [f for f in fix_results if f.get('error')]
+
+    # Show errors if any
+    if questions_with_errors:
+        st.warning(f"⚠️ {len(questions_with_errors)} question(s) could not be processed:")
+        for fix in questions_with_errors:
+            st.error(f"Error: {fix['error']}")
+
+    if not questions_with_changes:
+        st.success("✅ No errors found! All selected questions look good.")
+        if st.button("⬅️ Back to Questions"):
+            st.session_state.ai_fix_mode = False
+            if 'ai_fix_results' in st.session_state:
+                del st.session_state.ai_fix_results
+            st.rerun()
+        return
+
+    st.info(f"Found {len(questions_with_changes)} question(s) with errors to fix")
+
+    # Initialize approval tracking
+    if 'approved_fixes' not in st.session_state:
+        st.session_state.approved_fixes = set()
+
+    # Display each fix for review
+    for idx, fix in enumerate(questions_with_changes, 1):
+        st.markdown("---")
+        st.markdown(f"### Question {idx} of {len(questions_with_changes)}")
+
+        # Show changes summary
+        changes_summary = []
+        if fix['changes_made'].get('question'):
+            changes_summary.extend(fix['changes_made']['question'])
+        if fix['changes_made'].get('choices'):
+            for choice_idx, choice_changes in fix['changes_made']['choices'].items():
+                if choice_changes:  # Only show if there are changes
+                    changes_summary.extend([f"Choice {choice_idx}: {c}" for c in choice_changes])
+
+        if changes_summary:
+            st.markdown("**Changes:**")
+            for change in changes_summary:
+                st.markdown(f"- {change}")
+
+        # Before/After comparison
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("#### ❌ Before")
+            st.text_area(
+                "Question",
+                value=fix['original_question'],
+                height=100,
+                key=f"before_q_{idx}",
+                disabled=True
+            )
+            st.markdown("**Choices:**")
+            for i, choice in enumerate(fix['original_choices']):
+                st.text_input(
+                    f"Choice {i}",
+                    value=choice,
+                    key=f"before_c_{idx}_{i}",
+                    disabled=True
+                )
+
+        with col2:
+            st.markdown("#### ✅ After")
+            st.text_area(
+                "Question",
+                value=fix['fixed_question'],
+                height=100,
+                key=f"after_q_{idx}",
+                disabled=True
+            )
+            st.markdown("**Choices:**")
+            for i, choice in enumerate(fix['fixed_choices']):
+                st.text_input(
+                    f"Choice {i}",
+                    value=choice,
+                    key=f"after_c_{idx}_{i}",
+                    disabled=True
+                )
+
+        # Approval buttons
+        col1, col2 = st.columns(2)
+        question_id = fix['question_id']
+        is_approved = question_id in st.session_state.approved_fixes
+
+        with col1:
+            if st.button(
+                f"✅ {'Approved' if is_approved else 'Approve'} Fix {idx}",
+                key=f"approve_{idx}",
+                type="primary" if not is_approved else "secondary",
+                disabled=is_approved
+            ):
+                st.session_state.approved_fixes.add(question_id)
+                st.rerun()
+
+        with col2:
+            if st.button(
+                f"⏭️ Skip {idx}",
+                key=f"skip_{idx}",
+                disabled=not is_approved
+            ):
+                st.session_state.approved_fixes.discard(question_id)
+                st.rerun()
+
+    # Apply all approved fixes
+    st.markdown("---")
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1:
+        st.markdown(f"**{len(st.session_state.approved_fixes)} fix(es) approved**")
+    with col2:
+        if st.button(
+            "💾 Apply All Approved",
+            type="primary",
+            disabled=len(st.session_state.approved_fixes) == 0
+        ):
+            success_count = apply_approved_fixes(fix_results)
+            st.success(f"✅ Applied {success_count} fix(es) successfully!")
+            # Cleanup
+            st.session_state.ai_fix_mode = False
+            st.session_state.selected_questions = set()
+            if 'ai_fix_results' in st.session_state:
+                del st.session_state.ai_fix_results
+            if 'approved_fixes' in st.session_state:
+                del st.session_state.approved_fixes
+            st.rerun()
+
+    with col3:
+        if st.button("❌ Cancel", key="cancel_ai_fix"):
+            st.session_state.ai_fix_mode = False
+            if 'ai_fix_results' in st.session_state:
+                del st.session_state.ai_fix_results
+            if 'approved_fixes' in st.session_state:
+                del st.session_state.approved_fixes
+            st.rerun()
 
 
 # Main entry point

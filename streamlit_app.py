@@ -766,7 +766,6 @@ def show_authentication_page(auth: AuthUtils):
             <p>• Industry-standard questions</p>
             <p>• Realistic exam scenarios</p>
             <p>• Detailed performance analysis</p>
-            <p>• Multiple difficulty levels</p>
         </div>
         """,
             unsafe_allow_html=True,

@@ -772,18 +772,7 @@ def show_authentication_page(auth: AuthUtils):
         )
 
     with col2:
-        st.markdown(
-            """
-        <div class="feature-card">
-            <h4>🤖 AI-Powered Insights</h4>
-            <p>• Personalized explanations</p>
-            <p>• Smart performance analytics</p>
-            <p>• Adaptive recommendations</p>
-            <p>• Learning path optimization</p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
+        pass  # AI-Powered Insights section hidden
 
     with col3:
         st.markdown(

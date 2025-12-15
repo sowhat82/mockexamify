@@ -723,7 +723,7 @@ def show_authentication_page(auth: AuthUtils):
     st.markdown(
         """
     <div class="welcome-section">
-            <!-- Removed large header -->
+        <h1 class="main-header">WantAMock</h1>
         <p>Master Your Exams with AI-Powered Mock Tests</p>
     </div>
     """,

@@ -610,6 +610,11 @@ select::-ms-expand {
         font-size: 2rem;
     }
 
+    /* Ensure WantAMock header fits on one line on mobile */
+    .welcome-section .main-header {
+        font-size: 2.5rem !important;
+    }
+
     .welcome-section {
         padding: 2rem 1rem;
     }
@@ -620,6 +625,13 @@ select::-ms-expand {
 
     .feature-card {
         padding: 1.5rem;
+    }
+}
+
+/* Extra small screens (phones in portrait) */
+@media (max-width: 480px) {
+    .welcome-section .main-header {
+        font-size: 2rem !important;
     }
 }
 </style>

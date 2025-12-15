@@ -308,6 +308,17 @@ header .st-emotion-cache-1v0mbdj, header .st-emotion-cache-10trblm, header [data
     margin-bottom: 0;
 }
 
+/* Make WantAMock header prominent inside welcome section */
+.welcome-section .main-header {
+    color: white !important;
+    background: none !important;
+    -webkit-text-fill-color: white !important;
+    text-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    font-size: 4.5rem;
+    font-weight: 900;
+    margin-bottom: 1rem;
+}
+
 /* Login/Register tabs */
 .stTabs [data-baseweb="tab-list"] {
     gap: 2rem;

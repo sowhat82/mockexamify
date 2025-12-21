@@ -134,12 +134,7 @@ class QuestionValidator:
                     "Include the required information."
                 )
 
-        # Pattern 4: Question ends with a colon (incomplete)
-        if question_text.strip().endswith(':'):
-            errors.append(
-                "CRITICAL: Question ends with ':' indicating incomplete question. "
-                "Complete the question or remove the colon."
-            )
+        # Pattern 4: Removed - Questions ending with ':' are valid (e.g., "Which of the following:")
 
         # Pattern 5: Questions that reference specific people without adequate scenario
         # Look for questions asking "who did/didn't contravene/violate" or "who is/isn't guilty"

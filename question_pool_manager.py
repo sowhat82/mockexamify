@@ -89,7 +89,8 @@ class QuestionPoolManager:
             similar_questions = []
 
             # For efficiency, only check against random sample if too many questions
-            sample_size = min(len(existing_questions), 50)
+            # Reduced from 50 to 15 to avoid rate limits (16 req/min limit)
+            sample_size = min(len(existing_questions), 15)
             import random
 
             questions_to_check = (
@@ -113,6 +114,10 @@ class QuestionPoolManager:
 
                 if similarity >= threshold:
                     similar_questions.append((existing_q, similarity))
+
+                # Add small delay to pace requests and reduce rate limit hits
+                import asyncio
+                await asyncio.sleep(0.5)
 
             # Sort by similarity descending
             similar_questions.sort(key=lambda x: x[1], reverse=True)

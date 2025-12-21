@@ -243,13 +243,24 @@ def show_pool_questions(pool_id: str):
             # Checkbox for selecting this question
             question_id = question['id']
             is_selected = question_id in st.session_state.selected_questions
+            checkbox_key = f"select_{question_id}_{idx}"
 
-            if st.checkbox("", value=is_selected, key=f"select_{question_id}_{idx}", label_visibility="collapsed"):
-                # Add to selection
-                st.session_state.selected_questions.add(question_id)
-            else:
-                # Remove from selection
-                st.session_state.selected_questions.discard(question_id)
+            # Define callback to handle checkbox changes with proper closure
+            def make_toggle_callback(q_id, key):
+                def callback():
+                    if st.session_state[key]:
+                        st.session_state.selected_questions.add(q_id)
+                    else:
+                        st.session_state.selected_questions.discard(q_id)
+                return callback
+
+            st.checkbox(
+                "",
+                value=is_selected,
+                key=checkbox_key,
+                label_visibility="collapsed",
+                on_change=make_toggle_callback(question_id, checkbox_key)
+            )
 
         with col2:
             with st.expander(f"Q{idx}: {preview_text}{'...' if len(preview_text) >= 100 else ''}"):

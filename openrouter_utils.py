@@ -272,6 +272,55 @@ class OpenRouterManager:
                 "error": str(e)
             }
 
+    async def validate_answer_correctness(
+        self, question_text: str, choices: List[str], claimed_correct_index: int, scenario: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Validate if the claimed correct answer is actually correct.
+
+        Args:
+            question_text: The question text
+            choices: List of answer choices
+            claimed_correct_index: Index of the claimed correct answer
+            scenario: Optional scenario/context for the question
+
+        Returns:
+            Dict with keys:
+                - is_valid: True if claimed answer seems correct
+                - confidence: 0.0-1.0 confidence score
+                - ai_suggested_index: AI's suggested correct answer index
+                - ai_suggested_choice: AI's suggested correct answer text
+                - reasoning: Explanation for AI's determination
+                - should_auto_correct: True if confidence >= 0.90 and answer is wrong
+        """
+        try:
+            prompt = self._create_answer_validation_prompt(
+                question_text, choices, claimed_correct_index, scenario
+            )
+            response = await self._generate_text_with_retry(
+                prompt, max_tokens=1000, temperature=0.3  # Low temperature for consistent answers
+            )
+
+            # Parse the AI response
+            validation_result = self._parse_answer_validation_response(
+                response, claimed_correct_index, choices
+            )
+
+            return validation_result
+
+        except Exception as e:
+            logger.error(f"Error validating answer correctness: {e}")
+            # Safe fallback: assume answer is correct
+            return {
+                "is_valid": True,
+                "confidence": 0.0,
+                "ai_suggested_index": claimed_correct_index,
+                "ai_suggested_choice": choices[claimed_correct_index] if claimed_correct_index < len(choices) else "",
+                "reasoning": f"Unable to validate due to error: {str(e)}",
+                "should_auto_correct": False,
+                "error": str(e)
+            }
+
     async def generate_study_tips(self, topic: str, user_performance: Dict[str, Any]) -> str:
         """Generate personalized study tips based on user performance"""
         try:
@@ -680,6 +729,47 @@ If NO errors are found at all, return:
 
 Be extremely conservative. Only fix OBVIOUS errors."""
 
+    def _create_answer_validation_prompt(
+        self, question_text: str, choices: List[str], claimed_correct_index: int, scenario: str = ""
+    ) -> str:
+        """Create prompt for validating answer correctness"""
+        choices_formatted = "\n".join([f"{chr(65 + i)}. {choice}" for i, choice in enumerate(choices)])
+        scenario_text = f"\n\nSCENARIO/CONTEXT:\n{scenario}" if scenario else ""
+
+        return f"""You are an expert in finance, banking, and regulatory exams (CACS, CMFAS, Securities, MAS regulations).
+
+Analyze this multiple-choice question and determine the BEST correct answer.
+
+QUESTION: {question_text}{scenario_text}
+
+ANSWER CHOICES:
+{choices_formatted}
+
+CLAIMED CORRECT ANSWER: {chr(65 + claimed_correct_index)}. {choices[claimed_correct_index]}
+
+TASK:
+1. Determine which choice is ACTUALLY the most defensible correct answer based on financial regulations and best practices
+2. Rate your confidence (0.0-1.0) in your determination
+3. Explain your reasoning clearly
+
+IMPORTANT:
+- Only choose a different answer if you are VERY confident (≥0.90) the claimed answer is wrong
+- If confidence < 0.90, you are uncertain - be conservative
+- For "EXCEPT" questions, the correct answer is the one that does NOT belong
+- Consider regulatory requirements (MAS, SFA, FAA) for finance-related questions
+
+Respond in JSON ONLY (no preamble or explanation before the JSON):
+{{{{
+  "best_answer_letter": "B",
+  "best_answer_index": 1,
+  "confidence": 0.95,
+  "reasoning": "Detailed explanation of why this is the correct answer and why the claimed answer is wrong if applicable...",
+  "is_claimed_answer_correct": false,
+  "issues_with_claimed_answer": "Specific issues with the claimed correct answer if any..."
+}}}}
+
+Be thorough in your reasoning. If unsure, lower your confidence score."""
+
     def _parse_fix_errors_response(
         self, response: str, original_question: str, original_choices: List[str]
     ) -> Dict[str, Any]:
@@ -722,6 +812,68 @@ Be extremely conservative. Only fix OBVIOUS errors."""
             "fixed_choices": original_choices,
             "changes_made": {"question": [], "choices": {}},
             "has_changes": False
+        }
+
+    def _parse_answer_validation_response(
+        self, response: str, claimed_index: int, choices: List[str]
+    ) -> Dict[str, Any]:
+        """Parse AI response for answer validation"""
+        try:
+            # Extract JSON from response
+            json_start = response.find("{")
+            json_end = response.rfind("}") + 1
+
+            if json_start >= 0 and json_end > json_start:
+                json_str = response[json_start:json_end]
+                result = json.loads(json_str)
+
+                # Validate the response structure
+                required_keys = ["best_answer_index", "confidence", "reasoning"]
+                if not all(key in result for key in required_keys):
+                    logger.warning("Invalid response structure from AI, using safe fallback")
+                    return self._get_validation_fallback(claimed_index, choices)
+
+                # Extract values with defaults
+                ai_index = int(result.get("best_answer_index", claimed_index))
+                confidence = float(result.get("confidence", 0.0))
+                reasoning = result.get("reasoning", "")
+                is_claimed_correct = result.get("is_claimed_answer_correct", True)
+
+                # Bounds check
+                if ai_index < 0 or ai_index >= len(choices):
+                    logger.warning(f"AI suggested invalid index {ai_index}, using claimed index")
+                    ai_index = claimed_index
+
+                # Determine if should auto-correct
+                is_valid = (ai_index == claimed_index) or is_claimed_correct
+                should_auto_correct = (confidence >= 0.90) and not is_valid
+
+                return {
+                    "is_valid": is_valid,
+                    "confidence": min(1.0, max(0.0, confidence)),  # Clamp to 0.0-1.0
+                    "ai_suggested_index": ai_index,
+                    "ai_suggested_choice": choices[ai_index],
+                    "reasoning": reasoning,
+                    "should_auto_correct": should_auto_correct
+                }
+
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error in answer validation: {e}")
+        except Exception as e:
+            logger.error(f"Error parsing answer validation response: {e}")
+
+        # Fallback: assume answer is correct
+        return self._get_validation_fallback(claimed_index, choices)
+
+    def _get_validation_fallback(self, claimed_index: int, choices: List[str]) -> Dict[str, Any]:
+        """Get safe fallback validation result"""
+        return {
+            "is_valid": True,
+            "confidence": 0.0,
+            "ai_suggested_index": claimed_index,
+            "ai_suggested_choice": choices[claimed_index] if claimed_index < len(choices) else "",
+            "reasoning": "Unable to validate - assuming claimed answer is correct",
+            "should_auto_correct": False
         }
 
     def _parse_mock_questions(self, response: str) -> List[Dict[str, Any]]:
@@ -1218,3 +1370,32 @@ async def fix_question_errors(question_text: str, choices: List[str]) -> Dict[st
             - has_changes: Boolean indicating if any fixes were made
     """
     return await openrouter_manager.fix_question_errors(question_text, choices)
+
+
+async def validate_answer_correctness(
+    question_text: str,
+    choices: List[str],
+    claimed_correct_index: int,
+    scenario: str = ""
+) -> Dict[str, Any]:
+    """
+    Validate if the claimed correct answer is actually correct.
+
+    Args:
+        question_text: The question text
+        choices: List of answer choices
+        claimed_correct_index: Index of the claimed correct answer
+        scenario: Optional scenario/context for the question
+
+    Returns:
+        Dict with keys:
+            - is_valid: True if claimed answer seems correct
+            - confidence: 0.0-1.0 confidence score
+            - ai_suggested_index: AI's suggested correct answer index
+            - ai_suggested_choice: AI's suggested correct answer text
+            - reasoning: Explanation for AI's determination
+            - should_auto_correct: True if confidence >= 0.90 and answer is wrong
+    """
+    return await openrouter_manager.validate_answer_correctness(
+        question_text, choices, claimed_correct_index, scenario
+    )

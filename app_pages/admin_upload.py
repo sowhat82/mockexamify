@@ -1033,6 +1033,91 @@ async def process_pool_upload(
             # Update questions_to_add to only valid questions
             questions_to_add = valid_questions
 
+        # AI Answer Validation
+        if questions_to_add:
+            from openrouter_utils import validate_answer_correctness
+
+            progress_placeholder.info("🤖 Validating answer correctness with AI...")
+
+            validated_questions = []
+            auto_corrected = []
+            low_confidence_warnings = []
+
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+
+            for idx, q in enumerate(questions_to_add, 1):
+                status_text.info(f"🤖 Validating answers: {idx}/{len(questions_to_add)}...")
+                progress_bar.progress(idx / len(questions_to_add))
+
+                # Extract question data
+                question_text = q.get('question_text') or q.get('question', '')
+                choices = q.get('choices', [])
+                correct_index = q.get('correct_answer') or q.get('correct_index', 0)
+                scenario = q.get('scenario', '')
+
+                # Parse choices if JSON string
+                if isinstance(choices, str):
+                    import json
+                    try:
+                        choices = json.loads(choices)
+                    except:
+                        pass
+
+                try:
+                    # Call AI to validate answer
+                    validation = await validate_answer_correctness(
+                        question_text, choices, correct_index, scenario
+                    )
+
+                    # Auto-correct if AI is confident
+                    if validation['should_auto_correct'] and not validation['is_valid']:
+                        # Store original for report
+                        original_index = correct_index
+
+                        # Update to AI's suggested answer
+                        q['correct_answer'] = validation['ai_suggested_index']
+                        q['correct_index'] = validation['ai_suggested_index']
+
+                        auto_corrected.append({
+                            'question_text': question_text[:100] + ('...' if len(question_text) > 100 else ''),
+                            'old_answer': f"{chr(65 + original_index)} - {choices[original_index]}",
+                            'new_answer': f"{chr(65 + validation['ai_suggested_index'])} - {choices[validation['ai_suggested_index']]}",
+                            'confidence': validation['confidence'],
+                            'reasoning': validation['reasoning']
+                        })
+                    elif not validation['is_valid'] and validation['confidence'] < 0.90:
+                        # Low confidence warning
+                        low_confidence_warnings.append({
+                            'question_text': question_text[:100] + ('...' if len(question_text) > 100 else ''),
+                            'current_answer': f"{chr(65 + correct_index)} - {choices[correct_index]}",
+                            'suggested_answer': f"{chr(65 + validation['ai_suggested_index'])} - {choices[validation['ai_suggested_index']]}",
+                            'confidence': validation['confidence'],
+                            'reasoning': validation['reasoning']
+                        })
+
+                    validated_questions.append(q)
+
+                    # Rate limiting
+                    await asyncio.sleep(0.5)
+
+                except Exception as e:
+                    logger.error(f"Error validating answer for question {idx}: {e}")
+                    # Continue with original answer on error
+                    validated_questions.append(q)
+
+            progress_bar.empty()
+            status_text.empty()
+
+            # Update questions_to_add to use validated questions
+            questions_to_add = validated_questions
+
+            # Store results in session state for reporting
+            st.session_state.answer_validation_results = {
+                'auto_corrected': auto_corrected,
+                'low_confidence_warnings': low_confidence_warnings
+            }
+
         # Create upload batch record
         batch_id = await db.create_upload_batch(
             pool_id=pool_id,
@@ -1126,6 +1211,47 @@ async def process_pool_upload(
         with col4:
             total_duplicates = len(exact_duplicates) + ai_duplicates_found
             st.metric("🔄 Duplicates Skipped", total_duplicates)
+
+        # Show AI Answer Validation Report
+        if 'answer_validation_results' in st.session_state:
+            results = st.session_state.answer_validation_results
+            auto_corrected = results.get('auto_corrected', [])
+            low_confidence_warnings = results.get('low_confidence_warnings', [])
+
+            if auto_corrected or low_confidence_warnings:
+                st.markdown("---")
+                st.markdown("### 🤖 AI Answer Validation Report")
+
+                if auto_corrected:
+                    st.success(f"✅ Auto-corrected {len(auto_corrected)} answer(s) (≥90% confidence)")
+                    with st.expander("📋 View Auto-Corrected Answers"):
+                        for idx, correction in enumerate(auto_corrected, 1):
+                            st.markdown(f"**Question {idx}:** {correction['question_text']}")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.markdown(f"❌ **Old Answer:** {correction['old_answer']}")
+                            with col2:
+                                st.markdown(f"✅ **New Answer:** {correction['new_answer']}")
+                            st.markdown(f"**Confidence:** {correction['confidence']:.0%}")
+                            st.markdown(f"**Reasoning:** {correction['reasoning']}")
+                            if idx < len(auto_corrected):
+                                st.markdown("---")
+
+                if low_confidence_warnings:
+                    st.warning(f"⚠️ {len(low_confidence_warnings)} question(s) may have incorrect answers (AI not confident enough to auto-correct)")
+                    with st.expander("⚠️ View Potential Issues"):
+                        for idx, warning in enumerate(low_confidence_warnings, 1):
+                            st.markdown(f"**Question {idx}:** {warning['question_text']}")
+                            st.markdown(f"**Current Answer:** {warning['current_answer']}")
+                            st.markdown(f"**AI Suggests:** {warning['suggested_answer']}")
+                            st.markdown(f"**Confidence:** {warning['confidence']:.0%}")
+                            st.markdown(f"**Reasoning:** {warning['reasoning']}")
+                            st.info("💡 Review this question manually - AI is not confident enough to auto-correct.")
+                            if idx < len(low_confidence_warnings):
+                                st.markdown("---")
+
+            # Clean up session state
+            del st.session_state.answer_validation_results
 
         # Explanation generation note
         st.info(

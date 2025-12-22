@@ -604,20 +604,23 @@ def parse_csv_file(uploaded_file) -> List[Dict[str, Any]]:
                 st.warning(f"Row {row_num}: Skipping question with less than 2 choices")
                 continue
 
+            correct_index = int(row["correct_index"])
+
+            # Validate correct_index
+            if correct_index >= len(choices):
+                st.warning(
+                    f"Row {row_num}: Invalid correct_index {correct_index} for {len(choices)} choices"
+                )
+                continue
+
             question = {
                 "question": row["question"].strip(),
                 "choices": choices,
-                "correct_index": int(row["correct_index"]),
+                "correct_index": correct_index,
+                "correct_answer": correct_index,  # Normalize to correct_answer for validation
                 "scenario": row.get("scenario", "").strip() or None,
                 "explanation_seed": row.get("explanation_seed", "").strip() or None,
             }
-
-            # Validate correct_index
-            if question["correct_index"] >= len(choices):
-                st.warning(
-                    f"Row {row_num}: Invalid correct_index {question['correct_index']} for {len(choices)} choices"
-                )
-                continue
 
             questions.append(question)
 
@@ -664,6 +667,7 @@ def parse_json_file(uploaded_file) -> List[Dict[str, Any]]:
                 "question": item["question"],
                 "choices": choices,
                 "correct_index": correct_index,
+                "correct_answer": correct_index,  # Normalize to correct_answer for validation
                 "scenario": item.get("scenario"),
                 "explanation_seed": item.get("explanation_seed"),
             }

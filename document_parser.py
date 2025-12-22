@@ -928,6 +928,7 @@ Extract all questions now:"""
                     "question": q["question"].strip(),
                     "choices": [str(choice).strip() for choice in q["choices"]],
                     "correct_index": correct_index,
+                    "correct_answer": correct_index,  # Normalize to correct_answer for validation
                     "scenario": q.get("scenario", "").strip() if q.get("scenario") else None,
                     "explanation_seed": (
                         q.get("explanation_seed", "").strip() if q.get("explanation_seed") else None
@@ -1145,6 +1146,7 @@ The AI will intelligently extract and structure all questions automatically!
                                 "question": current_question["text"],
                                 "choices": [c["text"] for c in current_choices],
                                 "correct_index": correct_index,
+                                "correct_answer": correct_index,  # Normalize to correct_answer for validation
                                 "explanation_seed": current_question.get("explanation", ""),
                             }
                         )
@@ -1180,6 +1182,7 @@ The AI will intelligently extract and structure all questions automatically!
                         "question": current_question["text"],
                         "choices": [c["text"] for c in current_choices],
                         "correct_index": correct_index,
+                        "correct_answer": correct_index,  # Normalize to correct_answer for validation
                         "explanation_seed": current_question.get("explanation", ""),
                     }
                 )

@@ -1037,17 +1037,18 @@ async def process_pool_upload(
         if questions_to_add:
             from openrouter_utils import validate_answer_correctness
 
-            progress_placeholder.info("🤖 Validating answer correctness with AI...")
+            progress_placeholder.info("🤖 Validating answer correctness with AI (only for questions missing answers)...")
 
             validated_questions = []
             auto_corrected = []
             low_confidence_warnings = []
+            skipped_count = 0
 
             progress_bar = st.progress(0)
             status_text = st.empty()
 
             for idx, q in enumerate(questions_to_add, 1):
-                status_text.info(f"🤖 Validating answers: {idx}/{len(questions_to_add)}...")
+                status_text.info(f"🤖 Processing question {idx}/{len(questions_to_add)}...")
                 progress_bar.progress(idx / len(questions_to_add))
 
                 # Extract question data
@@ -1064,8 +1065,23 @@ async def process_pool_upload(
                     except:
                         pass
 
+                # ONLY validate if question was missing correct answer or had validation issues
+                # Skip validation for questions with valid pre-provided answers
+                validation_issues = q.get('validation_issues', [])
+                has_valid_answer = (
+                    q.get('correct_answer') is not None and
+                    isinstance(q.get('correct_answer'), int) and
+                    'missing_correct_answer' not in validation_issues
+                )
+
+                if has_valid_answer:
+                    # Question already has a valid answer - skip AI validation
+                    validated_questions.append(q)
+                    skipped_count += 1
+                    continue
+
                 try:
-                    # Call AI to validate answer
+                    # Call AI to validate answer (only for questions missing answers)
                     validation = await validate_answer_correctness(
                         question_text, choices, correct_index, scenario
                     )
@@ -1109,13 +1125,24 @@ async def process_pool_upload(
             progress_bar.empty()
             status_text.empty()
 
+            # Show validation summary
+            validated_count = len(questions_to_add) - skipped_count
+            if skipped_count > 0:
+                progress_placeholder.success(
+                    f"✅ AI validation complete: {validated_count} questions validated, "
+                    f"{skipped_count} questions skipped (already had valid answers)"
+                )
+            else:
+                progress_placeholder.success(f"✅ AI validation complete: {validated_count} questions validated")
+
             # Update questions_to_add to use validated questions
             questions_to_add = validated_questions
 
             # Store results in session state for reporting
             st.session_state.answer_validation_results = {
                 'auto_corrected': auto_corrected,
-                'low_confidence_warnings': low_confidence_warnings
+                'low_confidence_warnings': low_confidence_warnings,
+                'skipped_count': skipped_count
             }
 
         # Create upload batch record

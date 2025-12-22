@@ -168,13 +168,24 @@ def show_pool_questions(pool_id: str):
         # Select/Deselect all visible questions
         if st.button("☑️ Select All Visible", key="select_all_visible"):
             # Add all filtered question IDs to selection
-            for q in filtered_questions:
-                st.session_state.selected_questions.add(q['id'])
+            for idx, q in enumerate(filtered_questions, 1):
+                question_id = q['id']
+                st.session_state.selected_questions.add(question_id)
+                # Also update checkbox widget state to match
+                checkbox_key = f"select_{question_id}_{idx}"
+                st.session_state[checkbox_key] = True
             st.rerun()
 
     with col3:
         if st.button("⬜ Clear Selection", key="clear_selection"):
+            # Clear selection set
+            selected_ids = list(st.session_state.selected_questions)
             st.session_state.selected_questions = set()
+            # Also clear checkbox widget states
+            for idx, q in enumerate(filtered_questions, 1):
+                checkbox_key = f"select_{q['id']}_{idx}"
+                if checkbox_key in st.session_state:
+                    st.session_state[checkbox_key] = False
             st.rerun()
 
     # Bulk action buttons (only show if questions are selected)

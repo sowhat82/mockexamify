@@ -647,20 +647,32 @@ def parse_json_file(uploaded_file) -> List[Dict[str, Any]]:
                 st.warning(f"Question {i}: Must be an object")
                 continue
 
-            required_fields = ["question", "choices", "correct_index"]
-            for field in required_fields:
-                if field not in item:
-                    st.warning(f"Question {i}: Missing required field '{field}'")
-                    continue
+            # Check for required question field
+            if "question" not in item:
+                st.warning(f"Question {i}: Missing required field 'question'")
+                continue
 
-            choices = item["choices"]
+            # Support both "choices" and "options" field names
+            choices = item.get("choices") or item.get("options")
+            if not choices:
+                st.warning(f"Question {i}: Missing required field 'choices' or 'options'")
+                continue
+
             if not isinstance(choices, list) or len(choices) < 2:
                 st.warning(f"Question {i}: Must have at least 2 choices")
                 continue
 
-            correct_index = item["correct_index"]
-            if not isinstance(correct_index, int) or correct_index >= len(choices):
-                st.warning(f"Question {i}: Invalid correct_index")
+            # Support both "correct_index" and "correct_answer" field names
+            correct_index = item.get("correct_index")
+            if correct_index is None:
+                correct_index = item.get("correct_answer")
+
+            if correct_index is None:
+                st.warning(f"Question {i}: Missing required field 'correct_index' or 'correct_answer'")
+                continue
+
+            if not isinstance(correct_index, int) or correct_index < 0 or correct_index >= len(choices):
+                st.warning(f"Question {i}: Invalid correct_index/correct_answer {correct_index}")
                 continue
 
             question = {

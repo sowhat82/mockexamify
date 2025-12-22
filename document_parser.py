@@ -187,6 +187,44 @@ class DocumentParser:
             if not text or len(text.strip()) < 50:
                 return False, [], "Could not extract sufficient text from document"
 
+            # Check if document contains pure JSON (avoid unreliable AI conversion)
+            text_stripped = text.strip()
+            if text_stripped.startswith('[') and text_stripped.endswith(']'):
+                try:
+                    st.info("📋 Detected JSON format in document, parsing directly...")
+                    json_data = json.loads(text_stripped)
+                    if isinstance(json_data, list) and len(json_data) > 0:
+                        # Convert to expected format
+                        questions = []
+                        for item in json_data:
+                            if not isinstance(item, dict):
+                                continue
+
+                            # Support both "choices"/"options" and "correct_index"/"correct_answer"
+                            choices = item.get("choices") or item.get("options")
+                            correct_index = item.get("correct_index")
+                            if correct_index is None:
+                                correct_index = item.get("correct_answer")
+
+                            if item.get("question") and choices and correct_index is not None:
+                                questions.append({
+                                    "question": item["question"],
+                                    "choices": choices,
+                                    "correct_index": correct_index,
+                                    "correct_answer": correct_index,
+                                    "scenario": item.get("scenario"),
+                                    "explanation_seed": item.get("explanation_seed")
+                                })
+
+                        if questions:
+                            st.success(f"✅ Parsed {len(questions)} questions from JSON")
+                            valid_questions = self._validate_questions(questions)
+                            if valid_questions:
+                                return True, valid_questions, ""
+                except json.JSONDecodeError:
+                    # Not valid JSON, fall through to AI parsing
+                    pass
+
             # Use AI to parse questions from text
             st.info("🤖 Using AI to extract questions from document...")
             questions = self._parse_questions_with_ai(text)

@@ -1,5 +1,9 @@
 [
     {
+        "date": "December 2025",
+        "text": "Added AI answer validation with auto-correction during question upload"
+    },
+    {
         "date": "November 2025",
         "text": "Added automatic corruption detection and text fixing during upload"
     },

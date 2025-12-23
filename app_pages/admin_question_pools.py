@@ -886,8 +886,8 @@ def show_ai_fix_preview():
         with st.spinner("🤖 AI is analyzing questions and detecting patterns..."):
             question_ids = list(st.session_state.selected_questions)
 
-            # Get pool_id from the selected pool
-            pool_id = st.session_state.get('selected_pool')
+            # Get pool_id from the viewing pool
+            pool_id = st.session_state.get('viewing_pool')
 
             # Call enhanced process_ai_fixes with pattern detection
             fix_data = run_async(process_ai_fixes(

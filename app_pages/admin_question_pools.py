@@ -793,7 +793,7 @@ async def find_similar_errors_in_pool(
                         matching_question_ids.add(question_id)
 
             elif pattern_type == 'wrong_answer':
-                # Check if this question has similar keywords and same wrong answer
+                # Check if this question has similar keywords OR same wrong answer
                 keywords = pattern.get('keywords', [])
                 original_answer = pattern.get('original_answer_index')
 
@@ -806,8 +806,12 @@ async def find_similar_errors_in_pool(
                         matches_keywords = True
                         break
 
-                # Only flag if it has matching keywords AND the same potentially wrong answer
-                if matches_keywords and correct_answer == original_answer:
+                # NEW: More lenient matching for wrong answers
+                # Option 1: Has matching keywords AND same wrong answer (high confidence)
+                # Option 2: Has same wrong answer only (still worth checking)
+                if correct_answer == original_answer:
+                    # Always flag questions with the same wrong answer index
+                    # The AI will validate each one to confirm it's actually wrong
                     matching_question_ids.add(question_id)
 
     return list(matching_question_ids)

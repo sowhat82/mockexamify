@@ -687,8 +687,22 @@ async def process_ai_fixes(question_ids: List[str], pool_id: str = None, enable_
 
             logger.info(f"Found {len(similar_question_ids)} questions with similar errors")
 
-            # Process fixes for similar questions
-            for question_id in similar_question_ids:
+            # Process fixes for similar questions with progress tracking
+            total_to_analyze = len(similar_question_ids)
+            for idx, question_id in enumerate(similar_question_ids, 1):
+                # Update progress UI if available
+                try:
+                    import streamlit as st
+                    if hasattr(st, 'session_state'):
+                        if '_ai_fix_progress_bar' in st.session_state:
+                            progress = idx / total_to_analyze
+                            st.session_state._ai_fix_progress_bar.progress(progress)
+                        if '_ai_fix_status_text' in st.session_state:
+                            st.session_state._ai_fix_status_text.text(f"🔍 Analyzing question {idx} of {total_to_analyze}...")
+                        st.session_state._ai_fix_current = idx
+                except:
+                    pass  # Progress updates are optional
+
                 try:
                     response = db.admin_client.table("pool_questions").select("*").eq("id", question_id).execute()
 
@@ -756,8 +770,7 @@ async def process_ai_fixes(question_ids: List[str], pool_id: str = None, enable_
 async def find_similar_errors_in_pool(
     pool_id: str,
     patterns: List[Dict[str, Any]],
-    exclude_question_ids: List[str] = None,
-    max_questions_to_check: int = 50
+    exclude_question_ids: List[str] = None
 ) -> List[str]:
     """
     Find questions in the pool that match the detected error patterns.
@@ -766,7 +779,6 @@ async def find_similar_errors_in_pool(
         pool_id: The pool ID to search in
         patterns: List of error patterns from detect_error_patterns()
         exclude_question_ids: Question IDs to exclude from search
-        max_questions_to_check: Maximum number of questions to validate (to control API costs)
 
     Returns:
         List of question IDs that match the patterns
@@ -790,7 +802,7 @@ async def find_similar_errors_in_pool(
     has_wrong_answer_pattern = any(p.get('pattern_type') == 'wrong_answer' for p in patterns)
 
     if has_wrong_answer_pattern:
-        logger.info(f"Wrong answer pattern detected - will validate up to {max_questions_to_check} questions from pool")
+        logger.info(f"Wrong answer pattern detected - will validate all questions in pool")
 
     for question in all_questions:
         question_id = question.get('id')
@@ -830,13 +842,10 @@ async def find_similar_errors_in_pool(
                         matching_question_ids.add(question_id)
 
             elif pattern_type == 'wrong_answer':
-                # When wrong answers are detected, validate a sample of questions
+                # When wrong answers are detected, validate all questions in pool
                 # because wrong answers could be scattered across A, B, C, D randomly
                 # The AI will validate each one to determine if it's actually wrong
-
-                # Add questions up to the limit
-                if len(matching_question_ids) < max_questions_to_check:
-                    matching_question_ids.add(question_id)
+                matching_question_ids.add(question_id)
 
     return list(matching_question_ids)
 
@@ -911,28 +920,62 @@ def show_ai_fix_preview():
 
     # Get fix results from session state (computed once)
     if 'ai_fix_results_data' not in st.session_state:
-        with st.spinner("🤖 AI is analyzing questions and detecting patterns..."):
-            question_ids = list(st.session_state.selected_questions)
+        question_ids = list(st.session_state.selected_questions)
+        pool_id = st.session_state.get('viewing_pool')
 
-            # Get pool_id from the viewing pool
-            pool_id = st.session_state.get('viewing_pool')
+        # Get pool size to show user what to expect
+        from db import db
+        pool_questions = run_async(db.get_pool_questions(pool_id))
+        total_pool_questions = len(pool_questions) if pool_questions else 0
 
-            # Debug output
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.info(f"AI Fix Debug: pool_id={pool_id}, question_ids={question_ids}")
+        st.info(f"🔍 AI will analyze {len(question_ids)} selected question(s), then scan all {total_pool_questions} questions in the pool for similar errors.")
 
-            # Call enhanced process_ai_fixes with pattern detection
-            fix_data = run_async(process_ai_fixes(
-                question_ids=question_ids,
-                pool_id=pool_id,
-                enable_pattern_detection=True
-            ))
+        # Create progress tracking UI elements
+        progress_bar = st.progress(0)
+        status_text = st.empty()
 
-            # Debug output
-            logger.info(f"AI Fix Results: patterns={len(fix_data.get('patterns_detected', []))}, similar_found={fix_data.get('similar_questions_found', 0)}")
+        # Store UI elements in session state so async function can update them
+        st.session_state._ai_fix_progress_bar = progress_bar
+        st.session_state._ai_fix_status_text = status_text
+        st.session_state._ai_fix_total = total_pool_questions
+        st.session_state._ai_fix_current = 0
 
-            st.session_state.ai_fix_results_data = fix_data
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"AI Fix Debug: pool_id={pool_id}, question_ids={question_ids}, pool_size={total_pool_questions}")
+
+        # Call enhanced process_ai_fixes with pattern detection
+        fix_data = run_async(process_ai_fixes(
+            question_ids=question_ids,
+            pool_id=pool_id,
+            enable_pattern_detection=True
+        ))
+
+        # Clear progress UI
+        progress_bar.empty()
+        status_text.empty()
+
+        # Show completion summary
+        similar_count = fix_data.get('similar_questions_found', 0)
+        total_analyzed = len(question_ids) + similar_count
+        total_with_fixes = len([f for f in fix_data.get('fix_results', []) if f.get('has_changes')])
+
+        st.success(f"✅ Analysis complete! Analyzed {total_analyzed} question(s) across the entire pool.")
+        st.info(f"📊 Found {total_with_fixes} question(s) with errors that need fixing.")
+
+        # Clean up session state
+        if '_ai_fix_progress_bar' in st.session_state:
+            del st.session_state._ai_fix_progress_bar
+        if '_ai_fix_status_text' in st.session_state:
+            del st.session_state._ai_fix_status_text
+        if '_ai_fix_total' in st.session_state:
+            del st.session_state._ai_fix_total
+        if '_ai_fix_current' in st.session_state:
+            del st.session_state._ai_fix_current
+
+        logger.info(f"AI Fix Results: patterns={len(fix_data.get('patterns_detected', []))}, similar_found={fix_data.get('similar_questions_found', 0)}")
+
+        st.session_state.ai_fix_results_data = fix_data
 
     fix_data = st.session_state.ai_fix_results_data
     fix_results = fix_data.get('fix_results', [])

@@ -391,35 +391,34 @@ def show_available_question_pools(user: Dict[str, Any]):
             st.info("No pools match your search criteria.")
             return
 
+        # Visual separator before pools
+        st.markdown("<div style='margin-top: 24px; margin-bottom: 16px; border-top: 2px solid #e0e0e0;'></div>", unsafe_allow_html=True)
+
         st.markdown(
-            f'<p style="color: #000000; font-style: italic;">Showing {len(filtered_pools)} question pool{"s" if len(filtered_pools) != 1 else ""}</p>',
+            f'<p style="color: #000000; font-style: italic; margin-bottom: 20px;">Showing {len(filtered_pools)} question pool{"s" if len(filtered_pools) != 1 else ""}</p>',
             unsafe_allow_html=True,
         )
 
-        # Display pools in grid
-        for i in range(0, len(filtered_pools), 2):
-            cols = st.columns(2)
-
-            for j, col in enumerate(cols):
-                if i + j < len(filtered_pools):
-                    pool = filtered_pools[i + j]
-                    show_question_pool_card(pool, col, user)
+        # Display pools - one per row for clear separation
+        for pool in filtered_pools:
+            show_question_pool_card(pool, user)
 
     except Exception as e:
         st.error(f"Error loading question pools: {str(e)}")
 
 
-def show_question_pool_card(pool: Dict[str, Any], container, user: Dict[str, Any]):
+def show_question_pool_card(pool: Dict[str, Any], user: Dict[str, Any]):
     """Display a question pool card with exam options"""
-    with container:
-        pool_name = pool.get("pool_name", "Unnamed Pool")
-        total_questions = pool.get("unique_questions", pool.get("total_questions", 0))
-        category = pool.get("category", "General")
-        description = pool.get("description", "")
+    pool_name = pool.get("pool_name", "Unnamed Pool")
+    total_questions = pool.get("unique_questions", pool.get("total_questions", 0))
+    category = pool.get("category", "General")
+    description = pool.get("description", "")
 
+    # Use a Streamlit container with border
+    with st.container(border=True):
         # Use markdown with inline black color (avoid st.subheader which has white text issue)
         st.markdown(
-            f"<h3 style='color: #000000; margin-bottom: 0.5rem;'>💼 {pool_name}</h3>",
+            f"<h3 style='color: #000000; margin-bottom: 0.5rem; margin-top: 0;'>💼 {pool_name}</h3>",
             unsafe_allow_html=True,
         )
         st.markdown(
@@ -429,8 +428,6 @@ def show_question_pool_card(pool: Dict[str, Any], container, user: Dict[str, Any
 
         if description:
             st.write(description[:150] + ("..." if len(description) > 150 else ""))
-        else:
-            st.info("Dynamic exam pool with randomized questions")
 
         st.markdown(
             f'<p style="color: #000000; font-weight: bold;">📝 {total_questions} unique questions available</p>',

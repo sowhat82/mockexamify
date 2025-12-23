@@ -730,7 +730,8 @@ async def process_ai_fixes(question_ids: List[str], pool_id: str = None, enable_
 async def find_similar_errors_in_pool(
     pool_id: str,
     patterns: List[Dict[str, Any]],
-    exclude_question_ids: List[str] = None
+    exclude_question_ids: List[str] = None,
+    max_questions_to_check: int = 50
 ) -> List[str]:
     """
     Find questions in the pool that match the detected error patterns.
@@ -739,6 +740,7 @@ async def find_similar_errors_in_pool(
         pool_id: The pool ID to search in
         patterns: List of error patterns from detect_error_patterns()
         exclude_question_ids: Question IDs to exclude from search
+        max_questions_to_check: Maximum number of questions to validate (to control API costs)
 
     Returns:
         List of question IDs that match the patterns
@@ -746,6 +748,9 @@ async def find_similar_errors_in_pool(
     from db import db
     import json
     import re
+    import logging
+
+    logger = logging.getLogger(__name__)
 
     if exclude_question_ids is None:
         exclude_question_ids = []
@@ -754,6 +759,12 @@ async def find_similar_errors_in_pool(
     all_questions = await db.get_pool_questions(pool_id)
 
     matching_question_ids = set()
+
+    # Check if we have a wrong_answer pattern
+    has_wrong_answer_pattern = any(p.get('pattern_type') == 'wrong_answer' for p in patterns)
+
+    if has_wrong_answer_pattern:
+        logger.info(f"Wrong answer pattern detected - will validate up to {max_questions_to_check} questions from pool")
 
     for question in all_questions:
         question_id = question.get('id')
@@ -793,25 +804,12 @@ async def find_similar_errors_in_pool(
                         matching_question_ids.add(question_id)
 
             elif pattern_type == 'wrong_answer':
-                # Check if this question has similar keywords OR same wrong answer
-                keywords = pattern.get('keywords', [])
-                original_answer = pattern.get('original_answer_index')
+                # When wrong answers are detected, validate a sample of questions
+                # because wrong answers could be scattered across A, B, C, D randomly
+                # The AI will validate each one to determine if it's actually wrong
 
-                # If question has matching keywords and same wrong answer
-                question_text_lower = question_text.lower()
-                matches_keywords = False
-
-                for keyword in keywords:
-                    if re.search(keyword, question_text_lower):
-                        matches_keywords = True
-                        break
-
-                # NEW: More lenient matching for wrong answers
-                # Option 1: Has matching keywords AND same wrong answer (high confidence)
-                # Option 2: Has same wrong answer only (still worth checking)
-                if correct_answer == original_answer:
-                    # Always flag questions with the same wrong answer index
-                    # The AI will validate each one to confirm it's actually wrong
+                # Add questions up to the limit
+                if len(matching_question_ids) < max_questions_to_check:
                     matching_question_ids.add(question_id)
 
     return list(matching_question_ids)
@@ -929,9 +927,11 @@ def show_ai_fix_preview():
                 description = pattern.get('description', 'No description')
 
                 if pattern_type == 'wrong_answer':
-                    st.warning(f"**Pattern {idx}:** {description}")
-                    st.markdown(f"- Keywords: {', '.join(pattern.get('keywords', []))}")
-                    st.markdown(f"- Reasoning: {pattern.get('reasoning', 'N/A')[:200]}...")
+                    st.warning(f"**Pattern {idx}:** Wrong answer detected - validating pool")
+                    st.markdown(f"- When wrong answers are found, AI validates a sample of questions from the pool")
+                    st.markdown(f"- Wrong answers can be scattered across A, B, C, D options")
+                    st.markdown(f"- Each question is validated individually to confirm if answer is actually wrong")
+                    st.markdown(f"- **Original issue:** {pattern.get('reasoning', 'N/A')[:200]}...")
                 else:
                     st.info(f"**Pattern {idx}:** {description}")
                     if pattern.get('search_pattern'):

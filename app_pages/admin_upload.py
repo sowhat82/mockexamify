@@ -1075,7 +1075,6 @@ async def process_pool_upload(
 
                 # Parse choices if JSON string
                 if isinstance(choices, str):
-                    import json
                     try:
                         choices = json.loads(choices)
                     except:

@@ -234,14 +234,22 @@ class OpenRouterManager:
             return question
 
     async def fix_question_errors(
-        self, question_text: str, choices: List[str]
+        self,
+        question_text: str,
+        choices: List[str],
+        correct_answer: Optional[int] = None,
+        validate_answer: bool = True,
+        scenario: str = ""
     ) -> Dict[str, Any]:
         """
-        Conservative AI fix for OCR errors, typos, and grammar issues.
+        Conservative AI fix for OCR errors, typos, grammar issues, and incorrect answers.
 
         Args:
             question_text: The question text to fix
             choices: List of answer choices to fix
+            correct_answer: Index of claimed correct answer (for validation)
+            validate_answer: Whether to validate and potentially fix the correct answer
+            scenario: Optional scenario/context for answer validation
 
         Returns:
             Dict with keys:
@@ -249,8 +257,13 @@ class OpenRouterManager:
                 - fixed_choices: List of corrected choices
                 - changes_made: Dict of changes
                 - has_changes: Boolean indicating if any fixes were made
+                - answer_validation: Dict with answer validation results (if validate_answer=True)
+                - original_correct_answer: Original correct answer index
+                - suggested_correct_answer: AI's suggested correct answer index (if different)
+                - answer_changed: Boolean indicating if answer was corrected
         """
         try:
+            # Step 1: Fix text errors (OCR, spelling, grammar)
             prompt = self._create_fix_errors_prompt(question_text, choices)
             response = await self._generate_text_with_retry(
                 prompt, max_tokens=3000, temperature=0.3  # Low temperature for conservative fixes
@@ -258,6 +271,64 @@ class OpenRouterManager:
 
             # Parse the AI response
             fix_result = self._parse_fix_errors_response(response, question_text, choices)
+
+            # Step 2: Validate answer correctness if requested
+            if validate_answer and correct_answer is not None:
+                validation_result = await self.validate_answer_correctness(
+                    question_text, choices, correct_answer, scenario
+                )
+
+                fix_result["answer_validation"] = validation_result
+                fix_result["original_correct_answer"] = correct_answer
+                fix_result["suggested_correct_answer"] = validation_result["ai_suggested_index"]
+                fix_result["answer_changed"] = (
+                    validation_result["ai_suggested_index"] != correct_answer
+                )
+                fix_result["answer_confidence"] = validation_result["confidence"]
+
+                # Update has_changes if answer needs correction
+                if fix_result["answer_changed"]:
+                    fix_result["has_changes"] = True
+                    if "answer" not in fix_result["changes_made"]:
+                        fix_result["changes_made"]["answer"] = []
+
+                    fix_result["changes_made"]["answer"].append(
+                        f"Correct answer changed from {chr(65 + correct_answer)} to "
+                        f"{chr(65 + validation_result['ai_suggested_index'])} "
+                        f"(confidence: {validation_result['confidence']:.0%})"
+                    )
+
+                    # Step 3: Regenerate explanation for the corrected answer
+                    logger.info("Answer was changed - regenerating explanation for corrected answer")
+                    try:
+                        new_explanation = await self.generate_explanation(
+                            question=question_text,
+                            choices=choices,
+                            correct_index=validation_result["ai_suggested_index"],
+                            scenario=scenario
+                        )
+                        fix_result["new_explanation"] = new_explanation
+                        fix_result["explanation_regenerated"] = True
+
+                        if "explanation" not in fix_result["changes_made"]:
+                            fix_result["changes_made"]["explanation"] = []
+                        fix_result["changes_made"]["explanation"].append(
+                            "Explanation regenerated for corrected answer"
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to regenerate explanation: {e}")
+                        fix_result["new_explanation"] = None
+                        fix_result["explanation_regenerated"] = False
+                else:
+                    fix_result["new_explanation"] = None
+                    fix_result["explanation_regenerated"] = False
+            else:
+                fix_result["answer_validation"] = None
+                fix_result["original_correct_answer"] = correct_answer
+                fix_result["suggested_correct_answer"] = correct_answer
+                fix_result["answer_changed"] = False
+                fix_result["new_explanation"] = None
+                fix_result["explanation_regenerated"] = False
 
             return fix_result
 
@@ -269,8 +340,117 @@ class OpenRouterManager:
                 "fixed_choices": choices,
                 "changes_made": {"question": [], "choices": {}},
                 "has_changes": False,
+                "answer_validation": None,
+                "original_correct_answer": correct_answer,
+                "suggested_correct_answer": correct_answer,
+                "answer_changed": False,
+                "new_explanation": None,
+                "explanation_regenerated": False,
                 "error": str(e)
             }
+
+    async def detect_error_patterns(
+        self,
+        fix_result: Dict[str, Any],
+        question_text: str,
+        choices: List[str]
+    ) -> List[Dict[str, Any]]:
+        """
+        Detect error patterns from a fixed question that might appear in other questions.
+
+        Args:
+            fix_result: The result from fix_question_errors
+            question_text: Original question text
+            choices: Original choices
+
+        Returns:
+            List of error patterns found, each with:
+                - pattern_type: 'ocr_space', 'misspelling', 'grammar', 'wrong_answer'
+                - search_pattern: Pattern to search for in other questions
+                - description: Human-readable description
+                - example_fix: Example of the fix applied
+        """
+        patterns = []
+
+        # Pattern 1: OCR spacing errors (words with spaces in middle)
+        if fix_result.get('changes_made', {}).get('question'):
+            for change in fix_result['changes_made']['question']:
+                # Look for patterns like "word1 word2" → "word1word2"
+                if 'Fixed:' in change and '→' in change:
+                    before_after = change.replace('Fixed:', '').strip().split('→')
+                    if len(before_after) == 2:
+                        before = before_after[0].strip()
+                        after = before_after[1].strip()
+
+                        # Check if this is a space removal (OCR error)
+                        if ' ' in before and before.replace(' ', '') == after:
+                            patterns.append({
+                                'pattern_type': 'ocr_space',
+                                'search_pattern': before,
+                                'fixed_pattern': after,
+                                'description': f'OCR spacing error: "{before}" should be "{after}"',
+                                'example_fix': change
+                            })
+
+        # Pattern 2: Consistent misspellings
+        if fix_result.get('changes_made', {}).get('question'):
+            for change in fix_result['changes_made']['question']:
+                if 'spelling' in change.lower() or 'typo' in change.lower():
+                    # Extract the misspelling pattern
+                    if 'Fixed:' in change and '→' in change:
+                        before_after = change.replace('Fixed:', '').strip().split('→')
+                        if len(before_after) == 2:
+                            before = before_after[0].strip()
+                            after = before_after[1].strip()
+                            patterns.append({
+                                'pattern_type': 'misspelling',
+                                'search_pattern': before,
+                                'fixed_pattern': after,
+                                'description': f'Spelling error: "{before}" should be "{after}"',
+                                'example_fix': change
+                            })
+
+        # Pattern 3: Wrong answer pattern
+        if fix_result.get('answer_changed'):
+            validation = fix_result.get('answer_validation', {})
+            reasoning = validation.get('reasoning', '')
+
+            # Extract keywords from the question to identify similar questions
+            keywords = self._extract_keywords(question_text)
+
+            patterns.append({
+                'pattern_type': 'wrong_answer',
+                'keywords': keywords,
+                'original_answer_index': fix_result['original_correct_answer'],
+                'correct_answer_index': fix_result['suggested_correct_answer'],
+                'description': f'Similar questions may have wrong answer (confidence: {validation.get("confidence", 0):.0%})',
+                'reasoning': reasoning,
+                'example_fix': f"Changed answer from {chr(65 + fix_result['original_correct_answer'])} to {chr(65 + fix_result['suggested_correct_answer'])}"
+            })
+
+        return patterns
+
+    def _extract_keywords(self, text: str) -> List[str]:
+        """Extract key phrases from question text for pattern matching"""
+        # Simple keyword extraction - can be enhanced with NLP
+        keywords = []
+
+        # Common important phrases in financial/regulatory questions
+        key_phrases = [
+            'complex.*structure', 'beneficial owner', 'suspicious transaction',
+            'customer due diligence', 'enhanced due diligence', 'know your customer',
+            'AML', 'KYC', 'STR', 'SAR', 'politically exposed person', 'PEP',
+            'risk assessment', 'money laundering', 'terrorist financing'
+        ]
+
+        import re
+        text_lower = text.lower()
+
+        for phrase in key_phrases:
+            if re.search(phrase, text_lower):
+                keywords.append(phrase)
+
+        return keywords
 
     async def validate_answer_correctness(
         self, question_text: str, choices: List[str], claimed_correct_index: int, scenario: str = ""
@@ -1354,13 +1534,22 @@ async def analyze_question_difficulty(question: Dict[str, Any]) -> Dict[str, Any
     return await openrouter_manager.analyze_question_difficulty(question)
 
 
-async def fix_question_errors(question_text: str, choices: List[str]) -> Dict[str, Any]:
+async def fix_question_errors(
+    question_text: str,
+    choices: List[str],
+    correct_answer: Optional[int] = None,
+    validate_answer: bool = True,
+    scenario: str = ""
+) -> Dict[str, Any]:
     """
-    Conservative AI fix for OCR errors, typos, and grammar issues.
+    Conservative AI fix for OCR errors, typos, grammar issues, and incorrect answers.
 
     Args:
         question_text: The question text to fix
         choices: List of answer choices to fix
+        correct_answer: Index of claimed correct answer (for validation)
+        validate_answer: Whether to validate and potentially fix the correct answer
+        scenario: Optional scenario/context for answer validation
 
     Returns:
         Dict with keys:
@@ -1368,8 +1557,18 @@ async def fix_question_errors(question_text: str, choices: List[str]) -> Dict[st
             - fixed_choices: List of corrected choices
             - changes_made: Dict of changes
             - has_changes: Boolean indicating if any fixes were made
+            - answer_validation: Dict with answer validation results (if validate_answer=True)
+            - original_correct_answer: Original correct answer index
+            - suggested_correct_answer: AI's suggested correct answer index (if different)
+            - answer_changed: Boolean indicating if answer was corrected
     """
-    return await openrouter_manager.fix_question_errors(question_text, choices)
+    return await openrouter_manager.fix_question_errors(
+        question_text=question_text,
+        choices=choices,
+        correct_answer=correct_answer,
+        validate_answer=validate_answer,
+        scenario=scenario
+    )
 
 
 async def validate_answer_correctness(

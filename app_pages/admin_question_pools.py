@@ -576,19 +576,31 @@ async def update_question(question_id: str, updated_data: Dict[str, Any]) -> boo
         return False
 
 
-async def process_ai_fixes(question_ids: List[str]) -> List[Dict[str, Any]]:
+async def process_ai_fixes(question_ids: List[str], pool_id: str = None, enable_pattern_detection: bool = True) -> Dict[str, Any]:
     """
-    Process AI fixes for selected questions.
+    Process AI fixes for selected questions and optionally find similar errors in the pool.
 
-    Returns list of fix suggestions with before/after content.
+    Args:
+        question_ids: List of question IDs to fix
+        pool_id: Pool ID for pattern detection across pool
+        enable_pattern_detection: If True, detect patterns and find similar questions
+
+    Returns:
+        Dict with:
+            - fix_results: List of fix suggestions with before/after content
+            - patterns_detected: List of error patterns found
+            - similar_questions_found: List of additional question IDs with similar errors
+            - total_questions_to_fix: Total number of questions that will be fixed
     """
-    from openrouter_utils import fix_question_errors
+    from openrouter_utils import fix_question_errors, openrouter_manager
     from db import db
     import logging
 
     logger = logging.getLogger(__name__)
     fix_results = []
+    all_patterns = []
 
+    # Phase 1: Fix initially selected questions
     for question_id in question_ids:
         try:
             # Load question from database
@@ -601,52 +613,264 @@ async def process_ai_fixes(question_ids: List[str]) -> List[Dict[str, Any]]:
             question = response.data[0]
             question_text = question['question_text']
             choices = json.loads(question['choices']) if isinstance(question['choices'], str) else question['choices']
+            correct_answer = question.get('correct_answer')
 
-            # Call AI to fix
-            fix_result = await fix_question_errors(question_text, choices)
+            # Call AI to fix (including answer validation)
+            fix_result = await fix_question_errors(
+                question_text=question_text,
+                choices=choices,
+                correct_answer=correct_answer,
+                validate_answer=True  # Enable answer validation
+            )
 
             fix_results.append({
                 "question_id": question_id,
+                "pool_id": question.get('pool_id'),
                 "original_question": question_text,
                 "fixed_question": fix_result['fixed_question'],
                 "original_choices": choices,
                 "fixed_choices": fix_result['fixed_choices'],
                 "changes_made": fix_result['changes_made'],
                 "has_changes": fix_result.get('has_changes', True),
-                "error": fix_result.get('error')
+                "original_correct_answer": fix_result.get('original_correct_answer'),
+                "suggested_correct_answer": fix_result.get('suggested_correct_answer'),
+                "answer_changed": fix_result.get('answer_changed', False),
+                "answer_validation": fix_result.get('answer_validation'),
+                "new_explanation": fix_result.get('new_explanation'),
+                "explanation_regenerated": fix_result.get('explanation_regenerated', False),
+                "original_explanation": question.get('explanation'),
+                "error": fix_result.get('error'),
+                "from_pattern_match": False  # This was directly selected
             })
+
+            # Detect patterns from this fix
+            if enable_pattern_detection and fix_result.get('has_changes'):
+                patterns = await openrouter_manager.detect_error_patterns(
+                    fix_result, question_text, choices
+                )
+                all_patterns.extend(patterns)
 
         except Exception as e:
             logger.error(f"Error processing fix for question {question_id}: {e}")
             fix_results.append({
                 "question_id": question_id,
                 "has_changes": False,
-                "error": str(e)
+                "error": str(e),
+                "from_pattern_match": False
             })
 
-    return fix_results
+    # Phase 2: Find similar questions with same error patterns
+    similar_question_ids = []
+    if enable_pattern_detection and all_patterns and pool_id:
+        try:
+            similar_question_ids = await find_similar_errors_in_pool(
+                pool_id=pool_id,
+                patterns=all_patterns,
+                exclude_question_ids=question_ids
+            )
+
+            logger.info(f"Found {len(similar_question_ids)} questions with similar errors")
+
+            # Process fixes for similar questions
+            for question_id in similar_question_ids:
+                try:
+                    response = db.admin_client.table("pool_questions").select("*").eq("id", question_id).execute()
+
+                    if not response.data:
+                        continue
+
+                    question = response.data[0]
+                    question_text = question['question_text']
+                    choices = json.loads(question['choices']) if isinstance(question['choices'], str) else question['choices']
+                    correct_answer = question.get('correct_answer')
+
+                    fix_result = await fix_question_errors(
+                        question_text=question_text,
+                        choices=choices,
+                        correct_answer=correct_answer,
+                        validate_answer=True
+                    )
+
+                    # Only add if there are actual changes
+                    if fix_result.get('has_changes'):
+                        fix_results.append({
+                            "question_id": question_id,
+                            "pool_id": question.get('pool_id'),
+                            "original_question": question_text,
+                            "fixed_question": fix_result['fixed_question'],
+                            "original_choices": choices,
+                            "fixed_choices": fix_result['fixed_choices'],
+                            "changes_made": fix_result['changes_made'],
+                            "has_changes": True,
+                            "original_correct_answer": fix_result.get('original_correct_answer'),
+                            "suggested_correct_answer": fix_result.get('suggested_correct_answer'),
+                            "answer_changed": fix_result.get('answer_changed', False),
+                            "answer_validation": fix_result.get('answer_validation'),
+                            "new_explanation": fix_result.get('new_explanation'),
+                            "explanation_regenerated": fix_result.get('explanation_regenerated', False),
+                            "original_explanation": question.get('explanation'),
+                            "error": fix_result.get('error'),
+                            "from_pattern_match": True  # This was found via pattern matching
+                        })
+
+                except Exception as e:
+                    logger.error(f"Error processing similar question {question_id}: {e}")
+
+        except Exception as e:
+            logger.error(f"Error finding similar questions: {e}")
+
+    return {
+        "fix_results": fix_results,
+        "patterns_detected": all_patterns,
+        "similar_questions_found": len([f for f in fix_results if f.get('from_pattern_match')]),
+        "total_questions_to_fix": len([f for f in fix_results if f.get('has_changes')])
+    }
+
+
+async def find_similar_errors_in_pool(
+    pool_id: str,
+    patterns: List[Dict[str, Any]],
+    exclude_question_ids: List[str] = None
+) -> List[str]:
+    """
+    Find questions in the pool that match the detected error patterns.
+
+    Args:
+        pool_id: The pool ID to search in
+        patterns: List of error patterns from detect_error_patterns()
+        exclude_question_ids: Question IDs to exclude from search
+
+    Returns:
+        List of question IDs that match the patterns
+    """
+    from db import db
+    import json
+    import re
+
+    if exclude_question_ids is None:
+        exclude_question_ids = []
+
+    # Get all questions from the pool
+    all_questions = await db.get_pool_questions(pool_id)
+
+    matching_question_ids = set()
+
+    for question in all_questions:
+        question_id = question.get('id')
+
+        # Skip excluded questions
+        if question_id in exclude_question_ids:
+            continue
+
+        question_text = question.get('question_text', '')
+        choices = json.loads(question.get('choices', '[]')) if isinstance(question.get('choices'), str) else question.get('choices', [])
+        correct_answer = question.get('correct_answer')
+
+        # Check each pattern
+        for pattern in patterns:
+            pattern_type = pattern.get('pattern_type')
+
+            if pattern_type == 'ocr_space':
+                # Check if this question contains the same OCR spacing error
+                search_pattern = pattern.get('search_pattern', '')
+                if search_pattern and search_pattern in question_text:
+                    matching_question_ids.add(question_id)
+
+                # Also check in choices
+                for choice in choices:
+                    if search_pattern and search_pattern in choice:
+                        matching_question_ids.add(question_id)
+
+            elif pattern_type == 'misspelling':
+                # Check if this question contains the same misspelling
+                search_pattern = pattern.get('search_pattern', '')
+                if search_pattern and search_pattern in question_text:
+                    matching_question_ids.add(question_id)
+
+                # Also check in choices
+                for choice in choices:
+                    if search_pattern and search_pattern in choice:
+                        matching_question_ids.add(question_id)
+
+            elif pattern_type == 'wrong_answer':
+                # Check if this question has similar keywords and same wrong answer
+                keywords = pattern.get('keywords', [])
+                original_answer = pattern.get('original_answer_index')
+
+                # If question has matching keywords and same wrong answer
+                question_text_lower = question_text.lower()
+                matches_keywords = False
+
+                for keyword in keywords:
+                    if re.search(keyword, question_text_lower):
+                        matches_keywords = True
+                        break
+
+                # Only flag if it has matching keywords AND the same potentially wrong answer
+                if matches_keywords and correct_answer == original_answer:
+                    matching_question_ids.add(question_id)
+
+    return list(matching_question_ids)
 
 
 def apply_approved_fixes(fix_results: List[Dict[str, Any]]):
-    """Apply approved fixes to database"""
+    """Apply approved fixes to database with progress tracking"""
     approved_ids = st.session_state.approved_fixes
     success_count = 0
     error_count = 0
+    errors = []
 
-    for fix in fix_results:
-        if fix['question_id'] in approved_ids:
-            # Update question in database
-            updated_data = {
-                'question_text': fix['fixed_question'],
-                'choices': json.dumps(fix['fixed_choices'])
-            }
+    # Get approved fixes
+    approved_fixes = [fix for fix in fix_results if fix['question_id'] in approved_ids]
+    total_fixes = len(approved_fixes)
+
+    # Show progress bar if there are multiple fixes
+    if total_fixes > 1:
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+
+    for idx, fix in enumerate(approved_fixes, 1):
+        # Update progress
+        if total_fixes > 1:
+            progress = idx / total_fixes
+            progress_bar.progress(progress)
+            status_text.text(f"Updating question {idx} of {total_fixes}...")
+
+        # Update question in database
+        updated_data = {
+            'question_text': fix['fixed_question'],
+            'choices': json.dumps(fix['fixed_choices'])
+        }
+
+        # Also update correct answer if it was changed
+        if fix.get('answer_changed') and fix.get('suggested_correct_answer') is not None:
+            updated_data['correct_answer'] = fix['suggested_correct_answer']
+
+        # Also update explanation if it was regenerated
+        if fix.get('explanation_regenerated') and fix.get('new_explanation'):
+            updated_data['explanation'] = fix['new_explanation']
+
+        try:
             if run_async(update_question(fix['question_id'], updated_data)):
                 success_count += 1
             else:
                 error_count += 1
+                errors.append(f"Question {idx}: Update failed")
+        except Exception as e:
+            error_count += 1
+            errors.append(f"Question {idx}: {str(e)}")
 
+    # Clear progress indicators
+    if total_fixes > 1:
+        progress_bar.empty()
+        status_text.empty()
+
+    # Show errors if any
     if error_count > 0:
         st.warning(f"⚠️ {error_count} fix(es) failed to apply")
+        with st.expander("View errors"):
+            for error in errors:
+                st.error(error)
 
     return success_count
 
@@ -654,38 +878,78 @@ def apply_approved_fixes(fix_results: List[Dict[str, Any]]):
 def show_ai_fix_preview():
     """Display AI fix preview with approval interface"""
 
-    st.markdown("## 🤖 AI Fix Preview")
-    st.markdown("Review the suggested fixes below. Approve or skip each fix.")
+    st.markdown("## 🤖 AI Fix Preview with Pattern Detection")
+    st.markdown("AI will detect error patterns and automatically find similar issues across the pool.")
 
     # Get fix results from session state (computed once)
-    if 'ai_fix_results' not in st.session_state:
-        with st.spinner("🤖 AI is analyzing questions for errors..."):
+    if 'ai_fix_results_data' not in st.session_state:
+        with st.spinner("🤖 AI is analyzing questions and detecting patterns..."):
             question_ids = list(st.session_state.selected_questions)
-            fix_results = run_async(process_ai_fixes(question_ids))
-            st.session_state.ai_fix_results = fix_results
 
-    fix_results = st.session_state.ai_fix_results
+            # Get pool_id from the selected pool
+            pool_id = st.session_state.get('selected_pool')
+
+            # Call enhanced process_ai_fixes with pattern detection
+            fix_data = run_async(process_ai_fixes(
+                question_ids=question_ids,
+                pool_id=pool_id,
+                enable_pattern_detection=True
+            ))
+            st.session_state.ai_fix_results_data = fix_data
+
+    fix_data = st.session_state.ai_fix_results_data
+    fix_results = fix_data.get('fix_results', [])
+    patterns_detected = fix_data.get('patterns_detected', [])
+    similar_questions_found = fix_data.get('similar_questions_found', 0)
+
+    # Show pattern detection summary
+    if patterns_detected:
+        st.success(f"🔍 **Pattern Detection Results:**")
+        st.markdown(f"- **{len(patterns_detected)}** error pattern(s) detected")
+        st.markdown(f"- **{similar_questions_found}** additional question(s) found with similar errors")
+
+        with st.expander("📋 View Detected Patterns"):
+            for idx, pattern in enumerate(patterns_detected, 1):
+                pattern_type = pattern.get('pattern_type', 'unknown')
+                description = pattern.get('description', 'No description')
+
+                if pattern_type == 'wrong_answer':
+                    st.warning(f"**Pattern {idx}:** {description}")
+                    st.markdown(f"- Keywords: {', '.join(pattern.get('keywords', []))}")
+                    st.markdown(f"- Reasoning: {pattern.get('reasoning', 'N/A')[:200]}...")
+                else:
+                    st.info(f"**Pattern {idx}:** {description}")
+                    if pattern.get('search_pattern'):
+                        st.code(f"Looking for: '{pattern.get('search_pattern')}'")
 
     # Filter to only show questions with changes
     questions_with_changes = [f for f in fix_results if f.get('has_changes', False)]
     questions_with_errors = [f for f in fix_results if f.get('error')]
 
+    # Separate directly selected vs pattern-matched questions
+    directly_selected = [f for f in questions_with_changes if not f.get('from_pattern_match')]
+    pattern_matched = [f for f in questions_with_changes if f.get('from_pattern_match')]
+
     # Show errors if any
     if questions_with_errors:
         st.warning(f"⚠️ {len(questions_with_errors)} question(s) could not be processed:")
         for fix in questions_with_errors:
-            st.error(f"Error: {fix['error']}")
+            st.error(f"Error: {fix.get('error', 'Unknown error')}")
 
     if not questions_with_changes:
         st.success("✅ No errors found! All selected questions look good.")
         if st.button("⬅️ Back to Questions"):
             st.session_state.ai_fix_mode = False
-            if 'ai_fix_results' in st.session_state:
-                del st.session_state.ai_fix_results
+            if 'ai_fix_results_data' in st.session_state:
+                del st.session_state.ai_fix_results_data
             st.rerun()
         return
 
-    st.info(f"Found {len(questions_with_changes)} question(s) with errors to fix")
+    # Show summary
+    st.info(f"📊 **Total: {len(questions_with_changes)} question(s) with errors to fix**")
+    if pattern_matched:
+        st.markdown(f"- {len(directly_selected)} originally selected")
+        st.markdown(f"- {len(pattern_matched)} found by pattern detection")
 
     # Initialize approval tracking
     if 'approved_fixes' not in st.session_state:
@@ -694,7 +958,13 @@ def show_ai_fix_preview():
     # Display each fix for review
     for idx, fix in enumerate(questions_with_changes, 1):
         st.markdown("---")
-        st.markdown(f"### Question {idx} of {len(questions_with_changes)}")
+
+        # Show header with pattern match badge if applicable
+        header_text = f"### Question {idx} of {len(questions_with_changes)}"
+        if fix.get('from_pattern_match'):
+            st.markdown(f"{header_text} 🔍 *Found by Pattern Detection*")
+        else:
+            st.markdown(header_text)
 
         # Show changes summary
         changes_summary = []
@@ -704,9 +974,38 @@ def show_ai_fix_preview():
             for choice_idx, choice_changes in fix['changes_made']['choices'].items():
                 if choice_changes:  # Only show if there are changes
                     changes_summary.extend([f"Choice {choice_idx}: {c}" for c in choice_changes])
+        if fix['changes_made'].get('answer'):
+            changes_summary.extend(fix['changes_made']['answer'])
+        if fix['changes_made'].get('explanation'):
+            changes_summary.extend(fix['changes_made']['explanation'])
+
+        # Show answer change prominently if present
+        if fix.get('answer_changed'):
+            validation = fix.get('answer_validation', {})
+            st.error(f"⚠️ **INCORRECT ANSWER DETECTED**")
+            st.markdown(f"""
+**AI detected the correct answer may be wrong:**
+- Original: **{chr(65 + fix['original_correct_answer'])}**. {fix['original_choices'][fix['original_correct_answer']]}
+- Suggested: **{chr(65 + fix['suggested_correct_answer'])}**. {fix['original_choices'][fix['suggested_correct_answer']]}
+- Confidence: **{validation.get('confidence', 0):.0%}**
+
+**Reasoning:** {validation.get('reasoning', 'No reasoning provided')}
+""")
+
+            # Show explanation regeneration info
+            if fix.get('explanation_regenerated'):
+                st.success("✅ **Explanation Regenerated** - A new explanation has been generated for the corrected answer")
+
+                # Show explanation preview
+                with st.expander("📖 View New Explanation"):
+                    st.markdown(fix.get('new_explanation', 'No explanation available'))
+
+                if fix.get('original_explanation'):
+                    with st.expander("📖 View Original Explanation (for comparison)"):
+                        st.markdown(fix['original_explanation'])
 
         if changes_summary:
-            st.markdown("**Changes:**")
+            st.markdown("**All Changes:**")
             for change in changes_summary:
                 st.markdown(f"- {change}")
 
@@ -724,8 +1023,11 @@ def show_ai_fix_preview():
             )
             st.markdown("**Choices:**")
             for i, choice in enumerate(fix['original_choices']):
+                # Mark the original correct answer
+                is_correct = (i == fix.get('original_correct_answer'))
+                label = f"{'✓ ' if is_correct else ''}Choice {chr(65 + i)}"
                 st.text_input(
-                    f"Choice {i}",
+                    label,
                     value=choice,
                     key=f"before_c_{idx}_{i}",
                     disabled=True
@@ -742,8 +1044,11 @@ def show_ai_fix_preview():
             )
             st.markdown("**Choices:**")
             for i, choice in enumerate(fix['fixed_choices']):
+                # Mark the suggested correct answer (may be different from original)
+                is_correct = (i == fix.get('suggested_correct_answer'))
+                label = f"{'✓ ' if is_correct else ''}Choice {chr(65 + i)}"
                 st.text_input(
-                    f"Choice {i}",
+                    label,
                     value=choice,
                     key=f"after_c_{idx}_{i}",
                     disabled=True
@@ -762,6 +1067,7 @@ def show_ai_fix_preview():
                 disabled=is_approved
             ):
                 st.session_state.approved_fixes.add(question_id)
+                st.toast(f"✅ Fix {idx} approved!", icon="✅")
                 st.rerun()
 
         with col2:
@@ -771,6 +1077,7 @@ def show_ai_fix_preview():
                 disabled=not is_approved
             ):
                 st.session_state.approved_fixes.discard(question_id)
+                st.toast(f"⏭️ Fix {idx} unapproved", icon="ℹ️")
                 st.rerun()
 
     # Apply all approved fixes
@@ -784,13 +1091,23 @@ def show_ai_fix_preview():
             type="primary",
             disabled=len(st.session_state.approved_fixes) == 0
         ):
-            success_count = apply_approved_fixes(fix_results)
-            st.success(f"✅ Applied {success_count} fix(es) successfully!")
+            # Show loading spinner while applying fixes
+            with st.spinner(f"Applying {len(st.session_state.approved_fixes)} fix(es) to database..."):
+                success_count = apply_approved_fixes(fix_results)
+
+            # Show success message
+            st.success(f"✅ Successfully applied {success_count} fix(es) to the database!")
+            st.toast(f"✅ {success_count} questions updated!", icon="🎉")
+
+            # Wait a moment so user can see the success message
+            import time
+            time.sleep(1.5)
+
             # Cleanup
             st.session_state.ai_fix_mode = False
             st.session_state.selected_questions = set()
-            if 'ai_fix_results' in st.session_state:
-                del st.session_state.ai_fix_results
+            if 'ai_fix_results_data' in st.session_state:
+                del st.session_state.ai_fix_results_data
             if 'approved_fixes' in st.session_state:
                 del st.session_state.approved_fixes
             st.rerun()
@@ -798,8 +1115,8 @@ def show_ai_fix_preview():
     with col3:
         if st.button("❌ Cancel", key="cancel_ai_fix"):
             st.session_state.ai_fix_mode = False
-            if 'ai_fix_results' in st.session_state:
-                del st.session_state.ai_fix_results
+            if 'ai_fix_results_data' in st.session_state:
+                del st.session_state.ai_fix_results_data
             if 'approved_fixes' in st.session_state:
                 del st.session_state.approved_fixes
             st.rerun()

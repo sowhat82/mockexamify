@@ -530,7 +530,31 @@ INSTRUCTIONS:
    When you find such contextual information, extract it and attach it to ALL related questions in the "scenario" field.
    Questions that reference "this product", "the HSI", "this RAN", etc. are VALID if they have the term sheet in their scenario.
 
-3. **CRITICAL - FIX OCR ERRORS**: The text may contain OCR errors where words are split into individual letters with spaces or line breaks. Fix these errors:
+3. **CRITICAL - HANDLE LETTERED SUB-ITEMS IN QUESTIONS**:
+   Many questions have this structure:
+   ```
+   31. Which of the following are elements of best execution?
+   a. Speed of execution
+   b. Price confidentiality
+   c. Likelihood of execution
+   d. Client instructions
+
+   (a), (c) and (d)
+   (a), (b) and (d)
+   (b), (c) and (d)
+   (a), (b), (c) and (d) [CORRECT]
+   ```
+
+   In this pattern:
+   - The lettered items (a, b, c, d) are PART OF THE QUESTION TEXT, NOT answer choices
+   - The actual answer choices are the combinations like "(a), (c) and (d)"
+
+   You MUST include the lettered sub-items in the question text:
+   ```
+   "question": "Which of the following are elements of best execution?\n\na. Speed of execution\nb. Price confidentiality\nc. Likelihood of execution\nd. Client instructions"
+   ```
+
+4. **CRITICAL - FIX OCR ERRORS**: The text may contain OCR errors where words are split into individual letters with spaces or line breaks. Fix these errors:
    - Example: "p e r s h a r e" should be "per share"
    - Example: "r e c e i v e d" should be "received"
    - Example: "d i v i d e n d s o f" should be "dividends of"
@@ -539,15 +563,15 @@ INSTRUCTIONS:
    - Fix formatting issues like conjoined words (e.g., "pershareand" → "per share and")
    - Preserve mathematical symbols like $, %, numbers
 
-4. For each question, extract:
-   - The question text (with OCR errors corrected)
-   - All answer choices (typically A, B, C, D or 1, 2, 3, 4)
+5. For each question, extract:
+   - The question text INCLUDING any lettered sub-items (a, b, c, d) that define what the answer choices refer to
+   - All answer choices (which may reference the sub-items, e.g., "(a) and (b)")
    - The correct answer
    - **CRITICAL**: Any term sheet/case study/scenario that provides context for this question
    - Any explanation or additional notes
 
-5. Format your response as a JSON array of questions. Each question should have:
-   - "question": the question text (string, OCR errors fixed)
+6. Format your response as a JSON array of questions. Each question should have:
+   - "question": the question text INCLUDING lettered sub-items if present (string, OCR errors fixed)
    - "choices": array of answer choice texts (array of strings, OCR errors fixed)
    - "correct_index": zero-based index of correct answer (integer, 0-3)
    - "scenario": **IMPORTANT** - Include the full term sheet/case study/scenario text if the question references it (string or null)
@@ -556,18 +580,18 @@ INSTRUCTIONS:
 EXAMPLE OUTPUT FORMAT (DO NOT COPY THESE EXAMPLES - EXTRACT ONLY FROM DOCUMENT):
 [
   {{
+    "question": "Which of the following are elements of best execution?\\n\\na. Speed of execution\\nb. Price confidentiality\\nc. Likelihood of execution\\nd. Client instructions",
+    "choices": ["(a), (c) and (d)", "(a), (b) and (d)", "(b), (c) and (d)", "(a), (b), (c) and (d)"],
+    "correct_index": 3,
+    "scenario": null,
+    "explanation_seed": null
+  }},
+  {{
     "question": "What is the maximum return of this product?",
     "choices": ["5%", "10%", "15%", "20%"],
     "correct_index": 2,
     "scenario": "ABC Range Accrual Note: Principal $100,000, Tenor: 2 years, Reference Index: HSI, Coupon: 7.5% p.a. if HSI stays within range, Maximum Return: 15% p.a.",
     "explanation_seed": "Term sheet specifies maximum return"
-  }},
-  {{
-    "question": "If the HSI breaches the barrier, what happens?",
-    "choices": ["Full principal loss", "Partial principal loss", "No coupon payment", "Early redemption"],
-    "correct_index": 2,
-    "scenario": "ABC Range Accrual Note: Principal $100,000, Tenor: 2 years, Reference Index: HSI, Coupon: 7.5% p.a. if HSI stays within range, Maximum Return: 15% p.a.",
-    "explanation_seed": "Barrier breach affects coupon"
   }}
 ]
 

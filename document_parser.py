@@ -189,6 +189,12 @@ class DocumentParser:
 
             # Check if document contains pure JSON (avoid unreliable AI conversion)
             text_stripped = text.strip()
+
+            # Debug: show what was extracted
+            st.info(f"📄 Extracted text length: {len(text_stripped)} chars")
+            st.info(f"📄 Starts with: '{text_stripped[:50] if len(text_stripped) >= 50 else text_stripped}'")
+            st.info(f"📄 Ends with: '...{text_stripped[-50:] if len(text_stripped) >= 50 else text_stripped}'")
+
             if text_stripped.startswith('[') and text_stripped.endswith(']'):
                 try:
                     st.info("📋 Detected JSON format in document, parsing directly...")

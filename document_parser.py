@@ -150,9 +150,51 @@ class DocumentParser:
             # Determine file type
             file_extension = uploaded_file.name.split(".")[-1].lower()
 
-            # For Word documents, try structured parsing first
+            # For Word documents, check if it contains JSON first
             if file_extension in ["docx", "doc"]:
+                # Extract text to check for JSON
+                text = self._extract_text_from_word(uploaded_file)
+                text_stripped = text.strip()
+
+                # Check if document contains pure JSON array
+                if text_stripped.startswith('[') and text_stripped.endswith(']'):
+                    st.info("📋 Detected JSON array in Word document, parsing directly...")
+                    try:
+                        json_data = json.loads(text_stripped)
+                        if isinstance(json_data, list) and len(json_data) > 0:
+                            # Convert to expected format
+                            questions = []
+                            for item in json_data:
+                                if not isinstance(item, dict):
+                                    continue
+
+                                # Support both "choices"/"options" and "correct_index"/"correct_answer"
+                                choices = item.get("choices") or item.get("options")
+                                correct_index = item.get("correct_index")
+                                if correct_index is None:
+                                    correct_index = item.get("correct_answer")
+
+                                if item.get("question") and choices and correct_index is not None:
+                                    questions.append({
+                                        "question": item["question"],
+                                        "choices": choices,
+                                        "correct_index": correct_index,
+                                        "correct_answer": correct_index,
+                                        "scenario": item.get("scenario"),
+                                        "explanation_seed": item.get("explanation_seed")
+                                    })
+
+                            if questions:
+                                st.success(f"✅ Parsed {len(questions)} questions directly from JSON")
+                                valid_questions = self._validate_questions(questions)
+                                if valid_questions:
+                                    return True, valid_questions, ""
+                    except json.JSONDecodeError as e:
+                        st.warning(f"⚠️ JSON detection failed: {e}. Trying structured parsing...")
+
+                # Not JSON or JSON parsing failed - try structured parsing
                 st.info("🔍 Attempting structured parsing (faster and more accurate)...")
+                uploaded_file.seek(0)  # Reset file pointer
                 structured_questions = self._parse_word_structured(uploaded_file)
 
                 if structured_questions:
@@ -187,50 +229,7 @@ class DocumentParser:
             if not text or len(text.strip()) < 50:
                 return False, [], "Could not extract sufficient text from document"
 
-            # Check if document contains pure JSON (avoid unreliable AI conversion)
-            text_stripped = text.strip()
-
-            # Debug: show what was extracted
-            st.info(f"📄 Extracted text length: {len(text_stripped)} chars")
-            st.info(f"📄 Starts with: '{text_stripped[:50] if len(text_stripped) >= 50 else text_stripped}'")
-            st.info(f"📄 Ends with: '...{text_stripped[-50:] if len(text_stripped) >= 50 else text_stripped}'")
-
-            if text_stripped.startswith('[') and text_stripped.endswith(']'):
-                try:
-                    st.info("📋 Detected JSON format in document, parsing directly...")
-                    json_data = json.loads(text_stripped)
-                    if isinstance(json_data, list) and len(json_data) > 0:
-                        # Convert to expected format
-                        questions = []
-                        for item in json_data:
-                            if not isinstance(item, dict):
-                                continue
-
-                            # Support both "choices"/"options" and "correct_index"/"correct_answer"
-                            choices = item.get("choices") or item.get("options")
-                            correct_index = item.get("correct_index")
-                            if correct_index is None:
-                                correct_index = item.get("correct_answer")
-
-                            if item.get("question") and choices and correct_index is not None:
-                                questions.append({
-                                    "question": item["question"],
-                                    "choices": choices,
-                                    "correct_index": correct_index,
-                                    "correct_answer": correct_index,
-                                    "scenario": item.get("scenario"),
-                                    "explanation_seed": item.get("explanation_seed")
-                                })
-
-                        if questions:
-                            st.success(f"✅ Parsed {len(questions)} questions from JSON")
-                            valid_questions = self._validate_questions(questions)
-                            if valid_questions:
-                                return True, valid_questions, ""
-                except json.JSONDecodeError:
-                    # Not valid JSON, fall through to AI parsing
-                    pass
-
+            # Note: For Word documents, JSON is already checked above. This fallback is for PDFs.
             # Use AI to parse questions from text
             st.info("🤖 Using AI to extract questions from document...")
             questions = self._parse_questions_with_ai(text)

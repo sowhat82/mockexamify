@@ -452,17 +452,85 @@ class OpenRouterManager:
 
         return keywords
 
+    async def quick_validate_answer(
+        self, question_text: str, claimed_answer: str, scenario: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Quick validation: Check if claimed answer is reasonable (Stage 1).
+        This is cheaper than full validation - only sends question + one answer.
+
+        Args:
+            question_text: The question text
+            claimed_answer: The claimed correct answer text
+            scenario: Optional scenario/context
+
+        Returns:
+            Dict with:
+                - is_plausible: True if answer seems reasonable
+                - confidence: 0.0-1.0 confidence in the assessment
+                - reasoning: Brief explanation
+        """
+        try:
+            prompt = f"""You are an expert in finance, banking, and regulatory exams (CACS, CMFAS, MAS regulations).
+
+QUESTION: {question_text}
+{f"SCENARIO: {scenario}" if scenario else ""}
+
+CLAIMED ANSWER: {claimed_answer}
+
+TASK: Quickly assess if this answer is PLAUSIBLE and REASONABLE for this question.
+- You don't need to know if it's the BEST answer
+- Just check if it's a defensible/reasonable answer
+- Consider regulatory requirements (MAS, SFA, FAA)
+
+Respond in JSON ONLY:
+{{{{
+  "is_plausible": true/false,
+  "confidence": 0.85,
+  "reasoning": "Brief explanation..."
+}}}}
+
+Be quick but thorough."""
+
+            response = await self._generate_text_with_retry(
+                prompt, max_tokens=300, temperature=0.3
+            )
+
+            # Parse response
+            import json
+            json_start = response.find("{")
+            json_end = response.rfind("}") + 1
+
+            if json_start >= 0 and json_end > json_start:
+                result = json.loads(response[json_start:json_end])
+                return {
+                    "is_plausible": result.get("is_plausible", True),
+                    "confidence": float(result.get("confidence", 0.5)),
+                    "reasoning": result.get("reasoning", "")
+                }
+
+        except Exception as e:
+            logger.error(f"Error in quick validation: {e}")
+
+        # Fallback: uncertain
+        return {"is_plausible": True, "confidence": 0.5, "reasoning": "Unable to validate"}
+
     async def validate_answer_correctness(
-        self, question_text: str, choices: List[str], claimed_correct_index: int, scenario: str = ""
+        self, question_text: str, choices: List[str], claimed_correct_index: int, scenario: str = "",
+        use_two_stage: bool = True
     ) -> Dict[str, Any]:
         """
         Validate if the claimed correct answer is actually correct.
+        Uses two-stage validation for efficiency:
+        - Stage 1 (Quick): Check if claimed answer is plausible
+        - Stage 2 (Full): Analyze all choices to find best answer
 
         Args:
             question_text: The question text
             choices: List of answer choices
             claimed_correct_index: Index of the claimed correct answer
             scenario: Optional scenario/context for the question
+            use_two_stage: If True, do quick check first to save API costs
 
         Returns:
             Dict with keys:
@@ -472,19 +540,42 @@ class OpenRouterManager:
                 - ai_suggested_choice: AI's suggested correct answer text
                 - reasoning: Explanation for AI's determination
                 - should_auto_correct: True if confidence >= 0.90 and answer is wrong
+                - validation_stage: 'quick' or 'full'
         """
         try:
+            # Stage 1: Quick validation (cheaper)
+            if use_two_stage:
+                claimed_answer = choices[claimed_correct_index]
+                quick_result = await self.quick_validate_answer(question_text, claimed_answer, scenario)
+
+                # If answer is plausible with high confidence, skip Stage 2
+                if quick_result["is_plausible"] and quick_result["confidence"] >= 0.80:
+                    logger.info(f"Quick validation passed (confidence: {quick_result['confidence']:.2f}) - skipping full analysis")
+                    return {
+                        "is_valid": True,
+                        "confidence": quick_result["confidence"],
+                        "ai_suggested_index": claimed_correct_index,
+                        "ai_suggested_choice": claimed_answer,
+                        "reasoning": f"Quick validation: {quick_result['reasoning']}",
+                        "should_auto_correct": False,
+                        "validation_stage": "quick"
+                    }
+
+                logger.info(f"Quick validation uncertain (confidence: {quick_result['confidence']:.2f}) - proceeding to full analysis")
+
+            # Stage 2: Full validation (analyze all choices)
             prompt = self._create_answer_validation_prompt(
                 question_text, choices, claimed_correct_index, scenario
             )
             response = await self._generate_text_with_retry(
-                prompt, max_tokens=1000, temperature=0.3  # Low temperature for consistent answers
+                prompt, max_tokens=1000, temperature=0.3
             )
 
             # Parse the AI response
             validation_result = self._parse_answer_validation_response(
                 response, claimed_correct_index, choices
             )
+            validation_result["validation_stage"] = "full"
 
             return validation_result
 
@@ -498,6 +589,7 @@ class OpenRouterManager:
                 "ai_suggested_choice": choices[claimed_correct_index] if claimed_correct_index < len(choices) else "",
                 "reasoning": f"Unable to validate due to error: {str(e)}",
                 "should_auto_correct": False,
+                "validation_stage": "error",
                 "error": str(e)
             }
 

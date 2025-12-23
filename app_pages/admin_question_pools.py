@@ -600,6 +600,13 @@ async def process_ai_fixes(question_ids: List[str], pool_id: str = None, enable_
     fix_results = []
     all_patterns = []
 
+    # Track validation stats for efficiency reporting
+    validation_stats = {
+        "quick_pass": 0,  # Questions that passed quick validation
+        "full_analysis": 0,  # Questions that needed full analysis
+        "total_validated": 0
+    }
+
     # Phase 1: Fix initially selected questions
     for question_id in question_ids:
         try:
@@ -622,6 +629,15 @@ async def process_ai_fixes(question_ids: List[str], pool_id: str = None, enable_
                 correct_answer=correct_answer,
                 validate_answer=True  # Enable answer validation
             )
+
+            # Track validation stats
+            if fix_result.get('answer_validation'):
+                validation_stats["total_validated"] += 1
+                stage = fix_result['answer_validation'].get('validation_stage', 'unknown')
+                if stage == 'quick':
+                    validation_stats["quick_pass"] += 1
+                elif stage == 'full':
+                    validation_stats["full_analysis"] += 1
 
             fix_results.append({
                 "question_id": question_id,
@@ -691,6 +707,15 @@ async def process_ai_fixes(question_ids: List[str], pool_id: str = None, enable_
                         validate_answer=True
                     )
 
+                    # Track validation stats for pattern-matched questions
+                    if fix_result.get('answer_validation'):
+                        validation_stats["total_validated"] += 1
+                        stage = fix_result['answer_validation'].get('validation_stage', 'unknown')
+                        if stage == 'quick':
+                            validation_stats["quick_pass"] += 1
+                        elif stage == 'full':
+                            validation_stats["full_analysis"] += 1
+
                     # Only add if there are actual changes
                     if fix_result.get('has_changes'):
                         fix_results.append({
@@ -723,7 +748,8 @@ async def process_ai_fixes(question_ids: List[str], pool_id: str = None, enable_
         "fix_results": fix_results,
         "patterns_detected": all_patterns,
         "similar_questions_found": len([f for f in fix_results if f.get('from_pattern_match')]),
-        "total_questions_to_fix": len([f for f in fix_results if f.get('has_changes')])
+        "total_questions_to_fix": len([f for f in fix_results if f.get('has_changes')]),
+        "validation_stats": validation_stats
     }
 
 
@@ -912,6 +938,20 @@ def show_ai_fix_preview():
     fix_results = fix_data.get('fix_results', [])
     patterns_detected = fix_data.get('patterns_detected', [])
     similar_questions_found = fix_data.get('similar_questions_found', 0)
+    validation_stats = fix_data.get('validation_stats', {})
+
+    # Show validation efficiency stats
+    if validation_stats.get('total_validated', 0) > 0:
+        quick_pass = validation_stats.get('quick_pass', 0)
+        full_analysis = validation_stats.get('full_analysis', 0)
+        total = validation_stats['total_validated']
+
+        savings_pct = (quick_pass / total * 100) if total > 0 else 0
+
+        st.success(f"⚡ **Validation Efficiency:** {savings_pct:.0f}% API cost savings")
+        st.markdown(f"- {quick_pass} question(s) passed quick validation (cheaper)")
+        st.markdown(f"- {full_analysis} question(s) needed full analysis (all 4 choices)")
+        st.markdown(f"- Total: {total} question(s) validated")
 
     # Show pattern detection summary - ALWAYS show this section
     st.markdown("### 🔍 Pattern Detection")

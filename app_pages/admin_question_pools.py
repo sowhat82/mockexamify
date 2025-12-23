@@ -889,12 +889,21 @@ def show_ai_fix_preview():
             # Get pool_id from the viewing pool
             pool_id = st.session_state.get('viewing_pool')
 
+            # Debug output
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"AI Fix Debug: pool_id={pool_id}, question_ids={question_ids}")
+
             # Call enhanced process_ai_fixes with pattern detection
             fix_data = run_async(process_ai_fixes(
                 question_ids=question_ids,
                 pool_id=pool_id,
                 enable_pattern_detection=True
             ))
+
+            # Debug output
+            logger.info(f"AI Fix Results: patterns={len(fix_data.get('patterns_detected', []))}, similar_found={fix_data.get('similar_questions_found', 0)}")
+
             st.session_state.ai_fix_results_data = fix_data
 
     fix_data = st.session_state.ai_fix_results_data
@@ -902,13 +911,15 @@ def show_ai_fix_preview():
     patterns_detected = fix_data.get('patterns_detected', [])
     similar_questions_found = fix_data.get('similar_questions_found', 0)
 
-    # Show pattern detection summary
+    # Show pattern detection summary - ALWAYS show this section
+    st.markdown("### 🔍 Pattern Detection")
+
     if patterns_detected:
-        st.success(f"🔍 **Pattern Detection Results:**")
+        st.success(f"✅ **Pattern detection found issues:**")
         st.markdown(f"- **{len(patterns_detected)}** error pattern(s) detected")
         st.markdown(f"- **{similar_questions_found}** additional question(s) found with similar errors")
 
-        with st.expander("📋 View Detected Patterns"):
+        with st.expander("📋 View Detected Patterns", expanded=True):
             for idx, pattern in enumerate(patterns_detected, 1):
                 pattern_type = pattern.get('pattern_type', 'unknown')
                 description = pattern.get('description', 'No description')
@@ -921,6 +932,8 @@ def show_ai_fix_preview():
                     st.info(f"**Pattern {idx}:** {description}")
                     if pattern.get('search_pattern'):
                         st.code(f"Looking for: '{pattern.get('search_pattern')}'")
+    else:
+        st.info("ℹ️ **No error patterns detected** - Each question has unique errors or no additional similar questions found in pool")
 
     # Filter to only show questions with changes
     questions_with_changes = [f for f in fix_results if f.get('has_changes', False)]

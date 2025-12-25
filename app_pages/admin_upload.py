@@ -126,16 +126,27 @@ def show_admin_upload():
         st.error("Admin access required")
         st.stop()
 
-    # EMERGENCY FIX: Allow manual reset via ?reset=1 URL parameter
-    # This is the escape hatch for stuck upload states on mobile browsers
+    # EMERGENCY FIX: Detect and clear stuck upload states
+    # This handles crashes/restarts that leave upload_in_progress=True but no params
     force_reset = st.query_params.get("reset") == "1"
 
-    if force_reset:
-        logger.warning("[EMERGENCY] Manual reset triggered via ?reset=1 URL parameter")
+    # Detect stuck state: upload_in_progress=True but no upload_params (indicates crash)
+    is_stuck = (
+        st.session_state.get("upload_in_progress")
+        and not st.session_state.get("upload_params")
+    )
+
+    if force_reset or is_stuck:
+        if force_reset:
+            logger.warning("[EMERGENCY] Manual reset triggered via ?reset=1 URL parameter")
+        else:
+            logger.warning("[EMERGENCY] Detected stuck upload state (upload_in_progress=True but no params)")
+
         st.session_state.upload_in_progress = False
         if st.session_state.get("upload_params"):
             st.session_state.upload_params = None
-        st.query_params.clear()
+        if force_reset:
+            st.query_params.clear()
         st.rerun()  # Force immediate page refresh with clean state
 
     # Back to dashboard button

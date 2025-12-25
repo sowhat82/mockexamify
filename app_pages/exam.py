@@ -306,6 +306,8 @@ def start_pool_exam(pool_exam_config: Dict[str, Any], user: Dict[str, Any]):
 
         if not questions:
             st.error(f"No questions available in {pool_name} pool")
+            st.info("This may be a temporary issue. Please try the following:\n\n1. Refresh the page\n2. Log out and log back in\n3. Contact support if the issue persists")
+            logger.error(f"Failed to load questions for pool_id={pool_id}, pool_name={pool_name}, user={user.get('email')}")
             # Clear pool_exam from session state
             if "pool_exam" in st.session_state:
                 del st.session_state.pool_exam

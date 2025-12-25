@@ -1841,6 +1841,7 @@ class DatabaseManager:
             )
 
             if not result.data:
+                logger.warning(f"No questions found for pool_id: {pool_id} (query returned 0 results)")
                 return []
 
             # Randomly sample N questions
@@ -1874,7 +1875,7 @@ class DatabaseManager:
             return formatted_questions
 
         except Exception as e:
-            logger.error(f"Error getting random pool questions: {e}")
+            logger.error(f"Error getting random pool questions for pool_id={pool_id}, count={count}: {e}", exc_info=True)
             return []
 
     async def create_upload_batch(

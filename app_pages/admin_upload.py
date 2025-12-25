@@ -273,13 +273,24 @@ def show_question_pool_upload(auth):
             elif not uploaded_files:
                 st.error("Please upload at least one file")
             else:
+                # CRITICAL: Read file bytes before rerun to avoid file object invalidation
+                # Streamlit file objects become invalid after rerun, causing 404/503 errors
+                file_data = []
+                for uploaded_file in uploaded_files:
+                    uploaded_file.seek(0)
+                    file_data.append({
+                        "name": uploaded_file.name,
+                        "bytes": uploaded_file.read(),
+                        "type": uploaded_file.type
+                    })
+
                 # Store upload parameters in session state
                 st.session_state.upload_in_progress = True
                 st.session_state.upload_params = {
                     "pool_name": pool_name,
                     "category": category,
                     "description": description,
-                    "uploaded_files": uploaded_files,
+                    "file_data": file_data,  # Store bytes, not file objects
                     "enable_ai_detection": enable_ai_detection,
                     "similarity_threshold": similarity_threshold / 100.0,
                 }
@@ -294,6 +305,15 @@ def show_question_pool_upload(auth):
             unsafe_allow_html=True,
         )
 
+        # Reconstruct file objects from stored bytes
+        from io import BytesIO
+        uploaded_files = []
+        for file_info in params["file_data"]:
+            file_obj = BytesIO(file_info["bytes"])
+            file_obj.name = file_info["name"]
+            file_obj.type = file_info["type"]
+            uploaded_files.append(file_obj)
+
         result = None
         try:
             with st.spinner(""):
@@ -302,7 +322,7 @@ def show_question_pool_upload(auth):
                         pool_name=params["pool_name"],
                         category=params["category"],
                         description=params["description"],
-                        uploaded_files=params["uploaded_files"],
+                        uploaded_files=uploaded_files,
                         enable_ai_detection=params["enable_ai_detection"],
                         similarity_threshold=params["similarity_threshold"],
                     )

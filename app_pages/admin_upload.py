@@ -128,11 +128,17 @@ def show_admin_upload():
 
     # EMERGENCY FIX: Clear any stuck upload state on page load
     # This fixes the perpetual blue loader bug
-    if st.session_state.get("upload_in_progress"):
-        logger.warning("[EMERGENCY] Clearing stuck upload_in_progress state on page load")
+    # Also check for ?reset=1 URL parameter for mobile/cached sessions
+    force_reset = st.query_params.get("reset") == "1"
+
+    if st.session_state.get("upload_in_progress") or force_reset:
+        logger.warning(f"[EMERGENCY] Clearing stuck upload state (force_reset={force_reset})")
         st.session_state.upload_in_progress = False
         if st.session_state.get("upload_params"):
             st.session_state.upload_params = None
+        # Clear the reset parameter from URL
+        if force_reset:
+            st.query_params.clear()
         st.rerun()  # Force immediate page refresh with clean state
 
     # Back to dashboard button

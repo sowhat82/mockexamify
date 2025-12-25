@@ -608,8 +608,8 @@ CRITICAL RULES:
 
 Extract all questions now:"""
 
-    def _call_ai_api(self, prompt: str) -> List[Dict[str, Any]]:
-        """Call OpenRouter API to extract questions"""
+    def _call_ai_api(self, prompt: str, max_retries: int = 2) -> List[Dict[str, Any]]:
+        """Call OpenRouter API to extract questions with retry logic"""
 
         # Check if API key is configured (allow AI parsing even in DEMO_MODE)
         if not self.api_key or self.api_key == "demo" or self.api_key == "your_openrouter_api_key":
@@ -622,41 +622,76 @@ Extract all questions now:"""
             )
             return self._demo_parse_fallback()
 
-        try:
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://mockexamify.com",
-                "X-Title": "MockExamify",
-            }
+        import time
+        last_error = None
 
-            payload = {
-                "model": self.model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.1,  # Low temperature for consistent extraction
-                "max_tokens": 4000,
-            }
+        for attempt in range(max_retries + 1):
+            try:
+                if attempt > 0:
+                    wait_time = 2 ** attempt  # Exponential backoff: 2s, 4s
+                    st.info(f"🔄 Retrying API call (attempt {attempt + 1}/{max_retries + 1}) after {wait_time}s...")
+                    time.sleep(wait_time)
 
-            # Make synchronous request
-            with httpx.Client(timeout=60.0) as client:
-                response = client.post(
-                    f"{self.base_url}/chat/completions", headers=headers, json=payload
-                )
+                headers = {
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://mockexamify.com",
+                    "X-Title": "MockExamify",
+                }
 
-            if response.status_code != 200:
-                raise Exception(f"API returned status {response.status_code}: {response.text}")
+                payload = {
+                    "model": self.model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.1,  # Low temperature for consistent extraction
+                    "max_tokens": 4000,
+                }
 
-            result = response.json()
-            content = result["choices"][0]["message"]["content"]
+                # Make synchronous request
+                with httpx.Client(timeout=60.0) as client:
+                    response = client.post(
+                        f"{self.base_url}/chat/completions", headers=headers, json=payload
+                    )
 
-            # Extract JSON from response
-            questions = self._extract_json_from_response(content)
+                if response.status_code != 200:
+                    raise Exception(f"API returned status {response.status_code}: {response.text}")
 
-            return questions
+                result = response.json()
 
-        except Exception as e:
-            st.error(f"AI API call failed: {str(e)}")
-            return []
+                # Check if response has expected structure
+                if "choices" not in result:
+                    logger.error(f"Unexpected API response structure: {result}")
+                    raise Exception(f"API response missing 'choices' field. Response: {result.get('error', result)}")
+
+                if not result["choices"] or len(result["choices"]) == 0:
+                    raise Exception("API response has empty 'choices' array")
+
+                if "message" not in result["choices"][0]:
+                    raise Exception("API response missing 'message' field in choices[0]")
+
+                if "content" not in result["choices"][0]["message"]:
+                    raise Exception("API response missing 'content' field in message")
+
+                content = result["choices"][0]["message"]["content"]
+
+                # Extract JSON from response
+                questions = self._extract_json_from_response(content)
+
+                # Success - return questions
+                return questions
+
+            except Exception as e:
+                last_error = e
+                logger.warning(f"API call attempt {attempt + 1} failed: {str(e)}")
+
+                # If this was the last attempt, fail
+                if attempt == max_retries:
+                    st.error(f"AI API call failed after {max_retries + 1} attempts: {str(last_error)}")
+                    logger.error(f"AI API error details: {str(last_error)}", exc_info=True)
+                    return []
+                # Otherwise, continue to next retry
+
+        # This should never be reached, but just in case
+        return []
 
     def _extract_json_from_response(self, content: str) -> List[Dict[str, Any]]:
         """Extract JSON array from AI response"""

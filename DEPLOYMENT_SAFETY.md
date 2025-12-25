@@ -16,7 +16,7 @@ When you push to `main` branch from **anywhere** (Codespaces, laptop, CI/CD), th
 ### In This Codespace (Already Installed)
 The hooks are already installed and active in this environment.
 
-### On Your Laptop
+### On Your Laptop (First Time Only)
 After pulling the latest code:
 
 ```bash
@@ -24,10 +24,26 @@ git pull origin main
 ./install_hooks.sh
 ```
 
-This installs the pre-push hook into your local `.git/hooks/` directory.
+This installs both hooks into your local `.git/hooks/` directory:
+- `pre-push` - Checks for active users before push
+- `post-merge` - Auto-updates hooks after future pulls
 
 ### On Other Machines
-Same as laptop - just run `./install_hooks.sh` after cloning/pulling.
+Same as laptop - just run `./install_hooks.sh` **once** after cloning/pulling.
+
+### Automatic Updates
+After the first-time setup, the hooks **automatically update** when you run `git pull`:
+
+```bash
+git pull origin main
+
+# Output:
+🔄 Post-merge: Checking if hooks need updating...
+🆕 Hook updates detected. Reinstalling...
+✅ Hooks installed/updated successfully!
+```
+
+You never need to run `./install_hooks.sh` again on that machine!
 
 ## 🚀 How It Works
 

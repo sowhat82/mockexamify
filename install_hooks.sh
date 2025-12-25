@@ -25,6 +25,15 @@ else
     exit 1
 fi
 
+# Install post-merge hook (auto-updates hooks after git pull)
+if [ -f "hooks/post-merge" ]; then
+    cp hooks/post-merge .git/hooks/post-merge
+    chmod +x .git/hooks/post-merge
+    echo "✅ Installed post-merge hook (auto-updates on git pull)"
+else
+    echo "⚠️  Warning: hooks/post-merge not found (optional)"
+fi
+
 # Make check_active_users.py executable
 if [ -f "check_active_users.py" ]; then
     chmod +x check_active_users.py
@@ -38,9 +47,11 @@ echo "What this means:"
 echo "  • Every 'git push origin main' will check for active users first"
 echo "  • Push will be blocked if students are taking exams"
 echo "  • You'll be prompted if there's recent activity"
+echo "  • Hooks auto-update after 'git pull' (no need to reinstall)"
 echo "  • Use 'git push --no-verify' to bypass (emergencies only)"
 echo ""
-echo "To install on your laptop:"
-echo "  1. Pull the latest code: git pull origin main"
-echo "  2. Run: ./install_hooks.sh"
+echo "First-time setup on new machines:"
+echo "  1. Pull the code: git pull origin main"
+echo "  2. Run once: ./install_hooks.sh"
+echo "  3. Future updates: Automatic on git pull!"
 echo ""

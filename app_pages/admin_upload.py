@@ -270,100 +270,104 @@ def show_question_pool_upload(auth):
             '<p style="color: #000000;">Processing question pool upload...</p>',
             unsafe_allow_html=True,
         )
-        with st.spinner(""):
-            result = run_async(
-                process_pool_upload(
-                    pool_name=params["pool_name"],
-                    category=params["category"],
-                    description=params["description"],
-                    uploaded_files=params["uploaded_files"],
-                    enable_ai_detection=params["enable_ai_detection"],
-                    similarity_threshold=params["similarity_threshold"],
-                )
-            )
 
-            # Clear upload state
+        result = None
+        try:
+            with st.spinner(""):
+                result = run_async(
+                    process_pool_upload(
+                        pool_name=params["pool_name"],
+                        category=params["category"],
+                        description=params["description"],
+                        uploaded_files=params["uploaded_files"],
+                        enable_ai_detection=params["enable_ai_detection"],
+                        similarity_threshold=params["similarity_threshold"],
+                    )
+                )
+        finally:
+            # CRITICAL: Always clear upload state, even if processing fails
+            # This prevents the perpetual blue loader bug
             st.session_state.upload_in_progress = False
             st.session_state.upload_params = None
 
-            if isinstance(result, dict) and result.get("success"):
-                # Check if this was background processing
-                if result.get("background"):
-                    # Background processing case - pool created but questions being processed
-                    st.markdown("---")
+        if isinstance(result, dict) and result.get("success"):
+            # Check if this was background processing
+            if result.get("background"):
+                # Background processing case - pool created but questions being processed
+                st.markdown("---")
 
-                    # Navigation buttons for background processing case
-                    col1, col2 = st.columns(2)
+                # Navigation buttons for background processing case
+                col1, col2 = st.columns(2)
 
-                    with col1:
-                        if st.button(
-                            "📊 Check Pool Status", use_container_width=True, type="primary"
-                        ):
-                            st.session_state.page = "admin_manage_pools"
-                            st.rerun()
+                with col1:
+                    if st.button(
+                        "📊 Check Pool Status", use_container_width=True, type="primary"
+                    ):
+                        st.session_state.page = "admin_manage_pools"
+                        st.rerun()
 
-                    with col2:
-                        if st.button("🏠 Back to Dashboard", use_container_width=True):
-                            st.session_state.page = "dashboard"
-                            st.rerun()
+                with col2:
+                    if st.button("🏠 Back to Dashboard", use_container_width=True):
+                        st.session_state.page = "dashboard"
+                        st.rerun()
+            else:
+                # Normal processing case
+                st.success("🎉 Question pool updated successfully!")
+                st.balloons()
+
+                # Verify upload and show actual question count
+                st.markdown("---")
+                st.markdown(
+                    '<h3 style="color: #000000;">✅ Upload Complete!</h3>', unsafe_allow_html=True
+                )
+
+                # Fetch actual current question count from database
+                from db import db
+
+                pool_id = result.get("pool_id")
+                pool_name_result = result.get("pool_name")
+
+                if pool_id:
+                    pool_questions = run_async(db.get_pool_questions(pool_id))
+                    actual_count = len(pool_questions)
+
+                    st.info(
+                        f"📊 **Pool '{pool_name_result}' now contains {actual_count} total questions**\n\n"
+                        f"✅ Upload verified! Questions are immediately available for generating mock exams."
+                    )
                 else:
-                    # Normal processing case
-                    st.success("🎉 Question pool updated successfully!")
-                    st.balloons()
-
-                    # Verify upload and show actual question count
-                    st.markdown("---")
-                    st.markdown(
-                        '<h3 style="color: #000000;">✅ Upload Complete!</h3>', unsafe_allow_html=True
+                    st.warning(
+                        "Upload completed but couldn't verify question count. Please check Manage Pools."
                     )
 
-                    # Fetch actual current question count from database
-                    from db import db
+                # Navigation buttons (now outside form)
+                col1, col2, col3 = st.columns(3)
 
-                    pool_id = result.get("pool_id")
-                    pool_name_result = result.get("pool_name")
+                with col1:
+                    if st.button(
+                        "📊 View Pool Questions", use_container_width=True, type="primary"
+                    ):
+                        st.session_state.page = "admin_manage_pools"
+                        st.rerun()
 
-                    if pool_id:
-                        pool_questions = run_async(db.get_pool_questions(pool_id))
-                        actual_count = len(pool_questions)
+                with col2:
+                    if st.button("➕ Upload More Questions", use_container_width=True):
+                        st.rerun()
 
-                        st.info(
-                            f"📊 **Pool '{pool_name_result}' now contains {actual_count} total questions**\n\n"
-                            f"✅ Upload verified! Questions are immediately available for generating mock exams."
-                        )
-                    else:
-                        st.warning(
-                            "Upload completed but couldn't verify question count. Please check Manage Pools."
-                        )
-
-                    # Navigation buttons (now outside form)
-                    col1, col2, col3 = st.columns(3)
-
-                    with col1:
-                        if st.button(
-                            "📊 View Pool Questions", use_container_width=True, type="primary"
-                        ):
-                            st.session_state.page = "admin_manage_pools"
-                            st.rerun()
-
-                    with col2:
-                        if st.button("➕ Upload More Questions", use_container_width=True):
-                            st.rerun()
-
-                    with col3:
-                        if st.button("🏠 Back to Dashboard", use_container_width=True):
-                            st.session_state.page = "dashboard"
-                            st.rerun()
+                with col3:
+                    if st.button("🏠 Back to Dashboard", use_container_width=True):
+                        st.session_state.page = "dashboard"
+                        st.rerun()
+        else:
+            # Handle failure case - result could be False or a dict with error
+            if isinstance(result, dict):
+                error_msg = result.get("error", "Unknown error occurred")
             else:
-                # Handle failure case - result could be False or a dict with error
-                if isinstance(result, dict):
-                    error_msg = result.get("error", "Unknown error occurred")
-                else:
-                    error_msg = "No questions could be extracted from the uploaded file(s). Please ensure the document contains valid exam questions in a readable format."
-                st.error(f"Failed to update question pool: {error_msg}")
-                st.info(
-                    "💡 **Tips:** Try uploading a different file format (CSV, JSON) or ensure the PDF contains selectable text (not scanned images)."
-                )
+                error_msg = "No questions could be extracted from the uploaded file(s). Please ensure the document contains valid exam questions in a readable format."
+            st.error(f"Failed to update question pool: {error_msg}")
+            st.info(
+                "💡 **Tips:** Try uploading a different file format (CSV, JSON) or ensure the PDF contains selectable text (not scanned images)."
+            )
 
 
 def show_single_mock_upload(auth):

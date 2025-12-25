@@ -11,39 +11,36 @@ When you push to `main` branch from **anywhere** (Codespaces, laptop, CI/CD), th
 3. ✅ Blocks push if exams are in progress
 4. ⚠️  Prompts for confirmation if recent activity detected
 
-## 📦 Setup (One-Time)
+## 📦 Setup (One-Time Per Machine)
 
-### In This Codespace (Already Installed)
-The hooks are already installed and active in this environment.
+### Super Simple Setup
 
-### On Your Laptop (First Time Only)
-After pulling the latest code:
+After cloning or pulling the repo for the first time, run **one command**:
 
 ```bash
-git pull origin main
-./install_hooks.sh
+git config core.hooksPath hooks
 ```
 
-This installs both hooks into your local `.git/hooks/` directory:
-- `pre-push` - Checks for active users before push
-- `post-merge` - Auto-updates hooks after future pulls
+**That's it!** The hooks are now active and will auto-update forever.
 
-### On Other Machines
-Same as laptop - just run `./install_hooks.sh` **once** after cloning/pulling.
+### What This Does
 
-### Automatic Updates
-After the first-time setup, the hooks **automatically update** when you run `git pull`:
+- Tells Git to use the `hooks/` directory (which is tracked in the repo)
+- Hooks work immediately, no copying needed
+- Updates are instant when you `git pull`
+- One command per machine, never needs repeating
 
+### Quick Setup Script
+
+Or just run:
 ```bash
-git pull origin main
-
-# Output:
-🔄 Post-merge: Checking if hooks need updating...
-🆕 Hook updates detected. Reinstalling...
-✅ Hooks installed/updated successfully!
+./setup_hooks.sh
 ```
 
-You never need to run `./install_hooks.sh` again on that machine!
+This runs the same `git config` command with helpful output.
+
+### In This Codespace (Already Configured)
+The hooks are already configured and active in this environment.
 
 ## 🚀 How It Works
 

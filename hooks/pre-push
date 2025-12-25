@@ -1,0 +1,69 @@
+#!/bin/bash
+# Git pre-push hook - checks for active users before allowing push to main
+
+# Get the branch being pushed
+while read local_ref local_sha remote_ref remote_sha
+do
+    # Extract branch name from refs/heads/branch-name
+    branch=$(echo $remote_ref | sed 's/refs\/heads\///')
+
+    # Only check when pushing to main
+    if [ "$branch" = "main" ]; then
+        echo "🔒 Pre-push hook: Checking for active users before pushing to main..."
+        echo ""
+
+        # Activate virtual environment if it exists
+        if [ -d "venv" ]; then
+            source venv/bin/activate 2>/dev/null || source venv/Scripts/activate 2>/dev/null
+        fi
+
+        # Run the active user check
+        if [ -f "check_active_users.py" ]; then
+            python check_active_users.py
+            CHECK_RESULT=$?
+
+            echo ""
+
+            if [ $CHECK_RESULT -eq 0 ]; then
+                # Safe to deploy
+                echo "✅ All checks passed. Proceeding with push..."
+                exit 0
+            elif [ $CHECK_RESULT -eq 1 ]; then
+                # Active users found - block push
+                echo "❌ PUSH BLOCKED: Active users detected."
+                echo ""
+                echo "Students are currently taking exams. Pushing now could disrupt their experience."
+                echo ""
+                echo "Options:"
+                echo "  1. Wait a few minutes and try again"
+                echo "  2. Deploy during off-peak hours"
+                echo "  3. Use 'git push --no-verify' to bypass this check (NOT recommended)"
+                echo ""
+                exit 1
+            elif [ $CHECK_RESULT -eq 2 ]; then
+                # Recent activity - prompt user
+                echo "⚠️  Recent activity detected. Push with caution."
+                echo ""
+                read -p "Do you want to proceed with the push? [y/N] " -n 1 -r
+                echo ""
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    echo "Proceeding with push..."
+                    exit 0
+                else
+                    echo "Push cancelled."
+                    exit 1
+                fi
+            else
+                # Unknown error - allow push but warn
+                echo "⚠️  Could not complete activity check. Proceeding with push..."
+                exit 0
+            fi
+        else
+            echo "⚠️  check_active_users.py not found. Skipping activity check..."
+            exit 0
+        fi
+    fi
+done
+
+# Allow push for other branches
+exit 0

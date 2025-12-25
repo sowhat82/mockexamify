@@ -126,6 +126,15 @@ def show_admin_upload():
         st.error("Admin access required")
         st.stop()
 
+    # EMERGENCY FIX: Clear any stuck upload state on page load
+    # This fixes the perpetual blue loader bug
+    if st.session_state.get("upload_in_progress"):
+        logger.warning("[EMERGENCY] Clearing stuck upload_in_progress state on page load")
+        st.session_state.upload_in_progress = False
+        if st.session_state.get("upload_params"):
+            st.session_state.upload_params = None
+        st.rerun()  # Force immediate page refresh with clean state
+
     # Back to dashboard button
     col1, col2, col3 = st.columns([1, 3, 1])
     with col1:

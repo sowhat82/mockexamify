@@ -659,6 +659,13 @@ def main():
     if "last_email" not in st.session_state:
         st.session_state.last_email = ""
 
+    # CRITICAL FIX: Clear stuck upload state if user navigated away from upload page
+    # This prevents perpetual blue loader bug from persisting across page navigations
+    if st.session_state.get("upload_in_progress") and st.session_state.get("page") != "admin_upload":
+        logger.warning("[BUGFIX] Clearing stuck upload_in_progress state - user navigated away from upload page")
+        st.session_state.upload_in_progress = False
+        st.session_state.upload_params = None
+
     # Initialize auth utility
     auth = AuthUtils(config.API_BASE_URL)
 

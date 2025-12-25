@@ -6,6 +6,7 @@ Extracts questions from PDF and Word documents using AI
 import io
 import json
 import re
+import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
@@ -14,6 +15,9 @@ import streamlit as st
 from docx import Document
 
 import config
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 # OCR support flag
 OCR_AVAILABLE = False

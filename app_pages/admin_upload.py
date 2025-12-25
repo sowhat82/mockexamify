@@ -300,6 +300,14 @@ def show_question_pool_upload(auth):
     if st.session_state.get("upload_in_progress"):
         params = st.session_state.upload_params
 
+        # Handle old session state format (before file_data fix)
+        if "file_data" not in params:
+            logger.warning("[COMPAT] Old session state format detected, clearing stuck upload")
+            st.session_state.upload_in_progress = False
+            st.session_state.upload_params = None
+            st.error("Upload state was corrupted. Please try uploading again.")
+            st.rerun()
+
         st.markdown(
             '<p style="color: #000000;">Processing question pool upload...</p>',
             unsafe_allow_html=True,

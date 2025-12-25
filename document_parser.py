@@ -326,12 +326,39 @@ class DocumentParser:
             python_path = sys.executable
             script_path = os.path.join(os.getcwd(), "background_ocr_processor.py")
 
-            subprocess.Popen(
+            # Log to file instead of suppressing output
+            log_file = open("background_ocr_processor.log", "a")
+
+            process = subprocess.Popen(
                 [python_path, script_path, temp_path, pool_id, pool_name, uploaded_file.name],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,  # Merge stderr into stdout
                 start_new_session=True,
             )
+
+            # Verify process started successfully
+            import time
+            time.sleep(0.5)  # Give it a moment to start
+            if process.poll() is not None:
+                # Process already died
+                log_file.close()
+                raise Exception(f"Background OCR process failed to start (exit code: {process.returncode})")
+
+            # Create database status record for tracking
+            try:
+                from db import db
+                import asyncio
+                asyncio.run(db.admin_client.table('background_upload_status').insert({
+                    'pool_id': pool_id,
+                    'pool_name': pool_name,
+                    'status': 'processing',
+                    'total_questions': 0,
+                    'processed_questions': 0,
+                    'error_message': None
+                }).execute())
+                st.info(f"📊 Background process tracking: Check 'Manage Pools' to monitor progress")
+            except Exception as e:
+                logger.warning(f"Failed to create background status record: {e}")
 
             st.success(
                 f"✅ Large scanned PDF detected ({num_pages} pages)\n\n"

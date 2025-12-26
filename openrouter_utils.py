@@ -1052,7 +1052,9 @@ Consider:
 
 STRICT RULES:
 1. Fix ONLY these types of errors:
-   - OCR errors (spaces in middle of words: "Charli e" → "Charlie", "pa rt" → "part", "reimburse ment" → "reimbursement")
+   - OCR spacing errors:
+     * Spaces in middle of words: "Charli e" → "Charlie", "pa rt" → "part", "reimburse ment" → "reimbursement"
+     * Missing spaces between words: "husbandimmediately" → "husband immediately", "ajoint" → "a joint", "tobe" → "to be"
    - Spelling mistakes ("recieve" → "receive", "seperate" → "separate")
    - Grammar errors ("He suspect" → "He suspects", "they was" → "they were")
    - Subject-verb agreement ("The company have" → "The company has")

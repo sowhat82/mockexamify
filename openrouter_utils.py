@@ -1142,28 +1142,38 @@ Consider:
         """Create prompt for conservative error fixing"""
         choices_formatted = "\n".join([f"{i}: {choice}" for i, choice in enumerate(choices)])
 
-        return f"""You are a conservative text correction assistant. Your ONLY job is to fix obvious errors without changing meaning.
+        return f"""You are a text correction assistant. Your job is to fix errors without changing meaning.
 
-STRICT RULES:
-1. Fix ONLY these types of errors:
-   - OCR spacing errors:
-     * Spaces in middle of words: "Charli e" → "Charlie", "pa rt" → "part", "reimburse ment" → "reimbursement"
-     * Missing spaces between words: "husbandimmediately" → "husband immediately", "ajoint" → "a joint", "tobe" → "to be"
-   - Spelling mistakes ("recieve" → "receive", "seperate" → "separate")
-   - Grammar errors ("He suspect" → "He suspects", "they was" → "they were")
-   - Subject-verb agreement ("The company have" → "The company has")
-   - Multiple spaces or punctuation errors
+FIX THESE ERROR TYPES:
+1. OCR spacing errors:
+   * Spaces in middle of words: "Charli e" → "Charlie", "pa rt" → "part", "reimburse ment" → "reimbursement"
+   * Missing spaces between words: "husbandimmediately" → "husband immediately", "ajoint" → "a joint", "tobe" → "to be"
 
-2. DO NOT:
-   - Change question meaning or intent
-   - Rewrite for "clarity" or "better phrasing"
-   - Add or remove content
-   - Change technical terms or financial terminology
-   - Simplify complex sentences
-   - Change numbers, dates, or proper nouns
-   - Fix things that are not clearly errors
+2. Spelling mistakes:
+   * "recieve" → "receive", "seperate" → "separate", "occured" → "occurred"
 
-3. If you're unsure whether something is an error, DO NOT change it.
+3. Grammar errors (ALWAYS FIX THESE):
+   * Wrong verb forms: "He suspect" → "He suspects", "they was" → "they were", "she is worry" → "she is worried"
+   * Subject-verb agreement: "The company have" → "The company has", "She don't" → "She doesn't"
+   * Wrong word usage: "would your advice" → "would you advise", "could of" → "could have"
+   * Verb tense errors: "He have gone" → "He has gone", "She has went" → "She has gone"
+
+4. Missing articles (common errors):
+   * "obtain large loan" → "obtain a large loan"
+   * "make decision" → "make a decision"
+   * "take test" → "take a test" or "take the test"
+
+5. Punctuation errors:
+   * Multiple spaces, wrong punctuation marks
+
+DO NOT CHANGE:
+   - Question meaning or intent
+   - Technical terms or financial terminology
+   - Numbers, dates, or proper nouns
+   - Sentence structure (unless grammatically wrong)
+   - Content (no additions or removals except articles/prepositions)
+
+IMPORTANT: Grammar errors like wrong verb forms, subject-verb disagreement, and wrong word usage (advice vs advise) are ALWAYS errors - fix them.
 
 QUESTION TEXT:
 {question_text}
@@ -1193,7 +1203,7 @@ If NO errors are found at all, return:
   "has_changes": false
 }}}}
 
-Be extremely conservative. Only fix OBVIOUS errors."""
+Remember: Grammar errors are ALWAYS obvious errors - fix them without hesitation."""
 
     def _create_answer_validation_prompt(
         self, question_text: str, choices: List[str], claimed_correct_index: int, scenario: str = ""

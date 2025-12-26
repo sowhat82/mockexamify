@@ -342,32 +342,39 @@ class OpenRouterManager:
                 - answer_changed: Boolean indicating if answer was corrected
         """
         try:
-            # Step 0: Pre-detect common typos (UAT only - not production)
+            # Step 0: Pre-detect common typos (don't modify originals yet!)
             typo_fixes = self._detect_and_fix_typos(question_text, choices)
-            if typo_fixes['has_changes']:
-                question_text = typo_fixes['fixed_question']
-                choices = typo_fixes['fixed_choices']
 
-            # Step 1: Fix text errors (OCR, spelling, grammar)
+            # Step 1: Fix text errors with AI (using ORIGINAL text with typos)
             prompt = self._create_fix_errors_prompt(question_text, choices)
             response = await self._generate_text_with_retry(
                 prompt, max_tokens=3000, temperature=0.3  # Low temperature for conservative fixes
             )
 
-            # Parse the AI response
+            # Parse the AI response (using ORIGINAL text)
             fix_result = self._parse_fix_errors_response(response, question_text, choices)
 
-            # Merge typo fixes into AI fixes
+            # Step 2: Merge typo fixes into AI fixes
             if typo_fixes['has_changes']:
+                # Use typo-fixed text as the base
+                fix_result['fixed_question'] = typo_fixes['fixed_question']
+                fix_result['fixed_choices'] = typo_fixes['fixed_choices']
+
+                # Merge change descriptions
                 if 'question' in typo_fixes['changes_made']:
                     if 'question' not in fix_result['changes_made']:
                         fix_result['changes_made']['question'] = []
-                    fix_result['changes_made']['question'].extend(typo_fixes['changes_made']['question'])
+                    # Prepend typo fixes (they happen first)
+                    fix_result['changes_made']['question'] = typo_fixes['changes_made']['question'] + fix_result['changes_made']['question']
 
                 if 'choices' in typo_fixes['changes_made']:
                     if 'choices' not in fix_result['changes_made']:
                         fix_result['changes_made']['choices'] = {}
-                    fix_result['changes_made']['choices'].update(typo_fixes['changes_made']['choices'])
+                    # Merge choice changes
+                    for idx, changes in typo_fixes['changes_made']['choices'].items():
+                        if idx not in fix_result['changes_made']['choices']:
+                            fix_result['changes_made']['choices'][idx] = []
+                        fix_result['changes_made']['choices'][idx] = changes + fix_result['changes_made']['choices'][idx]
 
                 fix_result['has_changes'] = True
 

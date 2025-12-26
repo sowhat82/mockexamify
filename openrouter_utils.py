@@ -1165,38 +1165,46 @@ Consider:
         """Create prompt for conservative error fixing"""
         choices_formatted = "\n".join([f"{i}: {choice}" for i, choice in enumerate(choices)])
 
-        return f"""You are a text correction assistant. Your job is to fix errors without changing meaning.
+        return f"""You are an aggressive error-fixing assistant. Your job is to find and fix ALL grammar, spelling, and text errors.
 
-FIX THESE ERROR TYPES:
+CRITICAL: You MUST fix errors aggressively. Do NOT be conservative. If something looks wrong, FIX IT.
+
+FIX THESE ERROR TYPES (MANDATORY):
+
 1. OCR spacing errors:
-   * Spaces in middle of words: "Charli e" → "Charlie", "pa rt" → "part", "reimburse ment" → "reimbursement"
-   * Missing spaces between words: "husbandimmediately" → "husband immediately", "ajoint" → "a joint", "tobe" → "to be"
+   * Spaces in middle of words: "Charli e" → "Charlie", "reimburse ment" → "reimbursement"
+   * Missing spaces between words: "husbandimmediately" → "husband immediately", "ajoint" → "a joint"
 
 2. Spelling mistakes:
    * "recieve" → "receive", "seperate" → "separate", "occured" → "occurred"
 
-3. Grammar errors (ALWAYS FIX THESE):
-   * Wrong verb forms: "He suspect" → "He suspects", "they was" → "they were", "she is worry" → "she is worried"
-   * Subject-verb agreement: "The company have" → "The company has", "She don't" → "She doesn't"
-   * Wrong word usage: "would your advice" → "would you advise", "could of" → "could have"
-   * Verb tense errors: "He have gone" → "He has gone", "She has went" → "She has gone"
+3. Grammar errors (FIX EVERY SINGLE ONE):
+   * Wrong verb forms: "is worry" → "is worried", "apologies for" → "apologize for" (verb not noun!)
+   * Subject-verb agreement: "The company have" → "The company has"
+   * Wrong word usage: "would your advice Joyce" → "would you advise Joyce" (advise is verb!)
+   * Verb tense: "He have gone" → "He has gone"
+   * Wrong prepositions: "was to your fault" → "was your fault"
+   * Missing verbs: "which the Entity responsible" → "which the Entity is responsible"
 
-4. Missing articles (common errors):
+4. Missing/wrong articles:
+   * "Contact client" → "Contact the client"
    * "obtain large loan" → "obtain a large loan"
-   * "make decision" → "make a decision"
-   * "take test" → "take a test" or "take the test"
+   * "another staff with an entity" → "another staff member within the entity"
 
-5. Punctuation errors:
-   * Multiple spaces, wrong punctuation marks
+5. Missing words:
+   * "investigation any input" → "investigation without any input" (missing "without")
+   * "was an error in system fault" → "was a system error"
+
+6. Wrong nouns/verbs:
+   * "apologies for the error" → "apologize for the error" (verb form needed!)
+   * "Deny all the responsibility" → "Deny all responsibility" (remove "the")
 
 DO NOT CHANGE:
-   - Question meaning or intent
-   - Technical terms or financial terminology
-   - Numbers, dates, or proper nouns
-   - Sentence structure (unless grammatically wrong)
-   - Content (no additions or removals except articles/prepositions)
+   - Question meaning
+   - Technical/financial terms
+   - Numbers or dates
 
-IMPORTANT: Grammar errors like wrong verb forms, subject-verb disagreement, and wrong word usage (advice vs advise) are ALWAYS errors - fix them.
+CRITICAL INSTRUCTION: Fix EVERY grammar error, missing article, wrong verb form, and spelling mistake you find. Be aggressive, not conservative!
 
 QUESTION TEXT:
 {question_text}
@@ -1226,7 +1234,13 @@ If NO errors are found at all, return:
   "has_changes": false
 }}}}
 
-Remember: Grammar errors are ALWAYS obvious errors - fix them without hesitation."""
+CRITICAL FINAL REMINDER:
+- "apologies" used as a verb is ALWAYS wrong → use "apologize"
+- "advice" used as a verb is ALWAYS wrong → use "advise"
+- Missing articles before nouns ("Contact client") is ALWAYS wrong → add "the"
+- Missing verbs ("which Entity responsible") is ALWAYS wrong → add "is"
+- Wrong verb forms ("is worry", "was to your fault") are ALWAYS wrong → fix them
+- DO NOT return has_changes: false if you see ANY of these errors!"""
 
     def _create_answer_validation_prompt(
         self, question_text: str, choices: List[str], claimed_correct_index: int, scenario: str = ""

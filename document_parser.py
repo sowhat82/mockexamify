@@ -85,6 +85,24 @@ class DocumentParser:
         (r"determined by the\s*Choices", "Question text bleeding into choices"),
     ]
 
+    # Common spacing/typo patterns (UAT only - not production)
+    # These catch typos that AI parsing or OCR missed
+    TYPO_PATTERNS = [
+        (r"\bajoint\b", "ajoint should be 'a joint'"),
+        (r"\btobe\b", "tobe should be 'to be'"),
+        (r"\bofthe\b", "ofthe should be 'of the'"),
+        (r"\binthe\b", "inthe should be 'in the'"),
+        (r"\bonthe\b", "onthe should be 'on the'"),
+        (r"\batthe\b", "atthe should be 'at the'"),
+        (r"\bforthe\b", "forthe should be 'for the'"),
+        (r"\bwiththe\b", "withthe should be 'with the'"),
+        (r"\bfromthe\b", "fromthe should be 'from the'"),
+        (r"\bthat\s+the\s+the\b", "duplicate 'the the'"),
+        (r"\ba\s+a\b", "duplicate 'a a'"),
+        (r"\bwill\s+will\b", "duplicate 'will will'"),
+        (r"\bis\s+is\b", "duplicate 'is is'"),
+    ]
+
     def __init__(self):
         self.api_key = config.OPENROUTER_API_KEY
         self.model = config.OPENROUTER_MODEL
@@ -131,9 +149,17 @@ class DocumentParser:
         Detect OCR corruption in question text (spelling errors, malformed text).
         Returns the first corruption found, None if clean.
         """
+        # Always check OCR corruption patterns
         for pattern, description in self.OCR_CORRUPTION_PATTERNS:
             if re.search(pattern, question_text, re.IGNORECASE):
                 return description
+
+        # Check typo patterns only in non-production environments
+        if config.ENVIRONMENT != "production":
+            for pattern, description in self.TYPO_PATTERNS:
+                if re.search(pattern, question_text, re.IGNORECASE):
+                    return description
+
         return None
 
     def parse_document(

@@ -704,8 +704,6 @@ CRITICAL RULES:
 - correct_index must be 0-based (0, 1, 2, 3...)
 - Include at least 2 choices per question
 - If you cannot find clear questions in the document, return an empty array: []
-- ONLY extract questions related to finance, investments, regulations, or business topics
-- REJECT and do NOT extract general trivia, programming, geography, or unrelated topics
 
 Extract all questions now:"""
 
@@ -1134,13 +1132,13 @@ Extract all questions now:"""
                     )
                     continue
 
-                # Check if question is finance/business related (not general trivia)
-                if not self._is_finance_related(q["question"], q["choices"]):
-                    st.warning(
-                        f"Question {i+1}: Skipping - detected as general knowledge/trivia, not finance-related. "
-                        f"Question text: '{q['question'][:80]}...'"
-                    )
-                    continue
+                # Trivia check disabled - was too aggressive and skipping valid finance questions
+                # if not self._is_finance_related(q["question"], q["choices"]):
+                #     st.warning(
+                #         f"Question {i+1}: Skipping - detected as general knowledge/trivia, not finance-related. "
+                #         f"Question text: '{q['question'][:80]}...'"
+                #     )
+                #     continue
 
                 # Clean and normalize question
                 cleaned_question = {

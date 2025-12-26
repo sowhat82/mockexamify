@@ -599,6 +599,7 @@ async def process_ai_fixes(question_ids: List[str], pool_id: str = None, enable_
     logger = logging.getLogger(__name__)
     fix_results = []
     all_patterns = []
+    source_files = set()  # Track source files of selected questions
 
     # Track validation stats for efficiency reporting
     validation_stats = {
@@ -621,6 +622,11 @@ async def process_ai_fixes(question_ids: List[str], pool_id: str = None, enable_
             question_text = question['question_text']
             choices = json.loads(question['choices']) if isinstance(question['choices'], str) else question['choices']
             correct_answer = question.get('correct_answer')
+
+            # Track source file for pattern detection
+            source_file = question.get('source_file')
+            if source_file:
+                source_files.add(source_file)
 
             # Call AI to fix (including answer validation)
             fix_result = await fix_question_errors(
@@ -682,10 +688,11 @@ async def process_ai_fixes(question_ids: List[str], pool_id: str = None, enable_
             similar_question_ids = await find_similar_errors_in_pool(
                 pool_id=pool_id,
                 patterns=all_patterns,
-                exclude_question_ids=question_ids
+                exclude_question_ids=question_ids,
+                source_files=list(source_files)  # Only check questions from same source files
             )
 
-            logger.info(f"Found {len(similar_question_ids)} questions with similar errors")
+            logger.info(f"Found {len(similar_question_ids)} questions with similar errors from source files: {source_files}")
 
             # Process fixes for similar questions with progress tracking
             total_to_analyze = len(similar_question_ids)
@@ -763,14 +770,16 @@ async def process_ai_fixes(question_ids: List[str], pool_id: str = None, enable_
         "patterns_detected": all_patterns,
         "similar_questions_found": len([f for f in fix_results if f.get('from_pattern_match')]),
         "total_questions_to_fix": len([f for f in fix_results if f.get('has_changes')]),
-        "validation_stats": validation_stats
+        "validation_stats": validation_stats,
+        "source_files": list(source_files)
     }
 
 
 async def find_similar_errors_in_pool(
     pool_id: str,
     patterns: List[Dict[str, Any]],
-    exclude_question_ids: List[str] = None
+    exclude_question_ids: List[str] = None,
+    source_files: List[str] = None
 ) -> List[str]:
     """
     Find questions in the pool that match the detected error patterns.
@@ -779,6 +788,7 @@ async def find_similar_errors_in_pool(
         pool_id: The pool ID to search in
         patterns: List of error patterns from detect_error_patterns()
         exclude_question_ids: Question IDs to exclude from search
+        source_files: Only check questions from these source files (e.g., same PDF/DOCX)
 
     Returns:
         List of question IDs that match the patterns
@@ -796,13 +806,23 @@ async def find_similar_errors_in_pool(
     # Get all questions from the pool
     all_questions = await db.get_pool_questions(pool_id)
 
+    # Filter to only questions from the same source files
+    if source_files:
+        all_questions = [q for q in all_questions if q.get('source_file') in source_files]
+        logger.info(f"Filtering to {len(all_questions)} questions from source files: {source_files}")
+
     matching_question_ids = set()
 
-    # Check if we have a wrong_answer pattern
+    # Check if we have patterns that require full source file validation
     has_wrong_answer_pattern = any(p.get('pattern_type') == 'wrong_answer' for p in patterns)
+    has_grammar_spelling_pattern = any(p.get('pattern_type') in ['grammar', 'spelling', 'word_usage', 'text_error'] for p in patterns)
+    has_ocr_spacing_pattern = any(p.get('pattern_type') in ['ocr_space', 'missing_space'] for p in patterns)
 
     if has_wrong_answer_pattern:
-        logger.info(f"Wrong answer pattern detected - will validate all questions in pool")
+        logger.info(f"Wrong answer pattern detected - will validate questions from same source file(s)")
+
+    if has_grammar_spelling_pattern:
+        logger.info(f"Grammar/spelling/text error pattern detected - will validate questions from same source file(s)")
 
     for question in all_questions:
         question_id = question.get('id')
@@ -819,9 +839,8 @@ async def find_similar_errors_in_pool(
         for pattern in patterns:
             pattern_type = pattern.get('pattern_type')
 
-            # Handle all text-based error patterns (spacing, grammar, spelling, word usage)
-            if pattern_type in ['ocr_space', 'missing_space', 'spelling', 'grammar', 'word_usage', 'text_error']:
-                # Check if this question contains the same text error
+            # OCR and spacing errors: Only check for exact text matches (these repeat exactly)
+            if pattern_type in ['ocr_space', 'missing_space']:
                 search_pattern = pattern.get('search_pattern', '')
 
                 # Use case-insensitive search for better matching
@@ -836,6 +855,13 @@ async def find_similar_errors_in_pool(
                             matching_question_ids.add(question_id)
                             logger.info(f"Found {pattern_type} pattern '{search_pattern}' in choice of question {question_id}")
 
+            # Grammar, spelling, word usage, text errors: Validate ALL questions
+            # because similar types of errors could appear with different text
+            elif pattern_type in ['spelling', 'grammar', 'word_usage', 'text_error']:
+                matching_question_ids.add(question_id)
+                logger.info(f"Adding question {question_id} for {pattern_type} validation")
+
+            # Wrong answer: Validate all questions in pool
             elif pattern_type == 'wrong_answer':
                 # When wrong answers are detected, validate all questions in pool
                 # because wrong answers could be scattered across A, B, C, D randomly
@@ -911,19 +937,43 @@ def show_ai_fix_preview():
     """Display AI fix preview with approval interface"""
 
     st.markdown("## 🤖 AI Fix Preview with Pattern Detection")
-    st.markdown("AI will detect error patterns and automatically find similar issues across the pool.")
+    st.markdown("AI will detect error patterns and automatically find similar issues from the same source document.")
+
+    st.info("""
+    **How Pattern Detection Works:**
+    - **Scope:** Only checks questions from the same source file (PDF/DOCX) as the selected question(s)
+    - **Grammar, spelling, text errors:** AI validates ALL questions from the same source for similar types of errors
+    - **OCR/spacing errors:** Only searches for exact text matches in the same source
+    - **Wrong answers:** AI validates ALL questions from the same source
+
+    This targets errors that are likely to repeat from the same source document.
+    """)
 
     # Get fix results from session state (computed once)
     if 'ai_fix_results_data' not in st.session_state:
         question_ids = list(st.session_state.selected_questions)
         pool_id = st.session_state.get('viewing_pool')
 
-        # Get pool size to show user what to expect
+        # Get pool size and source files to show user what to expect
         from db import db
         pool_questions = run_async(db.get_pool_questions(pool_id))
-        total_pool_questions = len(pool_questions) if pool_questions else 0
 
-        st.info(f"🔍 AI will analyze {len(question_ids)} selected question(s), then scan all {total_pool_questions} questions in the pool for similar errors.")
+        # Get source files from selected questions
+        selected_source_files = set()
+        for qid in question_ids:
+            q = next((q for q in pool_questions if q['id'] == qid), None)
+            if q and q.get('source_file'):
+                selected_source_files.add(q.get('source_file'))
+
+        # Count questions from the same source files
+        questions_from_same_source = [q for q in pool_questions if q.get('source_file') in selected_source_files]
+        total_questions_to_check = len(questions_from_same_source)
+
+        if selected_source_files:
+            source_file_names = ', '.join([f'"{sf}"' for sf in selected_source_files])
+            st.info(f"🔍 AI will analyze {len(question_ids)} selected question(s), then scan {total_questions_to_check} questions from the same source file(s): {source_file_names}")
+        else:
+            st.info(f"🔍 AI will analyze {len(question_ids)} selected question(s).")
 
         # Create progress tracking UI elements
         progress_bar = st.progress(0)
@@ -932,12 +982,12 @@ def show_ai_fix_preview():
         # Store UI elements in session state so async function can update them
         st.session_state._ai_fix_progress_bar = progress_bar
         st.session_state._ai_fix_status_text = status_text
-        st.session_state._ai_fix_total = total_pool_questions
+        st.session_state._ai_fix_total = total_questions_to_check
         st.session_state._ai_fix_current = 0
 
         import logging
         logger = logging.getLogger(__name__)
-        logger.info(f"AI Fix Debug: pool_id={pool_id}, question_ids={question_ids}, pool_size={total_pool_questions}")
+        logger.info(f"AI Fix Debug: pool_id={pool_id}, question_ids={question_ids}, questions_to_check={total_questions_to_check}, source_files={selected_source_files}")
 
         # Call enhanced process_ai_fixes with pattern detection
         fix_data = run_async(process_ai_fixes(
@@ -954,8 +1004,14 @@ def show_ai_fix_preview():
         similar_count = fix_data.get('similar_questions_found', 0)
         total_analyzed = len(question_ids) + similar_count
         total_with_fixes = len([f for f in fix_data.get('fix_results', []) if f.get('has_changes')])
+        source_files_checked = fix_data.get('source_files', [])
 
-        st.success(f"✅ Analysis complete! Analyzed {total_analyzed} question(s) across the entire pool.")
+        if source_files_checked:
+            source_file_names = ', '.join([f'"{sf}"' for sf in source_files_checked])
+            st.success(f"✅ Analysis complete! Analyzed {total_analyzed} question(s) from source file(s): {source_file_names}")
+        else:
+            st.success(f"✅ Analysis complete! Analyzed {total_analyzed} question(s).")
+
         st.info(f"📊 Found {total_with_fixes} question(s) with errors that need fixing.")
 
         # Clean up session state
@@ -1010,6 +1066,17 @@ def show_ai_fix_preview():
                     st.markdown(f"- Wrong answers can be scattered across A, B, C, D options")
                     st.markdown(f"- Each question is validated individually to confirm if answer is actually wrong")
                     st.markdown(f"- **Original issue:** {pattern.get('reasoning', 'N/A')[:200]}...")
+                elif pattern_type in ['grammar', 'spelling', 'word_usage', 'text_error']:
+                    st.warning(f"**Pattern {idx}:** {pattern_type.replace('_', ' ').title()} error detected - validating source file")
+                    st.markdown(f"- **Specific error found:** {description}")
+                    st.markdown(f"- **Action:** AI is validating ALL questions from the same source file for similar types of errors")
+                    st.markdown(f"- Grammar, spelling, and text errors can appear in many forms")
+                    st.markdown(f"- Each question from the same source is checked individually for {pattern_type.replace('_', ' ')} issues")
+                elif pattern_type in ['ocr_space', 'missing_space']:
+                    st.info(f"**Pattern {idx}:** {description}")
+                    st.markdown(f"- **Search method:** Looking for exact text matches only")
+                    if pattern.get('search_pattern'):
+                        st.code(f"Looking for: '{pattern.get('search_pattern')}'")
                 else:
                     st.info(f"**Pattern {idx}:** {description}")
                     if pattern.get('search_pattern'):
@@ -1050,16 +1117,48 @@ def show_ai_fix_preview():
     if 'approved_fixes' not in st.session_state:
         st.session_state.approved_fixes = set()
 
+    # Bulk approval controls
+    st.markdown("---")
+    approved_count = len(st.session_state.approved_fixes)
+    total_count = len(questions_with_changes)
+
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1:
+        if approved_count == 0:
+            st.markdown(f"**Review {total_count} fix(es)** - None selected")
+        elif approved_count == total_count:
+            st.success(f"**✅ All {total_count} fix(es) selected**")
+        else:
+            st.info(f"**{approved_count} of {total_count} fix(es) selected**")
+    with col2:
+        all_selected = (approved_count == total_count)
+        if st.button("✅ Select All", key="select_all_fixes", use_container_width=True, disabled=all_selected):
+            # Approve all questions with changes
+            for fix in questions_with_changes:
+                st.session_state.approved_fixes.add(fix['question_id'])
+            st.toast(f"✅ Selected all {len(questions_with_changes)} fixes!", icon="✅")
+            st.rerun()
+    with col3:
+        none_selected = (approved_count == 0)
+        if st.button("❌ Deselect All", key="deselect_all_fixes", use_container_width=True, disabled=none_selected):
+            st.session_state.approved_fixes = set()
+            st.toast("❌ Deselected all fixes", icon="ℹ️")
+            st.rerun()
+
     # Display each fix for review
     for idx, fix in enumerate(questions_with_changes, 1):
         st.markdown("---")
 
-        # Show header with pattern match badge if applicable
+        # Show header with pattern match badge and approval status
+        question_id = fix['question_id']
+        is_approved = question_id in st.session_state.approved_fixes
+        approval_badge = "✅ **SELECTED**" if is_approved else "⬜ Not selected"
+
         header_text = f"### Question {idx} of {len(questions_with_changes)}"
         if fix.get('from_pattern_match'):
-            st.markdown(f"{header_text} 🔍 *Found by Pattern Detection*")
+            st.markdown(f"{header_text} 🔍 *Found by Pattern Detection* | {approval_badge}")
         else:
-            st.markdown(header_text)
+            st.markdown(f"{header_text} | {approval_badge}")
 
         # Show changes summary
         changes_summary = []
@@ -1151,8 +1250,6 @@ def show_ai_fix_preview():
 
         # Approval buttons
         col1, col2 = st.columns(2)
-        question_id = fix['question_id']
-        is_approved = question_id in st.session_state.approved_fixes
 
         with col1:
             if st.button(

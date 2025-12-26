@@ -498,18 +498,34 @@ class OpenRouterManager:
         """
         patterns = []
 
-        # Pattern 1: OCR spacing errors (words with spaces in middle)
+        # Pattern 1: Spacing errors (both OCR and missing spaces)
         if fix_result.get('changes_made', {}).get('question'):
             for change in fix_result['changes_made']['question']:
-                # Look for patterns like "word1 word2" → "word1word2"
-                if 'Fixed:' in change and '→' in change:
-                    before_after = change.replace('Fixed:', '').strip().split('→')
-                    if len(before_after) == 2:
-                        before = before_after[0].strip()
-                        after = before_after[1].strip()
+                # Look for patterns like "Fixed typo: 'ajoint' → 'a joint'" or "Fixed: 'word1 word2' → 'word1word2'"
+                if '→' in change:
+                    # Extract before and after - handle both "Fixed:" and "Fixed typo:" formats
+                    change_cleaned = change
+                    for prefix in ['Fixed typo:', 'Fixed:', 'Fixed spacing error:', 'Fixed OCR error:']:
+                        if prefix in change:
+                            change_cleaned = change.replace(prefix, '').strip()
+                            break
 
-                        # Check if this is a space removal (OCR error)
-                        if ' ' in before and before.replace(' ', '') == after:
+                    before_after = change_cleaned.split('→')
+                    if len(before_after) == 2:
+                        before = before_after[0].strip().strip("'\"")  # Remove quotes
+                        after = before_after[1].strip().strip("'\"")  # Remove quotes
+
+                        # Type 1: Missing spaces (ajoint → a joint)
+                        if ' ' in after and after.replace(' ', '') == before:
+                            patterns.append({
+                                'pattern_type': 'missing_space',
+                                'search_pattern': before,
+                                'fixed_pattern': after,
+                                'description': f'Missing space: "{before}" should be "{after}"',
+                                'example_fix': change
+                            })
+                        # Type 2: Extra spaces (OCR error - word1 word2 → word1word2)
+                        elif ' ' in before and before.replace(' ', '') == after:
                             patterns.append({
                                 'pattern_type': 'ocr_space',
                                 'search_pattern': before,
@@ -518,16 +534,66 @@ class OpenRouterManager:
                                 'example_fix': change
                             })
 
-        # Pattern 2: Consistent misspellings
-        if fix_result.get('changes_made', {}).get('question'):
-            for change in fix_result['changes_made']['question']:
-                if 'spelling' in change.lower() or 'typo' in change.lower():
-                    # Extract the misspelling pattern
-                    if 'Fixed:' in change and '→' in change:
-                        before_after = change.replace('Fixed:', '').strip().split('→')
+        # Also check choices for spacing patterns
+        if fix_result.get('changes_made', {}).get('choices'):
+            for choice_idx, choice_changes in fix_result['changes_made']['choices'].items():
+                for change in choice_changes:
+                    if '→' in change:
+                        # Extract before and after
+                        change_cleaned = change
+                        for prefix in ['Fixed typo:', 'Fixed:', 'Fixed spacing error:', 'Fixed OCR error:']:
+                            if prefix in change:
+                                change_cleaned = change.replace(prefix, '').strip()
+                                break
+
+                        before_after = change_cleaned.split('→')
                         if len(before_after) == 2:
-                            before = before_after[0].strip()
-                            after = before_after[1].strip()
+                            before = before_after[0].strip().strip("'\"")
+                            after = before_after[1].strip().strip("'\"")
+
+                            # Type 1: Missing spaces (ajoint → a joint)
+                            if ' ' in after and after.replace(' ', '') == before:
+                                patterns.append({
+                                    'pattern_type': 'missing_space',
+                                    'search_pattern': before,
+                                    'fixed_pattern': after,
+                                    'description': f'Missing space in choices: "{before}" should be "{after}"',
+                                    'example_fix': change
+                                })
+                            # Type 2: Extra spaces (OCR error)
+                            elif ' ' in before and before.replace(' ', '') == after:
+                                patterns.append({
+                                    'pattern_type': 'ocr_space',
+                                    'search_pattern': before,
+                                    'fixed_pattern': after,
+                                    'description': f'OCR spacing error in choices: "{before}" should be "{after}"',
+                                    'example_fix': change
+                                })
+
+        # Pattern 2: Consistent misspellings
+        all_changes = []
+        if fix_result.get('changes_made', {}).get('question'):
+            all_changes.extend(fix_result['changes_made']['question'])
+        if fix_result.get('changes_made', {}).get('choices'):
+            for choice_changes in fix_result['changes_made']['choices'].values():
+                all_changes.extend(choice_changes)
+
+        for change in all_changes:
+            if 'spelling' in change.lower():
+                # Extract the misspelling pattern
+                if '→' in change:
+                    change_cleaned = change
+                    for prefix in ['Fixed spelling:', 'Fixed:', 'Spelling error:']:
+                        if prefix in change:
+                            change_cleaned = change.replace(prefix, '').strip()
+                            break
+
+                    before_after = change_cleaned.split('→')
+                    if len(before_after) == 2:
+                        before = before_after[0].strip().strip("'\"")
+                        after = before_after[1].strip().strip("'\"")
+                        # Only add if not already a spacing pattern
+                        if not (' ' in after and after.replace(' ', '') == before) and not (' ' in before and before.replace(' ', '') == after):
                             patterns.append({
                                 'pattern_type': 'misspelling',
                                 'search_pattern': before,

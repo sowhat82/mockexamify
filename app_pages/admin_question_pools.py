@@ -819,27 +819,31 @@ async def find_similar_errors_in_pool(
         for pattern in patterns:
             pattern_type = pattern.get('pattern_type')
 
-            if pattern_type == 'ocr_space':
-                # Check if this question contains the same OCR spacing error
+            if pattern_type in ['ocr_space', 'missing_space']:
+                # Check if this question contains the same spacing error
                 search_pattern = pattern.get('search_pattern', '')
                 if search_pattern and search_pattern in question_text:
                     matching_question_ids.add(question_id)
+                    logger.info(f"Found {pattern_type} pattern '{search_pattern}' in question {question_id}")
 
                 # Also check in choices
                 for choice in choices:
                     if search_pattern and search_pattern in choice:
                         matching_question_ids.add(question_id)
+                        logger.info(f"Found {pattern_type} pattern '{search_pattern}' in choice of question {question_id}")
 
             elif pattern_type == 'misspelling':
                 # Check if this question contains the same misspelling
                 search_pattern = pattern.get('search_pattern', '')
                 if search_pattern and search_pattern in question_text:
                     matching_question_ids.add(question_id)
+                    logger.info(f"Found misspelling '{search_pattern}' in question {question_id}")
 
                 # Also check in choices
                 for choice in choices:
                     if search_pattern and search_pattern in choice:
                         matching_question_ids.add(question_id)
+                        logger.info(f"Found misspelling '{search_pattern}' in choice of question {question_id}")
 
             elif pattern_type == 'wrong_answer':
                 # When wrong answers are detected, validate all questions in pool

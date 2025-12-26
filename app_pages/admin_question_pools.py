@@ -448,7 +448,7 @@ def show_edit_question_form(question: Dict[str, Any]):
                     "difficulty": new_difficulty,
                 }
 
-                success = run_async(update_question(question["id"], updated_data))
+                success = update_question(question["id"], updated_data)
 
                 if success:
                     st.success("✅ Question updated successfully!")
@@ -554,7 +554,7 @@ async def delete_question(question_id: str) -> bool:
         return False
 
 
-async def update_question(question_id: str, updated_data: Dict[str, Any]) -> bool:
+def update_question(question_id: str, updated_data: Dict[str, Any]) -> bool:
     """Update a specific question"""
     try:
         from db import db
@@ -909,7 +909,7 @@ def apply_approved_fixes(fix_results: List[Dict[str, Any]]):
             updated_data['explanation'] = fix['new_explanation']
 
         try:
-            if run_async(update_question(fix['question_id'], updated_data)):
+            if update_question(fix['question_id'], updated_data):
                 success_count += 1
             else:
                 error_count += 1

@@ -391,68 +391,73 @@ def show_question_pool_upload(auth):
 
                     # Automatic AI Fix on newly uploaded questions
                     if questions_added > 0 and source_files:
-                        st.markdown("---")
-                        st.markdown("### 🤖 Automatic AI Quality Check")
+                        try:
+                            st.markdown("---")
+                            st.markdown("### 🤖 Automatic AI Quality Check")
 
-                        with st.spinner(f"Running AI fix on {questions_added} newly uploaded questions..."):
-                            # Get all questions from the uploaded source files
-                            questions_to_fix = [q for q in pool_questions if q.get('source_file') in source_files]
+                            with st.spinner(f"Running AI fix on {questions_added} newly uploaded questions..."):
+                                # Get all questions from the uploaded source files
+                                questions_to_fix = [q for q in pool_questions if q.get('source_file') in source_files]
 
-                            if questions_to_fix:
-                                # Get question IDs
-                                question_ids = [q['id'] for q in questions_to_fix]
+                                if questions_to_fix:
+                                    # Get question IDs
+                                    question_ids = [q['id'] for q in questions_to_fix]
 
-                                # Import the AI fix function
-                                from app_pages.admin_question_pools import process_ai_fixes, apply_approved_fixes
+                                    # Import the AI fix function
+                                    from app_pages.admin_question_pools import process_ai_fixes, apply_approved_fixes
 
-                                # Run AI fix
-                                fix_data = run_async(process_ai_fixes(
-                                    question_ids=question_ids,
-                                    pool_id=pool_id,
-                                    enable_pattern_detection=True
-                                ))
+                                    # Run AI fix
+                                    fix_data = run_async(process_ai_fixes(
+                                        question_ids=question_ids,
+                                        pool_id=pool_id,
+                                        enable_pattern_detection=True
+                                    ))
 
-                                fix_results = fix_data.get('fix_results', [])
-                                questions_with_fixes = [f for f in fix_results if f.get('has_changes')]
+                                    fix_results = fix_data.get('fix_results', [])
+                                    questions_with_fixes = [f for f in fix_results if f.get('has_changes')]
 
-                                if questions_with_fixes:
-                                    st.success(f"✅ Found and fixed {len(questions_with_fixes)} question(s) with errors!")
+                                    if questions_with_fixes:
+                                        st.success(f"✅ Found and fixed {len(questions_with_fixes)} question(s) with errors!")
 
-                                    # Auto-approve all fixes
-                                    if 'approved_fixes' not in st.session_state:
+                                        # Auto-approve all fixes
+                                        if 'approved_fixes' not in st.session_state:
+                                            st.session_state.approved_fixes = set()
+
+                                        for fix in questions_with_fixes:
+                                            st.session_state.approved_fixes.add(fix['question_id'])
+
+                                        # Apply all fixes automatically
+                                        with st.spinner(f"Applying {len(questions_with_fixes)} fix(es)..."):
+                                            success_count = apply_approved_fixes(fix_results)
+
+                                        st.success(f"🎉 Successfully auto-fixed {success_count} question(s)!")
+
+                                        # Show summary of fixes
+                                        with st.expander("📋 View Auto-Fix Summary", expanded=False):
+                                            for idx, fix in enumerate(questions_with_fixes[:10], 1):  # Show first 10
+                                                st.markdown(f"**Question {idx}:**")
+                                                changes_made = fix.get('changes_made', {})
+                                                if changes_made.get('question'):
+                                                    for change in changes_made['question']:
+                                                        st.markdown(f"- {change}")
+                                                if changes_made.get('choices'):
+                                                    for choice_idx, choice_changes in changes_made['choices'].items():
+                                                        for change in choice_changes:
+                                                            st.markdown(f"- Choice {choice_idx}: {change}")
+
+                                            if len(questions_with_fixes) > 10:
+                                                st.markdown(f"*...and {len(questions_with_fixes) - 10} more*")
+
+                                        # Clear approval state
                                         st.session_state.approved_fixes = set()
-
-                                    for fix in questions_with_fixes:
-                                        st.session_state.approved_fixes.add(fix['question_id'])
-
-                                    # Apply all fixes automatically
-                                    with st.spinner(f"Applying {len(questions_with_fixes)} fix(es)..."):
-                                        success_count = apply_approved_fixes(fix_results)
-
-                                    st.success(f"🎉 Successfully auto-fixed {success_count} question(s)!")
-
-                                    # Show summary of fixes
-                                    with st.expander("📋 View Auto-Fix Summary", expanded=False):
-                                        for idx, fix in enumerate(questions_with_fixes[:10], 1):  # Show first 10
-                                            st.markdown(f"**Question {idx}:**")
-                                            changes_made = fix.get('changes_made', {})
-                                            if changes_made.get('question'):
-                                                for change in changes_made['question']:
-                                                    st.markdown(f"- {change}")
-                                            if changes_made.get('choices'):
-                                                for choice_idx, choice_changes in changes_made['choices'].items():
-                                                    for change in choice_changes:
-                                                        st.markdown(f"- Choice {choice_idx}: {change}")
-
-                                        if len(questions_with_fixes) > 10:
-                                            st.markdown(f"*...and {len(questions_with_fixes) - 10} more*")
-
-                                    # Clear approval state
-                                    st.session_state.approved_fixes = set()
+                                    else:
+                                        st.success("✅ No errors found! All questions look good.")
                                 else:
-                                    st.success("✅ No errors found! All questions look good.")
-                            else:
-                                st.info("ℹ️ No questions found from uploaded files for AI fix.")
+                                    st.info("ℹ️ No questions found from uploaded files for AI fix.")
+                        except Exception as e:
+                            st.error(f"❌ Automatic AI fix failed: {str(e)}")
+                            logger.error(f"Auto-fix error: {e}", exc_info=True)
+                            st.info("💡 Questions were uploaded successfully. You can run AI Fix manually from Question Pools.")
                 else:
                     st.warning(
                         "Upload completed but couldn't verify question count. Please check Manage Pools."

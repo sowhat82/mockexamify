@@ -395,10 +395,21 @@ def show_question_pool_upload(auth):
                             st.markdown("---")
                             st.markdown("### 🤖 Automatic AI Quality Check")
 
-                            with st.spinner(f"Running AI fix on {questions_added} newly uploaded questions..."):
-                                # Get all questions from the uploaded source files
-                                questions_to_fix = [q for q in pool_questions if q.get('source_file') in source_files]
+                            # Limit auto-fix to prevent timeouts
+                            MAX_AUTO_FIX_QUESTIONS = 20
 
+                            # Get all questions from the uploaded source files
+                            questions_to_fix = [q for q in pool_questions if q.get('source_file') in source_files]
+
+                            if len(questions_to_fix) > MAX_AUTO_FIX_QUESTIONS:
+                                st.warning(
+                                    f"⚠️ Uploaded {len(questions_to_fix)} questions. "
+                                    f"Auto-fix will process first {MAX_AUTO_FIX_QUESTIONS} questions to prevent timeouts.\n\n"
+                                    f"💡 You can run AI Fix manually on remaining questions from Question Pools page."
+                                )
+                                questions_to_fix = questions_to_fix[:MAX_AUTO_FIX_QUESTIONS]
+
+                            with st.spinner(f"Running AI fix on {len(questions_to_fix)} questions..."):
                                 if questions_to_fix:
                                     # Get question IDs
                                     question_ids = [q['id'] for q in questions_to_fix]
@@ -456,7 +467,14 @@ def show_question_pool_upload(auth):
                                     st.info("ℹ️ No questions found from uploaded files for AI fix.")
                         except Exception as e:
                             st.error(f"❌ Automatic AI fix failed: {str(e)}")
-                            logger.error(f"Auto-fix error: {e}", exc_info=True)
+                            logger.error(f"Auto-fix error on upload: {e}", exc_info=True)
+
+                            # Show detailed error in expander for debugging
+                            with st.expander("🔍 Error Details"):
+                                st.code(str(e))
+                                import traceback
+                                st.code(traceback.format_exc())
+
                             st.info("💡 Questions were uploaded successfully. You can run AI Fix manually from Question Pools.")
                 else:
                     st.warning(

@@ -570,7 +570,8 @@ class OpenRouterManager:
                                     'example_fix': change
                                 })
 
-        # Pattern 2: Consistent misspellings
+        # Pattern 2: Grammar, spelling, and text errors
+        # Extract ALL fixes with → arrows (grammar, spelling, word choice, etc.)
         all_changes = []
         if fix_result.get('changes_made', {}).get('question'):
             all_changes.extend(fix_result['changes_made']['question'])
@@ -579,28 +580,50 @@ class OpenRouterManager:
                 all_changes.extend(choice_changes)
 
         for change in all_changes:
-            if 'spelling' in change.lower():
-                # Extract the misspelling pattern
-                if '→' in change:
-                    change_cleaned = change
-                    for prefix in ['Fixed spelling:', 'Fixed:', 'Spelling error:']:
-                        if prefix in change:
-                            change_cleaned = change.replace(prefix, '').strip()
-                            break
+            if '→' in change:
+                # Extract before and after from ANY fix (not just spelling)
+                change_cleaned = change
+                for prefix in ['Fixed typo:', 'Fixed:', 'Fixed spelling:', 'Spelling error:', 'Fixed grammar:', 'Grammar error:']:
+                    if prefix in change:
+                        change_cleaned = change.replace(prefix, '').strip()
+                        break
 
-                    before_after = change_cleaned.split('→')
-                    if len(before_after) == 2:
-                        before = before_after[0].strip().strip("'\"")
-                        after = before_after[1].strip().strip("'\"")
-                        # Only add if not already a spacing pattern
-                        if not (' ' in after and after.replace(' ', '') == before) and not (' ' in before and before.replace(' ', '') == after):
-                            patterns.append({
-                                'pattern_type': 'misspelling',
-                                'search_pattern': before,
-                                'fixed_pattern': after,
-                                'description': f'Spelling error: "{before}" should be "{after}"',
-                                'example_fix': change
-                            })
+                before_after = change_cleaned.split('→')
+                if len(before_after) == 2:
+                    before = before_after[0].strip().strip("'\"")
+                    after = before_after[1].strip().strip("'\"")
+
+                    # Skip if empty or too long (likely a sentence rewrite, not a fixable pattern)
+                    if not before or not after or len(before) > 50 or len(after) > 50:
+                        continue
+
+                    # Skip if already extracted as a spacing pattern
+                    is_spacing = (' ' in after and after.replace(' ', '') == before) or (' ' in before and before.replace(' ', '') == after)
+                    if is_spacing:
+                        continue
+
+                    # Determine pattern type based on the error
+                    if 'spelling' in change.lower():
+                        pattern_type = 'spelling'
+                        description = f'Spelling error: "{before}" should be "{after}"'
+                    elif 'grammar' in change.lower() or 'verb' in change.lower() or 'tense' in change.lower():
+                        pattern_type = 'grammar'
+                        description = f'Grammar error: "{before}" should be "{after}"'
+                    elif 'word' in change.lower() or 'usage' in change.lower():
+                        pattern_type = 'word_usage'
+                        description = f'Word usage: "{before}" should be "{after}"'
+                    else:
+                        # Generic text error
+                        pattern_type = 'text_error'
+                        description = f'Text error: "{before}" should be "{after}"'
+
+                    patterns.append({
+                        'pattern_type': pattern_type,
+                        'search_pattern': before,
+                        'fixed_pattern': after,
+                        'description': description,
+                        'example_fix': change
+                    })
 
         # Pattern 3: Wrong answer pattern
         if fix_result.get('answer_changed'):

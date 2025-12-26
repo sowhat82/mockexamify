@@ -241,14 +241,15 @@ class OpenRouterManager:
         import config
         import re
 
-        # Skip if production
-        if config.ENVIRONMENT == "production":
-            return {
-                'fixed_question': question_text,
-                'fixed_choices': choices,
-                'changes_made': {},
-                'has_changes': False
-            }
+        # Temporarily enabled for production testing
+        # TODO: Re-enable this check after UAT testing complete
+        # if config.ENVIRONMENT == "production":
+        #     return {
+        #         'fixed_question': question_text,
+        #         'fixed_choices': choices,
+        #         'changes_made': {},
+        #         'has_changes': False
+        #     }
 
         # Common typo patterns from document_parser
         TYPO_PATTERNS = [

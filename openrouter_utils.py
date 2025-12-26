@@ -233,6 +233,84 @@ class OpenRouterManager:
             logger.error(f"Error enhancing question: {e}")
             return question
 
+    def _detect_and_fix_typos(self, question_text: str, choices: List[str]) -> Dict[str, Any]:
+        """
+        Detect and fix common typos (UAT only - not production).
+        Returns dict with fixed_question, fixed_choices, changes_made, has_changes.
+        """
+        import config
+        import re
+
+        # Skip if production
+        if config.ENVIRONMENT == "production":
+            return {
+                'fixed_question': question_text,
+                'fixed_choices': choices,
+                'changes_made': {},
+                'has_changes': False
+            }
+
+        # Common typo patterns from document_parser
+        TYPO_PATTERNS = [
+            (r"\bajoint\b", "a joint"),
+            (r"\btobe\b", "to be"),
+            (r"\bofthe\b", "of the"),
+            (r"\binthe\b", "in the"),
+            (r"\bonthe\b", "on the"),
+            (r"\batthe\b", "at the"),
+            (r"\bforthe\b", "for the"),
+            (r"\bwiththe\b", "with the"),
+            (r"\bfromthe\b", "from the"),
+            (r"\bthat\s+the\s+the\b", "that the"),
+            (r"\ba\s+a\b", "a"),
+            (r"\bwill\s+will\b", "will"),
+            (r"\bis\s+is\b", "is"),
+        ]
+
+        fixed_question = question_text
+        fixed_choices = choices.copy()
+        changes_made = {}
+        has_changes = False
+
+        # Fix question text
+        for pattern, replacement in TYPO_PATTERNS:
+            matches = list(re.finditer(pattern, fixed_question, re.IGNORECASE))
+            if matches:
+                for match in matches:
+                    original = match.group(0)
+                    fixed_question = re.sub(pattern, replacement, fixed_question, flags=re.IGNORECASE)
+
+                    if 'question' not in changes_made:
+                        changes_made['question'] = []
+                    changes_made['question'].append(f"Fixed typo: '{original}' → '{replacement}'")
+                    has_changes = True
+
+        # Fix choices
+        for i, choice in enumerate(choices):
+            fixed_choice = choice
+            for pattern, replacement in TYPO_PATTERNS:
+                matches = list(re.finditer(pattern, fixed_choice, re.IGNORECASE))
+                if matches:
+                    for match in matches:
+                        original = match.group(0)
+                        fixed_choice = re.sub(pattern, replacement, fixed_choice, flags=re.IGNORECASE)
+
+                        if 'choices' not in changes_made:
+                            changes_made['choices'] = {}
+                        if i not in changes_made['choices']:
+                            changes_made['choices'][i] = []
+                        changes_made['choices'][i].append(f"Fixed typo: '{original}' → '{replacement}'")
+                        has_changes = True
+
+            fixed_choices[i] = fixed_choice
+
+        return {
+            'fixed_question': fixed_question,
+            'fixed_choices': fixed_choices,
+            'changes_made': changes_made,
+            'has_changes': has_changes
+        }
+
     async def fix_question_errors(
         self,
         question_text: str,
@@ -263,6 +341,12 @@ class OpenRouterManager:
                 - answer_changed: Boolean indicating if answer was corrected
         """
         try:
+            # Step 0: Pre-detect common typos (UAT only - not production)
+            typo_fixes = self._detect_and_fix_typos(question_text, choices)
+            if typo_fixes['has_changes']:
+                question_text = typo_fixes['fixed_question']
+                choices = typo_fixes['fixed_choices']
+
             # Step 1: Fix text errors (OCR, spelling, grammar)
             prompt = self._create_fix_errors_prompt(question_text, choices)
             response = await self._generate_text_with_retry(
@@ -271,6 +355,20 @@ class OpenRouterManager:
 
             # Parse the AI response
             fix_result = self._parse_fix_errors_response(response, question_text, choices)
+
+            # Merge typo fixes into AI fixes
+            if typo_fixes['has_changes']:
+                if 'question' in typo_fixes['changes_made']:
+                    if 'question' not in fix_result['changes_made']:
+                        fix_result['changes_made']['question'] = []
+                    fix_result['changes_made']['question'].extend(typo_fixes['changes_made']['question'])
+
+                if 'choices' in typo_fixes['changes_made']:
+                    if 'choices' not in fix_result['changes_made']:
+                        fix_result['changes_made']['choices'] = {}
+                    fix_result['changes_made']['choices'].update(typo_fixes['changes_made']['choices'])
+
+                fix_result['has_changes'] = True
 
             # Step 2: Validate answer correctness if requested
             if validate_answer and correct_answer is not None:

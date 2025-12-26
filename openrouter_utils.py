@@ -355,27 +355,54 @@ class OpenRouterManager:
             fix_result = self._parse_fix_errors_response(response, question_text, choices)
 
             # Step 2: Merge typo fixes into AI fixes
-            if typo_fixes['has_changes']:
-                # Use typo-fixed text as the base
-                fix_result['fixed_question'] = typo_fixes['fixed_question']
-                fix_result['fixed_choices'] = typo_fixes['fixed_choices']
+            if typo_fixes['has_changes'] or fix_result.get('has_changes', False):
+                # Apply typo fixes on top of AI fixes (not instead of!)
+                # This ensures we get BOTH AI-detected fixes AND typo pattern fixes
 
-                # Merge change descriptions
-                if 'question' in typo_fixes['changes_made']:
-                    if 'question' not in fix_result['changes_made']:
-                        fix_result['changes_made']['question'] = []
-                    # Prepend typo fixes (they happen first)
-                    fix_result['changes_made']['question'] = typo_fixes['changes_made']['question'] + fix_result['changes_made']['question']
+                # For question text: apply typo patterns to AI's already-fixed question
+                final_question = fix_result.get('fixed_question', question_text)
+                if typo_fixes['has_changes'] and typo_fixes['fixed_question'] != question_text:
+                    # Run typo detection again on AI's fixed text to catch any remaining typos
+                    typo_rerun = self._detect_and_fix_typos(final_question, [])
+                    final_question = typo_rerun['fixed_question']
 
-                if 'choices' in typo_fixes['changes_made']:
-                    if 'choices' not in fix_result['changes_made']:
-                        fix_result['changes_made']['choices'] = {}
-                    # Merge choice changes
-                    for idx, changes in typo_fixes['changes_made']['choices'].items():
-                        if idx not in fix_result['changes_made']['choices']:
-                            fix_result['changes_made']['choices'][idx] = []
-                        fix_result['changes_made']['choices'][idx] = changes + fix_result['changes_made']['choices'][idx]
+                    # Merge question change descriptions
+                    if 'question' in typo_fixes['changes_made']:
+                        if 'question' not in fix_result['changes_made']:
+                            fix_result['changes_made']['question'] = []
+                        fix_result['changes_made']['question'] = typo_fixes['changes_made']['question'] + fix_result['changes_made']['question']
 
+                fix_result['fixed_question'] = final_question
+
+                # For choices: apply typo patterns to AI's already-fixed choices
+                final_choices = fix_result.get('fixed_choices', choices).copy()
+                for i in range(len(final_choices)):
+                    # Run typo detection on this AI-fixed choice
+                    typo_rerun = self._detect_and_fix_typos('', [final_choices[i]])
+                    if typo_rerun['has_changes']:
+                        final_choices[i] = typo_rerun['fixed_choices'][0]
+
+                        # Merge choice change descriptions
+                        if 0 in typo_rerun['changes_made'].get('choices', {}):
+                            if 'choices' not in fix_result['changes_made']:
+                                fix_result['changes_made']['choices'] = {}
+                            if i not in fix_result['changes_made']['choices']:
+                                fix_result['changes_made']['choices'][i] = []
+                            fix_result['changes_made']['choices'][i] = typo_rerun['changes_made']['choices'][0] + fix_result['changes_made']['choices'][i]
+
+                # Also check original choices for typos (in case AI didn't catch them)
+                if typo_fixes['has_changes']:
+                    for idx, changes in typo_fixes['changes_made'].get('choices', {}).items():
+                        # If this choice wasn't already fixed differently, use typo fix
+                        if final_choices[idx] == choices[idx]:
+                            final_choices[idx] = typo_fixes['fixed_choices'][idx]
+                            if 'choices' not in fix_result['changes_made']:
+                                fix_result['changes_made']['choices'] = {}
+                            if idx not in fix_result['changes_made']['choices']:
+                                fix_result['changes_made']['choices'][idx] = []
+                            fix_result['changes_made']['choices'][idx] = changes + fix_result['changes_made']['choices'][idx]
+
+                fix_result['fixed_choices'] = final_choices
                 fix_result['has_changes'] = True
 
             # Step 2: Validate answer correctness if requested

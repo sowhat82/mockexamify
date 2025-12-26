@@ -103,6 +103,25 @@ class DocumentParser:
         (r"\bis\s+is\b", "duplicate 'is is'"),
     ]
 
+    # Multi-answer question patterns (questions requiring more than one correct answer)
+    # These are NOT SUPPORTED and should be rejected during upload
+    MULTI_ANSWER_PATTERNS = [
+        r"\(select all that apply\)",
+        r"\(select all\)",
+        r"\(choose all that apply\)",
+        r"\(choose all\)",
+        r"\(tick all that apply\)",
+        r"\(check all that apply\)",
+        r"select all (the\s+)?options? that (are )?correct",
+        r"select all (the\s+)?correct (options?|answers?|statements?)",
+        r"choose all (the\s+)?options? that (are )?correct",
+        r"which (of the following )?are correct",
+        r"which (of the following )?statements? are (true|correct)",
+        r"select (all|multiple) correct answer",
+        r"mark all that apply",
+        r"identify all (the\s+)?(correct|true)",
+    ]
+
     def __init__(self):
         self.api_key = config.OPENROUTER_API_KEY
         self.model = config.OPENROUTER_MODEL
@@ -159,6 +178,26 @@ class DocumentParser:
             for pattern, description in self.TYPO_PATTERNS:
                 if re.search(pattern, question_text, re.IGNORECASE):
                     return description
+
+        return None
+
+    def _detect_multi_answer_question(self, question_text: str, correct_index: Any) -> Optional[str]:
+        """
+        Detect if a question requires multiple correct answers (not supported).
+        Returns the reason if multi-answer detected, None if single-answer.
+
+        Args:
+            question_text: The question text to check
+            correct_index: The correct_index field from AI (can be int or list)
+        """
+        # Check if correct_index is a list with multiple answers
+        if isinstance(correct_index, list) and len(correct_index) > 1:
+            return f"multiple correct answers provided ({len(correct_index)} answers)"
+
+        # Check question text for multi-answer patterns
+        for pattern in self.MULTI_ANSWER_PATTERNS:
+            if re.search(pattern, question_text, re.IGNORECASE):
+                return "contains 'select all that apply' or similar instruction"
 
         return None
 
@@ -1028,13 +1067,29 @@ Extract all questions now:"""
                     st.warning(f"Question {i+1}: Missing correct_index, skipping")
                     continue
 
-                # Validate correct_index - handle both int and list (for multi-answer questions)
+                # Check for multi-answer questions (NOT SUPPORTED)
+                multi_answer_reason = self._detect_multi_answer_question(
+                    q["question"],
+                    q["correct_index"]
+                )
+                if multi_answer_reason:
+                    st.warning(
+                        f"Question {i+1}: Skipping - {multi_answer_reason}. "
+                        f"Multi-answer questions are not supported. "
+                        f"Question text: '{q['question'][:80]}...'"
+                    )
+                    continue
+
+                # Validate correct_index - must be single integer
                 raw_index = q["correct_index"]
                 if isinstance(raw_index, list):
-                    # If AI returned a list (e.g., [1, 2] for multi-select), take the first one
-                    # Our system currently only supports single-answer questions
+                    # If AI returned a list but only one answer, extract it
                     if len(raw_index) == 0:
                         st.warning(f"Question {i+1}: Empty correct_index list, skipping")
+                        continue
+                    elif len(raw_index) > 1:
+                        # This should have been caught above, but double-check
+                        st.warning(f"Question {i+1}: Multiple correct answers not supported, skipping")
                         continue
                     correct_index = int(raw_index[0])
                 else:

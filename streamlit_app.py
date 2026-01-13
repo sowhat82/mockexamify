@@ -1185,7 +1185,7 @@ def show_enhanced_register_form(auth: AuthUtils):
                         "id": user_data.get("user_id"),
                         "email": email,
                         "role": user_data.get("role", "user"),
-                        "credits_balance": user_data.get("credits_balance", 5),
+                        "credits_balance": user_data.get("credits_balance", 0),
                     }
                     st.session_state.last_email = email
                     st.session_state.page = "dashboard"

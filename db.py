@@ -86,7 +86,7 @@ DEMO_USERS = {
         "id": "demo-user-001",
         "email": "user@demo.com",
         "password_hash": bcrypt.hashpw("user123".encode("utf-8"), bcrypt.gensalt()).decode("utf-8"),
-        "credits_balance": 5,
+        "credits_balance": 0,  # No signup bonus
         "role": "user",
         "created_at": datetime.now(timezone.utc).isoformat(),
     },
@@ -96,7 +96,7 @@ DEMO_USERS = {
         "password_hash": bcrypt.hashpw("password".encode("utf-8"), bcrypt.gensalt()).decode(
             "utf-8"
         ),
-        "credits_balance": 33,
+        "credits_balance": 0,  # No signup bonus
         "role": "user",
         "created_at": datetime.now(timezone.utc).isoformat(),
     },
@@ -259,7 +259,7 @@ class DatabaseManager:
                 "id": user_id,
                 "email": email,
                 "password_hash": hashed_password.decode("utf-8"),
-                "credits_balance": 1,
+                "credits_balance": 0,  # No signup bonus - users must purchase credits
                 "role": "user",
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }

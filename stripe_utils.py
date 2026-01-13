@@ -206,8 +206,10 @@ class StripeUtils:
             existing_payment = await db.get_payment_by_session_id(session_id)
             if existing_payment and existing_payment.status == 'completed':
                 return True, None  # Already processed
-            
-            # Record payment in database
+
+            # Record payment in database as completed (Stripe payment succeeded)
+            # IMPORTANT: We mark as completed immediately because Stripe collected the money
+            # Even if credits fail to add, payment must remain completed (no refunds)
             payment_record = await db.create_payment(
                 user_id=user_id,
                 stripe_session_id=session_id,
@@ -215,22 +217,55 @@ class StripeUtils:
                 credits_purchased=credits_to_add,
                 status='completed'
             )
-            
+
             if not payment_record:
-                return False, "Failed to record payment"
-            
+                logger.error(f"Failed to record payment for user {user_id}, session {session_id}")
+                # Still return True because Stripe payment succeeded
+                return True, None
+
+            # Set completed_at timestamp
+            await db.update_payment_status(session_id, 'completed')
+
             # Add credits to user account
             success = await db.add_credits_to_user(user_id, credits_to_add)
-            
+
             if success:
-                logger.info(f"Successfully added {credits_to_add} credits to user {user_id}")
+                logger.info(f"✅ Payment successful: Added {credits_to_add} credits to user {user_id}")
                 return True, None
             else:
-                return False, "Failed to add credits to user account"
+                # Credits failed to add but payment is still recorded as completed
+                # This requires MANUAL INTERVENTION to credit the user
+                logger.error(
+                    f"🚨 URGENT: Payment completed but credits NOT added!\n"
+                    f"   User ID: {user_id}\n"
+                    f"   Session ID: {session_id}\n"
+                    f"   Credits owed: {credits_to_add}\n"
+                    f"   Amount paid: ${amount_paid / 100}\n"
+                    f"   ACTION REQUIRED: Manually credit user's account"
+                )
+                # Still return True because Stripe payment succeeded
+                return True, None
                 
         except Exception as e:
-            logger.error(f"Error processing successful payment: {e}")
-            return False, f"Payment processing error: {str(e)}"
+            logger.error(
+                f"🚨 URGENT: Exception during payment processing!\n"
+                f"   User ID: {session_data.get('user_id')}\n"
+                f"   Session ID: {session_data.get('session_id')}\n"
+                f"   Credits owed: {session_data.get('credits', 0)}\n"
+                f"   Error: {str(e)}\n"
+                f"   ACTION REQUIRED: Check if payment was recorded and manually credit user"
+            )
+
+            # Try to ensure payment is marked as completed (Stripe already collected money)
+            try:
+                if session_id:
+                    from db import db
+                    await db.update_payment_status(session_id, 'completed')
+            except Exception as update_error:
+                logger.error(f"Failed to update payment status: {update_error}")
+
+            # Still return True because Stripe payment succeeded
+            return True, None
     
     def get_package_by_key(self, package_key: str) -> Optional[Dict]:
         """Get package details by key"""

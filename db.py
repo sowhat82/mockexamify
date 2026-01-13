@@ -1471,44 +1471,92 @@ class DatabaseManager:
             return False
 
     async def add_credits_to_user(self, user_id: str, credits_to_add: int) -> bool:
-        """Add credits to user account"""
-        try:
-            # Check if this is a demo user (even in production mode)
-            for email, user_data in DEMO_USERS.items():
-                if user_data["id"] == user_id:
-                    user_data["credits_balance"] += credits_to_add
-                    logger.info(
-                        f"Demo user {email} credits added: +{credits_to_add}, new balance: {user_data['credits_balance']}"
-                    )
+        """Add credits to user account with retry logic"""
+        max_retries = 3
+        retry_count = 0
+
+        while retry_count < max_retries:
+            try:
+                # Check if this is a demo user (even in production mode)
+                for email, user_data in DEMO_USERS.items():
+                    if user_data["id"] == user_id:
+                        user_data["credits_balance"] += credits_to_add
+                        logger.info(
+                            f"Demo user {email} credits added: +{credits_to_add}, new balance: {user_data['credits_balance']}"
+                        )
+                        return True
+
+                # Production user - update in database
+                logger.info(f"Attempting to add {credits_to_add} credits to user {user_id} (attempt {retry_count + 1}/{max_retries})")
+
+                # Get current user credits (use admin_client to bypass RLS)
+                result = (
+                    self.admin_client.table("users")
+                    .select("credits_balance, email")
+                    .eq("id", user_id)
+                    .execute()
+                )
+
+                if not result.data:
+                    logger.error(f"User {user_id} not found in database - cannot add credits")
+                    return False
+
+                current_credits = result.data[0].get("credits_balance")
+                user_email = result.data[0].get("email", "unknown")
+
+                if current_credits is None:
+                    logger.error(f"User {user_email} has NULL credits_balance - initializing to 0")
+                    current_credits = 0
+
+                new_balance = current_credits + credits_to_add
+
+                logger.info(f"User {user_email}: {current_credits} + {credits_to_add} = {new_balance}")
+
+                # Update user credits (use admin_client to bypass RLS)
+                update_result = (
+                    self.admin_client.table("users")
+                    .update({"credits_balance": new_balance})
+                    .eq("id", user_id)
+                    .execute()
+                )
+
+                if not update_result.data or len(update_result.data) == 0:
+                    logger.error(f"UPDATE query returned no data for user {user_id}")
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        await asyncio.sleep(1)  # Wait 1 second before retry
+                        continue
+                    return False
+
+                # Verify the update worked
+                verify_result = (
+                    self.admin_client.table("users")
+                    .select("credits_balance")
+                    .eq("id", user_id)
+                    .execute()
+                )
+
+                if verify_result.data and verify_result.data[0]["credits_balance"] == new_balance:
+                    logger.info(f"✅ Successfully added {credits_to_add} credits to {user_email}. New balance: {new_balance}")
                     return True
+                else:
+                    logger.error(f"Verification failed: expected {new_balance}, got {verify_result.data[0]['credits_balance'] if verify_result.data else 'NO DATA'}")
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        await asyncio.sleep(1)
+                        continue
+                    return False
 
-            # Production user - update in database
-            # Get current user credits (use admin_client to bypass RLS)
-            result = (
-                self.admin_client.table("users")
-                .select("credits_balance")
-                .eq("id", user_id)
-                .execute()
-            )
-
-            if not result.data:
+            except Exception as e:
+                logger.error(f"Error adding credits to user {user_id} (attempt {retry_count + 1}): {e}", exc_info=True)
+                retry_count += 1
+                if retry_count < max_retries:
+                    await asyncio.sleep(1)
+                    continue
                 return False
 
-            current_credits = result.data[0]["credits_balance"]
-            new_balance = current_credits + credits_to_add
-
-            # Update user credits (use admin_client to bypass RLS)
-            update_result = (
-                self.admin_client.table("users")
-                .update({"credits_balance": new_balance})
-                .eq("id", user_id)
-                .execute()
-            )
-
-            return len(update_result.data) > 0
-        except Exception as e:
-            logger.error(f"Error adding credits to user: {e}")
-            return False
+        logger.error(f"Failed to add credits after {max_retries} attempts")
+        return False
 
     async def deduct_credits_from_user(self, user_id: str, credits_to_deduct: int) -> bool:
         """Deduct credits from user account"""

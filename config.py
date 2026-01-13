@@ -63,6 +63,11 @@ STRIPE_SECRET_KEY = get_secret("STRIPE_SECRET_KEY")
 STRIPE_PUBLISHABLE_KEY = get_secret("STRIPE_PUBLISHABLE_KEY")
 STRIPE_WEBHOOK_SECRET = get_secret("STRIPE_WEBHOOK_SECRET")
 
+# HitPay Configuration (PayNow) - Feature flagged, disabled by default
+ENABLE_HITPAY = get_secret("ENABLE_HITPAY", "false").lower() == "true"
+HITPAY_API_KEY = get_secret("HITPAY_API_KEY", "") if ENABLE_HITPAY else ""
+HITPAY_SALT = get_secret("HITPAY_SALT", "") if ENABLE_HITPAY else ""
+
 # OpenRouter Configuration
 OPENROUTER_API_KEY = get_secret("OPENROUTER_API_KEY")
 

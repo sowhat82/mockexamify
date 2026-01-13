@@ -758,6 +758,73 @@ async def create_checkout_session(
         logger.error(f"Error creating checkout: {e}")
         raise HTTPException(status_code=500, detail="Failed to create checkout session")
 
+
+@app.post("/api/payments/hitpay-webhook")
+async def hitpay_webhook(request: Request):
+    """
+    HitPay webhook endpoint for PayNow payments
+    Completely separate from Stripe webhook handling
+    """
+    try:
+        # Only process if HitPay is enabled
+        if not config.ENABLE_HITPAY:
+            logger.warning("[HITPAY] Webhook received but HitPay is disabled")
+            return {"status": "disabled"}
+
+        # Get the raw request body
+        body = await request.body()
+        form_data = await request.form()
+        payload = dict(form_data)
+
+        logger.info(f"[HITPAY] Webhook received: {payload.keys()}")
+
+        # Initialize HitPay utils
+        from hitpay_utils import HitPayUtils
+        hitpay_utils = HitPayUtils(config.HITPAY_API_KEY, config.HITPAY_SALT)
+
+        # Handle webhook
+        success, event_data, error = hitpay_utils.handle_webhook(payload)
+
+        if not success:
+            logger.error(f"[HITPAY] Webhook validation failed: {error}")
+            raise HTTPException(status_code=400, detail=error)
+
+        # Process based on event type
+        if event_data.get("type") == "payment_completed":
+            # Process successful payment
+            payment_success, payment_error = await hitpay_utils.process_successful_payment(
+                event_data
+            )
+
+            if payment_success:
+                logger.info(
+                    f"[HITPAY] Payment processed successfully for user {event_data.get('user_id')}"
+                )
+                return {"status": "success"}
+            else:
+                logger.error(f"[HITPAY] Payment processing failed: {payment_error}")
+                # Still return 200 to acknowledge receipt
+                return {"status": "received", "error": payment_error}
+
+        elif event_data.get("type") == "payment_failed":
+            logger.info(
+                f"[HITPAY] Payment failed: {event_data.get('payment_request_id')}"
+            )
+            return {"status": "payment_failed"}
+
+        else:
+            # Unhandled event type
+            logger.info(f"[HITPAY] Unhandled webhook event type: {event_data.get('type')}")
+            return {"status": "unhandled"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[HITPAY] Webhook error: {e}")
+        # Return 200 to prevent HitPay from retrying
+        return {"status": "error", "message": str(e)}
+
+
 # ============================================================================
 # HEALTH & MONITORING ENDPOINTS
 # ============================================================================

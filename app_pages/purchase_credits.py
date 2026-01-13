@@ -10,6 +10,7 @@ import streamlit as st
 import config
 from auth_utils import AuthUtils, run_async
 from stripe_utils import create_payment_button, init_stripe_utils
+from hitpay_utils import create_hitpay_payment_button, init_hitpay_utils
 
 
 def show_purchase_credits():
@@ -42,6 +43,9 @@ def show_purchase_credits():
 
     # Initialize Stripe utils
     stripe_utils = init_stripe_utils()
+
+    # Initialize HitPay utils (only if enabled)
+    hitpay_utils = init_hitpay_utils() if config.ENABLE_HITPAY else None
 
     # Back to Dashboard button
     col_back, col_spacer = st.columns([1, 9])
@@ -91,7 +95,7 @@ def show_purchase_credits():
 
         # Alternate between columns
         with col1 if i % 2 == 0 else col2:
-            display_package_card(stripe_utils, package_key, package, user)
+            display_package_card(stripe_utils, package_key, package, user, hitpay_utils)
 
     # Value proposition section
     st.markdown("---")
@@ -180,9 +184,9 @@ def show_purchase_credits():
 
 
 def display_package_card(
-    stripe_utils, package_key: str, package: Dict[str, Any], user: Dict[str, Any]
+    stripe_utils, package_key: str, package: Dict[str, Any], user: Dict[str, Any], hitpay_utils=None
 ):
-    """Display a credit package card with purchase button integrated inside"""
+    """Display a credit package card with purchase buttons (Stripe + PayNow if enabled)"""
 
     # Determine card style based on package
     if package_key == "popular":
@@ -307,62 +311,148 @@ def display_package_card(
             # Fallback link if JavaScript doesn't work
             st.markdown(f"If you are not redirected automatically, [click here to continue to payment]({checkout_url})")
             st.code(checkout_url, language=None)  # Show URL so user can copy if needed
+
+        # Check for HitPay PayNow redirect
+        elif f"hitpay_url_{package_key}" in st.session_state:
+            # Show the HitPay payment URL (PayNow)
+            payment_url = st.session_state[f"hitpay_url_{package_key}"]
+
+            st.success("✅ PayNow payment request created!")
+            st.info("Redirecting you to HitPay's secure payment page...")
+
+            # Auto-redirect to HitPay payment in the SAME window
+            st.components.v1.html(
+                f"""
+                <script>
+                    window.location.href = "{payment_url}";
+                </script>
+                """,
+                height=0,
+            )
+
+            # Fallback link
+            st.markdown(f"If you are not redirected automatically, [click here to continue to PayNow payment]({payment_url})")
+
         else:
-            # Show regular button to create checkout session
-            button_key = f"purchase_{package_key}"
-            if st.button(
-                f"🛒 Purchase {package['name']}",
-                key=button_key,
-                use_container_width=True,
-            ):
-                # Create checkout session
-                import logging
-                import os
+            # Show payment method selection if HitPay is enabled
+            if hitpay_utils:
+                st.markdown("**Select Payment Method:**")
+                col_stripe, col_paynow = st.columns(2)
 
-                import config
+                with col_stripe:
+                    if st.button(
+                        "💳 Credit Card",
+                        key=f"stripe_{package_key}",
+                        use_container_width=True,
+                    ):
+                        _create_stripe_checkout(stripe_utils, package_key, package, user)
 
-                logger = logging.getLogger(__name__)
-                logger.info(f"[PURCHASE] Button clicked for package: {package_key}")
+                with col_paynow:
+                    if st.button(
+                        "📱 PayNow (SG)",
+                        key=f"paynow_{package_key}",
+                        use_container_width=True,
+                        type="primary"
+                    ):
+                        _create_hitpay_payment(hitpay_utils, package_key, package, user)
+            else:
+                # Only Stripe available - show single button
+                button_key = f"purchase_{package_key}"
+                if st.button(
+                    f"🛒 Purchase {package['name']}",
+                    key=button_key,
+                    use_container_width=True,
+                ):
+                    _create_stripe_checkout(stripe_utils, package_key, package, user)
 
-                # Determine base URL based on environment
-                if os.getenv("APP_BASE_URL"):
-                    # Manual override via environment variable
-                    base_url = os.getenv("APP_BASE_URL")
-                elif config.ENVIRONMENT == "production":
-                    # Production environment - use production URL
-                    base_url = os.getenv("PRODUCTION_URL", "https://wantamock.streamlit.app")
-                elif os.getenv("CODESPACE_NAME"):
-                    # Development in Codespaces
-                    base_url = f"https://{os.getenv('CODESPACE_NAME')}-8501.app.github.dev"
-                else:
-                    # Fallback to localhost for local development
-                    base_url = "http://localhost:8501"
 
-                logger.info(f"[PURCHASE] Base URL: {base_url}")
-                logger.info(f"[PURCHASE] User ID: {user['id']}, Email: {user['email']}")
+def _create_stripe_checkout(stripe_utils, package_key: str, package: Dict[str, Any], user: Dict[str, Any]):
+    """Helper function to create Stripe checkout session"""
+    import logging
+    import os
 
-                success = create_payment_button(
-                    stripe_utils=stripe_utils,
-                    package_key=package_key,
-                    user_id=user["id"],
-                    user_email=user["email"],
-                    base_url=base_url,
-                )
+    import config
 
-                logger.info(f"[PURCHASE] create_payment_button returned: {success}")
+    logger = logging.getLogger(__name__)
+    logger.info(f"[PURCHASE] Button clicked for package: {package_key}")
 
-                if success:
-                    checkout_url = st.session_state.get(f"checkout_url_{package_key}")
-                    logger.info(
-                        f"[PURCHASE] Checkout URL stored: {checkout_url[:50] if checkout_url else 'None'}..."
-                    )
-                    st.rerun()  # Rerun to show the link button
-                else:
-                    logger.error(f"[PURCHASE] Failed to create checkout session")
-                    st.error("Failed to initiate payment. Please try again.")
+    # Determine base URL based on environment
+    if os.getenv("APP_BASE_URL"):
+        # Manual override via environment variable
+        base_url = os.getenv("APP_BASE_URL")
+    elif config.ENVIRONMENT == "production":
+        # Production environment - use production URL
+        base_url = os.getenv("PRODUCTION_URL", "https://wantamock.streamlit.app")
+    elif os.getenv("CODESPACE_NAME"):
+        # Development in Codespaces
+        base_url = f"https://{os.getenv('CODESPACE_NAME')}-8501.app.github.dev"
+    else:
+        # Fallback to localhost for local development
+        base_url = "http://localhost:8501"
 
-        # Add large spacing after button to clearly separate from next card
-        st.markdown('<div style="height: 2.5rem;"></div>', unsafe_allow_html=True)
+    logger.info(f"[PURCHASE] Base URL: {base_url}")
+    logger.info(f"[PURCHASE] User ID: {user['id']}, Email: {user['email']}")
+
+    success = create_payment_button(
+        stripe_utils=stripe_utils,
+        package_key=package_key,
+        user_id=user["id"],
+        user_email=user["email"],
+        base_url=base_url,
+    )
+
+    logger.info(f"[PURCHASE] create_payment_button returned: {success}")
+
+    if success:
+        checkout_url = st.session_state.get(f"checkout_url_{package_key}")
+        logger.info(
+            f"[PURCHASE] Checkout URL stored: {checkout_url[:50] if checkout_url else 'None'}..."
+        )
+        st.rerun()  # Rerun to show the link button
+
+
+def _create_hitpay_payment(hitpay_utils, package_key: str, package: Dict[str, Any], user: Dict[str, Any]):
+    """Helper function to create HitPay payment request (PayNow)"""
+    import logging
+    import os
+
+    import config
+
+    logger = logging.getLogger(__name__)
+    logger.info(f"[HITPAY] PayNow button clicked for package: {package_key}")
+
+    # Determine base URL based on environment
+    if os.getenv("APP_BASE_URL"):
+        base_url = os.getenv("APP_BASE_URL")
+    elif config.ENVIRONMENT == "production":
+        base_url = os.getenv("PRODUCTION_URL", "https://wantamock.streamlit.app")
+    elif os.getenv("CODESPACE_NAME"):
+        base_url = f"https://{os.getenv('CODESPACE_NAME')}-8501.app.github.dev"
+    else:
+        base_url = "http://localhost:8501"
+
+    logger.info(f"[HITPAY] Base URL: {base_url}")
+    logger.info(f"[HITPAY] User ID: {user['id']}, Email: {user['email']}")
+
+    success = create_hitpay_payment_button(
+        hitpay_utils=hitpay_utils,
+        package_key=package_key,
+        user_id=user["id"],
+        user_email=user["email"],
+        base_url=base_url,
+    )
+
+    logger.info(f"[HITPAY] create_hitpay_payment_button returned: {success}")
+
+    if success:
+        payment_url = st.session_state.get(f"hitpay_url_{package_key}")
+        logger.info(
+            f"[HITPAY] Payment URL stored: {payment_url[:50] if payment_url else 'None'}..."
+        )
+        st.rerun()  # Rerun to show the redirect
+    else:
+        logger.error(f"[HITPAY] Failed to create payment request")
+        st.error("Failed to initiate PayNow payment. Please try again.")
 
 
 def handle_payment_callback():

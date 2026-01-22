@@ -1793,6 +1793,36 @@ class DatabaseManager:
             logger.error(f"Error getting question pools: {e}")
             return []
 
+    async def rename_question_pool(self, pool_id: str, new_name: str) -> bool:
+        """Rename a question pool"""
+        try:
+            # Use admin client to bypass RLS policies
+            client = self.admin_client if self.admin_client else self.client
+
+            # Check if new name already exists (for a different pool)
+            existing = client.table("question_pools").select("id").eq("pool_name", new_name).execute()
+            if existing.data:
+                for pool in existing.data:
+                    if pool['id'] != pool_id:
+                        logger.error(f"Pool name '{new_name}' already exists")
+                        return False
+
+            # Update the pool name
+            result = (
+                client.table("question_pools")
+                .update({
+                    "pool_name": new_name,
+                    "last_updated": datetime.now(timezone.utc).isoformat()
+                })
+                .eq("id", pool_id)
+                .execute()
+            )
+
+            return bool(result.data)
+        except Exception as e:
+            logger.error(f"Error renaming question pool: {e}")
+            return False
+
     async def create_or_update_question_pool(
         self, pool_name: str, category: str, description: str, created_by: str
     ) -> Optional[Dict[str, Any]]:

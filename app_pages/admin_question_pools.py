@@ -79,6 +79,11 @@ def show_admin_question_pools():
                     st.session_state.viewing_pool = pool["id"]
                     st.rerun()
 
+                if st.button(f"✏️ Rename Pool", key=f"rename_{pool['id']}"):
+                    st.session_state.rename_pool_id = pool["id"]
+                    st.session_state.rename_pool_current_name = pool["pool_name"]
+                    st.rerun()
+
                 if st.button(f"➕ Add More Questions", key=f"add_{pool['id']}"):
                     st.session_state.page = "admin_upload"
                     st.session_state.pool_name = pool["pool_name"]
@@ -91,6 +96,10 @@ def show_admin_question_pools():
     # Show questions if a pool is selected
     if hasattr(st.session_state, "viewing_pool") and st.session_state.viewing_pool:
         show_pool_questions(st.session_state.viewing_pool)
+
+    # Handle rename
+    if hasattr(st.session_state, "rename_pool_id") and st.session_state.rename_pool_id:
+        show_rename_pool_dialog(st.session_state.rename_pool_id, st.session_state.rename_pool_current_name)
 
     # Handle delete confirmation
     if hasattr(st.session_state, "confirm_delete_pool") and st.session_state.confirm_delete_pool:
@@ -462,6 +471,51 @@ def show_edit_question_form(question: Dict[str, Any]):
             st.rerun()
 
 
+def show_rename_pool_dialog(pool_id: str, current_name: str):
+    """Show rename pool dialog"""
+    st.markdown("---")
+    st.markdown("### ✏️ Rename Pool")
+
+    with st.form(key=f"rename_form_{pool_id}"):
+        new_name = st.text_input(
+            "New pool name",
+            value=current_name,
+            max_chars=100,
+            help="Enter a unique name for this pool"
+        )
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            submit = st.form_submit_button("✅ Rename", type="primary", use_container_width=True)
+
+        with col2:
+            cancel = st.form_submit_button("❌ Cancel", use_container_width=True)
+
+        if submit:
+            if not new_name or not new_name.strip():
+                st.error("Pool name cannot be empty")
+            elif new_name.strip() == current_name:
+                st.info("Name unchanged")
+                del st.session_state.rename_pool_id
+                del st.session_state.rename_pool_current_name
+                st.rerun()
+            else:
+                success = run_async(rename_pool(pool_id, new_name.strip()))
+                if success:
+                    st.success(f"Pool renamed to '{new_name.strip()}' successfully!")
+                    del st.session_state.rename_pool_id
+                    del st.session_state.rename_pool_current_name
+                    st.rerun()
+                else:
+                    st.error("Failed to rename pool. Name may already exist.")
+
+        if cancel:
+            del st.session_state.rename_pool_id
+            del st.session_state.rename_pool_current_name
+            st.rerun()
+
+
 def show_delete_confirmation(pool_id: str, pools: List[Dict[str, Any]]):
     """Show delete confirmation dialog"""
     pool = next((p for p in pools if p["id"] == pool_id), None)
@@ -500,6 +554,17 @@ async def load_question_pools() -> List[Dict[str, Any]]:
     except Exception as e:
         st.error(f"Error loading question pools: {str(e)}")
         return []
+
+
+async def rename_pool(pool_id: str, new_name: str) -> bool:
+    """Rename a question pool"""
+    try:
+        from db import db
+
+        return await db.rename_question_pool(pool_id, new_name)
+    except Exception as e:
+        st.error(f"Error renaming pool: {str(e)}")
+        return False
 
 
 async def load_pool_questions(pool_id: str) -> List[Dict[str, Any]]:

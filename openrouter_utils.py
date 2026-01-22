@@ -1306,6 +1306,17 @@ Be thorough in your reasoning. If unsure, lower your confidence score."""
                         "has_changes": False
                     }
 
+                # Normalize changes_made structure to ensure choices is always a dict
+                if "changes_made" in result:
+                    changes = result["changes_made"]
+                    # If choices is a list, convert to dict format
+                    if isinstance(changes.get("choices"), list):
+                        choices_list = changes["choices"]
+                        changes["choices"] = {str(i): changes_list[i] for i in range(len(choices_list)) if choices_list[i]}
+                    # If choices is missing or None, use empty dict
+                    elif not isinstance(changes.get("choices"), dict):
+                        changes["choices"] = {}
+
                 # Ensure has_changes is present
                 if "has_changes" not in result:
                     # Determine if there are any changes

@@ -1165,9 +1165,16 @@ def show_ai_fix_preview():
         if fix['changes_made'].get('question'):
             changes_summary.extend(fix['changes_made']['question'])
         if fix['changes_made'].get('choices'):
-            for choice_idx, choice_changes in fix['changes_made']['choices'].items():
-                if choice_changes:  # Only show if there are changes
-                    changes_summary.extend([f"Choice {choice_idx}: {c}" for c in choice_changes])
+            choices_changes = fix['changes_made']['choices']
+            # Handle both dict format {"0": [...], "1": [...]} and list format [[], [], []]
+            if isinstance(choices_changes, dict):
+                for choice_idx, choice_changes in choices_changes.items():
+                    if choice_changes:  # Only show if there are changes
+                        changes_summary.extend([f"Choice {choice_idx}: {c}" for c in choice_changes])
+            elif isinstance(choices_changes, list):
+                for choice_idx, choice_changes in enumerate(choices_changes):
+                    if choice_changes:  # Only show if there are changes
+                        changes_summary.extend([f"Choice {choice_idx}: {c}" for c in choice_changes])
         if fix['changes_made'].get('answer'):
             changes_summary.extend(fix['changes_made']['answer'])
         if fix['changes_made'].get('explanation'):

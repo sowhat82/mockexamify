@@ -395,76 +395,37 @@ def show_question_pool_upload(auth):
                             st.markdown("---")
                             st.markdown("### 🤖 Automatic AI Quality Check")
 
-                            # Limit auto-fix to prevent timeouts
-                            MAX_AUTO_FIX_QUESTIONS = 20
-
                             # Get all questions from the uploaded source files
                             questions_to_fix = [q for q in pool_questions if q.get('source_file') in source_files]
 
-                            if len(questions_to_fix) > MAX_AUTO_FIX_QUESTIONS:
-                                st.warning(
-                                    f"⚠️ Uploaded {len(questions_to_fix)} questions. "
-                                    f"Auto-fix will process first {MAX_AUTO_FIX_QUESTIONS} questions to prevent timeouts.\n\n"
-                                    f"💡 You can run AI Fix manually on remaining questions from Question Pools page."
+                            if questions_to_fix:
+                                # Spawn background AI fix process
+                                import subprocess
+                                import sys
+
+                                python_path = sys.executable
+                                script_path = os.path.join(os.getcwd(), "background_ai_fix.py")
+
+                                # Join source files with comma for command line argument
+                                source_files_arg = ",".join(source_files)
+
+                                # Spawn detached background process
+                                subprocess.Popen(
+                                    [python_path, script_path, pool_id, source_files_arg],
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL,
+                                    stdin=subprocess.DEVNULL,
+                                    start_new_session=True
                                 )
-                                questions_to_fix = questions_to_fix[:MAX_AUTO_FIX_QUESTIONS]
 
-                            with st.spinner(f"Running AI fix on {len(questions_to_fix)} questions..."):
-                                if questions_to_fix:
-                                    # Get question IDs
-                                    question_ids = [q['id'] for q in questions_to_fix]
-
-                                    # Import the AI fix function
-                                    from app_pages.admin_question_pools import process_ai_fixes, apply_approved_fixes
-
-                                    # Run AI fix
-                                    fix_data = run_async(process_ai_fixes(
-                                        question_ids=question_ids,
-                                        pool_id=pool_id,
-                                        enable_pattern_detection=True
-                                    ))
-
-                                    fix_results = fix_data.get('fix_results', [])
-                                    questions_with_fixes = [f for f in fix_results if f.get('has_changes')]
-
-                                    if questions_with_fixes:
-                                        st.success(f"✅ Found and fixed {len(questions_with_fixes)} question(s) with errors!")
-
-                                        # Auto-approve all fixes
-                                        if 'approved_fixes' not in st.session_state:
-                                            st.session_state.approved_fixes = set()
-
-                                        for fix in questions_with_fixes:
-                                            st.session_state.approved_fixes.add(fix['question_id'])
-
-                                        # Apply all fixes automatically
-                                        with st.spinner(f"Applying {len(questions_with_fixes)} fix(es)..."):
-                                            success_count = apply_approved_fixes(fix_results)
-
-                                        st.success(f"🎉 Successfully auto-fixed {success_count} question(s)!")
-
-                                        # Show summary of fixes
-                                        with st.expander("📋 View Auto-Fix Summary", expanded=False):
-                                            for idx, fix in enumerate(questions_with_fixes[:10], 1):  # Show first 10
-                                                st.markdown(f"**Question {idx}:**")
-                                                changes_made = fix.get('changes_made', {})
-                                                if changes_made.get('question'):
-                                                    for change in changes_made['question']:
-                                                        st.markdown(f"- {change}")
-                                                if changes_made.get('choices'):
-                                                    for choice_idx, choice_changes in changes_made['choices'].items():
-                                                        for change in choice_changes:
-                                                            st.markdown(f"- Choice {choice_idx}: {change}")
-
-                                            if len(questions_with_fixes) > 10:
-                                                st.markdown(f"*...and {len(questions_with_fixes) - 10} more*")
-
-                                        # Clear approval state
-                                        st.session_state.approved_fixes = set()
-                                    else:
-                                        st.success("✅ No errors found! All questions look good.")
-                                else:
-                                    st.info("ℹ️ No questions found from uploaded files for AI fix.")
+                                st.success(
+                                    f"🚀 **Background AI Fix Started!**\n\n"
+                                    f"Processing **{len(questions_to_fix)} questions** for OCR errors, typos, and grammar issues.\n\n"
+                                    f"This runs in the background - you can close your browser safely.\n\n"
+                                    f"📋 Check `background_ai_fix.log` for progress details."
+                                )
+                            else:
+                                st.info("ℹ️ No questions found from uploaded files for AI fix.")
                         except Exception as e:
                             st.error(f"❌ Automatic AI fix failed: {str(e)}")
                             logger.error(f"Auto-fix error on upload: {e}", exc_info=True)

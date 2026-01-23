@@ -1,7 +1,7 @@
 """
-Background AI Fix Script
-Runs independently to fix questions with OCR errors, typos, and grammar issues.
-Spawned after upload to process all questions without browser timeout constraints.
+Background AI Fix with Pattern Detection
+Runs independently to fix selected questions and find similar errors in the same source files.
+Auto-applies all fixes without manual approval.
 """
 import asyncio
 import json
@@ -17,7 +17,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('background_ai_fix.log'),
+        logging.FileHandler('background_ai_fix_pattern.log'),
         logging.StreamHandler()
     ]
 )
@@ -38,54 +38,69 @@ def update_question(question_id: str, updated_data: Dict[str, Any]) -> bool:
         return False
 
 
-async def run_ai_fix_for_questions(pool_id: str, source_files: List[str] = None, task_id: str = None):
+async def run_ai_fix_with_patterns(pool_id: str, question_ids: List[str], task_id: str = None):
     """
-    Run AI fix on questions from a pool, optionally filtered by source files.
+    Run AI fix on selected questions with pattern detection.
+    Automatically applies all fixes.
 
     Args:
-        pool_id: The pool ID to process
-        source_files: Optional list of source filenames to filter by (for new uploads)
+        pool_id: The pool ID
+        question_ids: List of question IDs to analyze (starting points for pattern detection)
         task_id: Task ID for status tracking
     """
     from db import db
     from openrouter_utils import fix_question_errors
     from background_task_status import start_task, update_task_progress, complete_task, fail_task
 
-    logger.info(f"Starting AI fix for pool {pool_id}")
-    if source_files:
-        logger.info(f"Filtering by source files: {source_files}")
+    logger.info("=" * 60)
+    logger.info("BACKGROUND AI FIX WITH PATTERN DETECTION")
+    logger.info(f"Pool ID: {pool_id}")
+    logger.info(f"Selected questions: {len(question_ids)}")
+    logger.info("=" * 60)
 
     try:
         # Get all questions from the pool
         all_questions = await db.get_pool_questions(pool_id)
+        questions_by_id = {q['id']: q for q in all_questions}
 
         # Get pool name for status display
         pools = await db.get_all_question_pools()
         pool_name = next((p['pool_name'] for p in pools if p['id'] == pool_id), "Unknown Pool")
 
-        # Filter by source files if specified
-        if source_files:
-            questions = [q for q in all_questions if q.get('source_file') in source_files]
-            logger.info(f"Found {len(questions)} questions from specified source files (out of {len(all_questions)} total)")
-        else:
-            questions = all_questions
-            logger.info(f"Processing all {len(questions)} questions in pool")
+        # Get source files from selected questions
+        source_files = set()
+        for qid in question_ids:
+            q = questions_by_id.get(qid)
+            if q and q.get('source_file'):
+                source_files.add(q.get('source_file'))
 
-        if not questions:
+        logger.info(f"Source files from selection: {source_files}")
+
+        # Get all questions from the same source files
+        questions_to_process = []
+        if source_files:
+            questions_to_process = [q for q in all_questions if q.get('source_file') in source_files]
+            logger.info(f"Found {len(questions_to_process)} questions from same source files")
+        else:
+            # If no source files, just process selected questions
+            questions_to_process = [questions_by_id[qid] for qid in question_ids if qid in questions_by_id]
+            logger.info(f"No source files found, processing {len(questions_to_process)} selected questions only")
+
+        if not questions_to_process:
             logger.info("No questions to process")
             if task_id:
                 complete_task(task_id, 0, 0, 0, "No questions to process")
             return
 
-        total_questions = len(questions)
+        total_questions = len(questions_to_process)
 
         # Register task
         if task_id:
-            source_desc = f" from {', '.join(source_files[:2])}{'...' if len(source_files) > 2 else ''}" if source_files else ""
+            source_desc = f" from {list(source_files)[0][:30]}..." if source_files else ""
             start_task(
                 task_id=task_id,
-                task_type="ai_fix_upload",
-                description=f"AI Fix after upload{source_desc}",
+                task_type="ai_fix_pattern",
+                description=f"AI Fix with pattern detection{source_desc}",
                 total_items=total_questions,
                 pool_id=pool_id,
                 pool_name=pool_name
@@ -95,20 +110,20 @@ async def run_ai_fix_for_questions(pool_id: str, source_files: List[str] = None,
         fixed = 0
         errors = 0
 
-        for idx, question in enumerate(questions, 1):
+        for idx, question in enumerate(questions_to_process, 1):
             try:
                 question_id = question['id']
                 question_text = question['question_text']
                 choices = json.loads(question['choices']) if isinstance(question['choices'], str) else question['choices']
                 correct_answer = question.get('correct_answer')
 
-                logger.info(f"[{idx}/{total_questions}] Processing question {question_id[:8]}...")
+                logger.info(f"[{idx}/{total_questions}] Analyzing question {question_id[:8]}...")
 
                 # Update status
                 if task_id:
                     update_task_progress(task_id, processed, fixed, errors, f"Question {idx}/{total_questions}")
 
-                # Run AI fix
+                # Run AI fix with answer validation
                 fix_result = await fix_question_errors(
                     question_text=question_text,
                     choices=choices,
@@ -135,7 +150,7 @@ async def run_ai_fix_for_questions(pool_id: str, source_files: List[str] = None,
                     if fix_result.get('explanation_regenerated') and fix_result.get('new_explanation'):
                         updated_data['explanation'] = fix_result['new_explanation']
 
-                    # Apply the fix
+                    # Apply the fix immediately (auto-approve)
                     if update_question(question_id, updated_data):
                         fixed += 1
                         changes = fix_result.get('changes_made', {})
@@ -153,34 +168,35 @@ async def run_ai_fix_for_questions(pool_id: str, source_files: List[str] = None,
                         if changes.get('answer'):
                             change_summary.extend(changes['answer'])
 
-                        logger.info(f"  ✅ Fixed: {', '.join(change_summary[:3])}{'...' if len(change_summary) > 3 else ''}")
+                        logger.info(f"  ✅ Fixed & Applied: {', '.join(change_summary[:3])}{'...' if len(change_summary) > 3 else ''}")
                     else:
                         errors += 1
                         logger.error(f"  ❌ Failed to apply fix to database")
                 else:
                     logger.debug(f"  No changes needed")
 
-                # Rate limiting - wait between requests
+                # Rate limiting
                 await asyncio.sleep(0.5)
 
                 # Progress update every 10 questions
                 if idx % 10 == 0:
-                    logger.info(f"Progress: {idx}/{total_questions} processed, {fixed} fixed, {errors} errors")
+                    logger.info(f"Progress: {idx}/{total_questions} analyzed, {fixed} fixed, {errors} errors")
                     if task_id:
                         update_task_progress(task_id, processed, fixed, errors, f"Question {idx}/{total_questions}")
 
             except Exception as e:
                 errors += 1
                 logger.error(f"  ❌ Error processing question {idx}: {e}")
-                await asyncio.sleep(1)  # Wait longer on error
+                await asyncio.sleep(1)
                 continue
 
         # Final summary
         logger.info("=" * 60)
-        logger.info(f"AI FIX COMPLETE")
-        logger.info(f"  Total questions: {total_questions}")
+        logger.info("AI FIX WITH PATTERN DETECTION COMPLETE")
+        logger.info(f"  Source files scanned: {list(source_files)}")
+        logger.info(f"  Total questions analyzed: {total_questions}")
         logger.info(f"  Processed: {processed}")
-        logger.info(f"  Fixed: {fixed}")
+        logger.info(f"  Fixed & Applied: {fixed}")
         logger.info(f"  Errors: {errors}")
         logger.info(f"  No changes needed: {processed - fixed - errors}")
         logger.info("=" * 60)
@@ -190,36 +206,32 @@ async def run_ai_fix_for_questions(pool_id: str, source_files: List[str] = None,
             complete_task(task_id, processed, fixed, errors)
 
     except Exception as e:
-        logger.error(f"Fatal error in AI fix: {e}", exc_info=True)
+        logger.error(f"Fatal error in AI fix with patterns: {e}", exc_info=True)
         if task_id:
             fail_task(task_id, str(e))
 
 
 async def main():
-    """Main entry point for background AI fix"""
-    if len(sys.argv) < 2:
-        logger.error("Usage: python background_ai_fix.py <pool_id> [source_file1,source_file2,...]")
+    """Main entry point"""
+    if len(sys.argv) < 3:
+        logger.error("Usage: python background_ai_fix_pattern.py <pool_id> <question_id1,question_id2,...>")
         sys.exit(1)
 
     pool_id = sys.argv[1]
-    source_files = None
-
-    if len(sys.argv) > 2:
-        # Parse comma-separated source files
-        source_files = sys.argv[2].split(',')
-        source_files = [f.strip() for f in source_files if f.strip()]
+    question_ids = sys.argv[2].split(',')
+    question_ids = [qid.strip() for qid in question_ids if qid.strip()]
 
     # Generate task ID
-    task_id = f"ai_fix_upload_{uuid.uuid4().hex[:8]}"
+    task_id = f"ai_fix_pattern_{uuid.uuid4().hex[:8]}"
 
-    logger.info(f"Background AI fix started")
+    logger.info(f"Background AI fix with pattern detection started")
     logger.info(f"  Task ID: {task_id}")
     logger.info(f"  Pool ID: {pool_id}")
-    logger.info(f"  Source files: {source_files or 'All'}")
+    logger.info(f"  Selected question IDs: {len(question_ids)}")
 
-    await run_ai_fix_for_questions(pool_id, source_files, task_id)
+    await run_ai_fix_with_patterns(pool_id, question_ids, task_id)
 
-    logger.info("Background AI fix finished")
+    logger.info("Background AI fix with pattern detection finished")
 
 
 if __name__ == "__main__":

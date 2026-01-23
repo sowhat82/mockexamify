@@ -4,7 +4,10 @@ View, edit, and manage question pools
 """
 
 import json
+import os
 import re
+import subprocess
+import sys
 from typing import Any, Dict, List
 
 import streamlit as st
@@ -30,6 +33,9 @@ def show_admin_question_pools():
 
     st.markdown("# 💼 Question Pool Management")
     st.markdown("View and manage your question pools")
+
+    # Show background task status
+    show_background_task_status()
 
     # Load question pools
     pools = run_async(load_question_pools())
@@ -200,15 +206,41 @@ def show_pool_questions(pool_id: str):
     # Bulk action buttons (only show if questions are selected)
     if selected_count > 0:
         st.markdown("---")
-        col1, col2, col3 = st.columns([2, 1, 1])
+        col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
         with col1:
             st.warning(f"⚠️ {selected_count} question(s) selected")
         with col2:
-            if st.button(f"🤖 AI Fix {selected_count} Selected", key="ai_fix_selected_btn", type="secondary"):
+            if st.button(f"🤖 AI Fix (Preview)", key="ai_fix_selected_btn", type="secondary"):
                 st.session_state.ai_fix_mode = True
                 st.rerun()
         with col3:
-            if st.button(f"🗑️ Delete {selected_count} Selected", key="delete_selected_btn", type="primary"):
+            if st.button(f"🚀 AI Fix (Background)", key="ai_fix_background_btn", type="secondary"):
+                # Spawn background AI fix process
+                python_path = sys.executable
+                script_path = os.path.join(os.getcwd(), "background_ai_fix_pattern.py")
+
+                # Get selected question IDs
+                question_ids_arg = ",".join(list(st.session_state.selected_questions))
+
+                # Spawn detached background process
+                subprocess.Popen(
+                    [python_path, script_path, pool_id, question_ids_arg],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    stdin=subprocess.DEVNULL,
+                    start_new_session=True
+                )
+
+                st.success(
+                    f"🚀 **Background AI Fix Started!**\n\n"
+                    f"Analyzing **{selected_count} selected question(s)** and scanning all questions from the same source file(s).\n\n"
+                    f"Fixes will be **auto-applied** - no manual approval needed.\n\n"
+                    f"📋 Check `background_ai_fix_pattern.log` for progress."
+                )
+                st.session_state.selected_questions = set()
+                st.rerun()
+        with col4:
+            if st.button(f"🗑️ Delete {selected_count}", key="delete_selected_btn", type="primary"):
                 st.session_state.confirm_bulk_delete = True
                 st.rerun()
 
@@ -469,6 +501,87 @@ def show_edit_question_form(question: Dict[str, Any]):
         if cancel:
             del st.session_state.editing_question
             st.rerun()
+
+
+def show_background_task_status():
+    """Show status of running background tasks"""
+    try:
+        from background_task_status import get_recent_tasks, cleanup_old_tasks
+        from datetime import datetime, timezone
+
+        # Cleanup old tasks
+        cleanup_old_tasks(max_age_hours=24)
+
+        # Get recent tasks
+        tasks = get_recent_tasks(limit=5)
+
+        # Check if any are running
+        running_tasks = [t for t in tasks if t.get('status') == 'running']
+        completed_tasks = [t for t in tasks if t.get('status') == 'completed'][:3]
+        failed_tasks = [t for t in tasks if t.get('status') == 'failed'][:2]
+
+        # Always show the panel
+        running_count = len(running_tasks)
+        panel_title = f"🔄 Background Tasks ({running_count} running)" if running_count > 0 else "🔄 Background Tasks"
+
+        with st.expander(panel_title, expanded=running_count > 0):
+            if not tasks:
+                st.info("No background tasks. Tasks will appear here when you:\n"
+                        "- Upload questions (auto AI fix)\n"
+                        "- Use **🚀 AI Fix (Background)** on selected questions")
+            else:
+                # Running tasks
+                if running_tasks:
+                    for task in running_tasks:
+                        progress = 0
+                        if task.get('total_items', 0) > 0:
+                            progress = task.get('processed_items', 0) / task['total_items']
+
+                        col1, col2 = st.columns([3, 1])
+                        with col1:
+                            st.markdown(f"**🔄 {task.get('description', 'Unknown task')}**")
+                            if task.get('pool_name'):
+                                st.caption(f"Pool: {task['pool_name']}")
+                            st.progress(progress)
+                            st.caption(f"{task.get('current_item', 'Starting...')} | Fixed: {task.get('fixed_items', 0)} | Errors: {task.get('error_items', 0)}")
+                        with col2:
+                            started = task.get('started_at', '')
+                            if started:
+                                try:
+                                    start_time = datetime.fromisoformat(started.replace('Z', '+00:00'))
+                                    elapsed = datetime.now(timezone.utc) - start_time
+                                    mins = int(elapsed.total_seconds() // 60)
+                                    secs = int(elapsed.total_seconds() % 60)
+                                    st.caption(f"⏱️ {mins}m {secs}s")
+                                except:
+                                    pass
+
+                # Recently completed tasks
+                if completed_tasks:
+                    if running_tasks:
+                        st.markdown("---")
+                    st.markdown("**Recent completions:**")
+                    for task in completed_tasks:
+                        st.markdown(
+                            f"✅ {task.get('description', 'Task')}: "
+                            f"{task.get('fixed_items', 0)} fixed, "
+                            f"{task.get('error_items', 0)} errors"
+                        )
+
+                # Failed tasks
+                if failed_tasks:
+                    st.markdown("---")
+                    for task in failed_tasks:
+                        st.error(f"❌ {task.get('description', 'Task')} failed: {task.get('error_message', 'Unknown error')}")
+
+            # Refresh button
+            if st.button("🔄 Refresh Status", key="refresh_bg_status"):
+                st.rerun()
+
+    except ImportError:
+        pass  # background_task_status module not available
+    except Exception as e:
+        pass  # Silently fail - don't break the page
 
 
 def show_rename_pool_dialog(pool_id: str, current_name: str):

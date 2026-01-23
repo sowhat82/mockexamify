@@ -156,3 +156,5 @@ local_settings.py
 
 # Claude Code local settings
 .claude/settings.local.json
+background_tasks_status.json
+background_tasks_status.json.tmp

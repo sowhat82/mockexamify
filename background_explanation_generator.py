@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import sys
+import uuid
 from datetime import datetime, timezone
 from typing import List, Dict, Any
 
@@ -21,16 +22,21 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def generate_explanations_for_pool(pool_id: str, batch_id: str = None):
+async def generate_explanations_for_pool(pool_id: str, batch_id: str = None, task_id: str = None):
     """Generate AI explanations for questions that have placeholder explanations"""
     from db import db
     from openrouter_utils import generate_explanation
+    from background_task_status import start_task, update_task_progress, complete_task, fail_task
 
     logger.info(f"Starting explanation generation for pool {pool_id}")
 
     try:
         # Get all questions from the pool
         questions = await db.get_pool_questions(pool_id)
+
+        # Get pool name for status display
+        pools = await db.get_all_question_pools()
+        pool_name = next((p['pool_name'] for p in pools if p['id'] == pool_id), "Unknown Pool")
 
         # Filter questions that need AI explanations
         # Placeholder format: "The correct answer is: {choice}"
@@ -45,9 +51,22 @@ async def generate_explanations_for_pool(pool_id: str, batch_id: str = None):
 
         if total_needing_ai == 0:
             logger.info("No questions need AI explanation generation")
+            if task_id:
+                complete_task(task_id, 0, 0, 0, "No questions needed explanations")
             return
 
         logger.info(f"Found {total_needing_ai} questions needing AI explanations")
+
+        # Register task for status tracking
+        if task_id:
+            start_task(
+                task_id=task_id,
+                task_type="explanation_generation",
+                description=f"Generating AI explanations",
+                total_items=total_needing_ai,
+                pool_id=pool_id,
+                pool_name=pool_name
+            )
 
         # Update batch status to show generation is in progress
         if batch_id:
@@ -65,6 +84,10 @@ async def generate_explanations_for_pool(pool_id: str, batch_id: str = None):
         for idx, question in enumerate(questions_needing_ai, 1):
             try:
                 logger.info(f"Generating explanation {idx}/{total_needing_ai}")
+
+                # Update status
+                if task_id:
+                    update_task_progress(task_id, idx - 1, successful, failed, f"Question {idx}/{total_needing_ai}")
 
                 # Parse choices (might be JSON string)
                 choices = question.get("choices")
@@ -93,12 +116,13 @@ async def generate_explanations_for_pool(pool_id: str, batch_id: str = None):
                     logger.error(f"❌ Failed to update question {idx}/{total_needing_ai}")
 
                 # Rate limiting: Wait 1 second between requests to avoid throttling
-                # Paid tier should handle this easily, but we want to be respectful
                 await asyncio.sleep(1.0)
 
-                # Every 10 questions, log progress
+                # Every 10 questions, log progress and update status
                 if idx % 10 == 0:
                     logger.info(f"Progress: {idx}/{total_needing_ai} completed ({successful} successful, {failed} failed)")
+                    if task_id:
+                        update_task_progress(task_id, idx, successful, failed, f"Question {idx}/{total_needing_ai}")
 
             except Exception as e:
                 failed += 1
@@ -112,8 +136,14 @@ async def generate_explanations_for_pool(pool_id: str, batch_id: str = None):
             f"Total: {total_needing_ai}, Successful: {successful}, Failed: {failed}"
         )
 
+        # Mark task complete
+        if task_id:
+            complete_task(task_id, total_needing_ai, successful, failed)
+
     except Exception as e:
         logger.error(f"Fatal error in explanation generation: {e}", exc_info=True)
+        if task_id:
+            fail_task(task_id, str(e))
 
 
 async def main():
@@ -125,8 +155,15 @@ async def main():
     pool_id = sys.argv[1]
     batch_id = sys.argv[2] if len(sys.argv) > 2 else None
 
-    logger.info(f"Background explanation generator started for pool: {pool_id}")
-    await generate_explanations_for_pool(pool_id, batch_id)
+    # Generate task ID
+    task_id = f"explanation_gen_{uuid.uuid4().hex[:8]}"
+
+    logger.info(f"Background explanation generator started")
+    logger.info(f"  Task ID: {task_id}")
+    logger.info(f"  Pool ID: {pool_id}")
+
+    await generate_explanations_for_pool(pool_id, batch_id, task_id)
+
     logger.info("Background explanation generator finished")
 
 

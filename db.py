@@ -259,7 +259,7 @@ class DatabaseManager:
                 "id": user_id,
                 "email": email,
                 "password_hash": hashed_password.decode("utf-8"),
-                "credits_balance": 0,  # No signup bonus - users must purchase credits
+                "credits_balance": 1,  # Signup bonus - 1 free trial credit
                 "role": "user",
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }

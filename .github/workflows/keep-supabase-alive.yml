@@ -12,7 +12,17 @@ jobs:
     steps:
       - name: Ping Supabase
         run: |
-          response=$(curl -s -o /dev/null -w "%{http_code}" \
+          if [ -z "${{ secrets.SUPABASE_URL }}" ]; then
+            echo "ERROR: SUPABASE_URL secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SUPABASE_KEY }}" ]; then
+            echo "ERROR: SUPABASE_KEY secret is not set"
+            exit 1
+          fi
+
+          echo "Pinging Supabase..."
+          response=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
             "${{ secrets.SUPABASE_URL }}/rest/v1/question_pools?select=id&limit=1" \
             -H "apikey: ${{ secrets.SUPABASE_KEY }}" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_KEY }}")
@@ -21,5 +31,7 @@ jobs:
             echo "Supabase ping successful (HTTP $response)"
           else
             echo "Supabase ping failed (HTTP $response)"
+            echo "Response body:"
+            cat /tmp/response.txt
             exit 1
           fi

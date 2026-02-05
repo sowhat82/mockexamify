@@ -129,27 +129,6 @@ def show_admin_dashboard():
             else:
                 st.info("No recent attempts")
 
-        with col2:
-            st.markdown("### 🎫 Support Tickets")
-            tickets = run_async(load_recent_tickets())
-
-            if tickets:
-                for ticket in tickets[:5]:
-                    status = ticket.get("status", "open")
-                    status_color = "#ff9800" if status == "open" else "#4caf50"
-
-                    st.markdown(
-                        f"""
-                    <div style="border-left: 4px solid {status_color}; padding: 0.5rem;
-                               background: #f8f9fa; margin-bottom: 0.5rem;">
-                        <strong>{ticket.get('subject', 'No subject')}</strong>
-                        <br><small>Status: {status.title()} | {ticket.get('created_at', 'Unknown')}</small>
-                    </div>
-                    """,
-                        unsafe_allow_html=True,
-                    )
-            else:
-                st.info("No recent tickets")
 
         # Quick Actions (non-duplicated features only)
         st.markdown("---")
@@ -467,14 +446,6 @@ async def load_recent_attempts() -> List[Dict[str, Any]]:
         ]
 
 
-async def load_recent_tickets() -> List[Dict[str, Any]]:
-    """Load recent support tickets"""
-    # Demo data for now
-    return [
-        {"subject": "Login issue", "status": "open", "created_at": "2024-01-25 15:00:00"},
-        {"subject": "Payment problem", "status": "resolved", "created_at": "2024-01-25 14:30:00"},
-        {"subject": "Exam not loading", "status": "open", "created_at": "2024-01-25 13:45:00"},
-    ]
 
 
 def generate_demo_user_growth() -> pd.DataFrame:

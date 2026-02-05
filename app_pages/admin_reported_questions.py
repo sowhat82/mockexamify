@@ -241,9 +241,12 @@ def display_reported_question(report: Dict[str, Any], idx: int):
 
         with action_col3:
             if st.button("📝 View in Pool", key=f"view_pool_{report['id']}", use_container_width=True):
-                # Navigate to question pools page
+                # Navigate to question pools page with search pre-filled
                 st.session_state.page = "admin_question_pools"
                 st.session_state.viewing_pool = report.get("pool_id")
+                # Pre-fill search with first 50 chars of question to filter the list
+                question_preview = report.get("question_text", "")[:50].strip()
+                st.session_state.pool_search_term = question_preview
                 st.rerun()
 
         with action_col4:

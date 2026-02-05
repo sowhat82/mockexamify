@@ -133,8 +133,14 @@ def show_pool_questions(pool_id: str):
     # Filter and search
     col1, col2, col3 = st.columns([2, 1, 1])
 
+    # Check for pre-filled search term (from reported questions)
+    prefilled_search = st.session_state.get("pool_search_term", "")
+    # Clear it after reading so it doesn't persist on manual searches
+    if prefilled_search:
+        st.session_state.pop("pool_search_term", None)
+
     with col1:
-        search_term = st.text_input("🔍 Search questions", placeholder="Type to search...")
+        search_term = st.text_input("🔍 Search questions", value=prefilled_search, placeholder="Type to search...")
 
     with col2:
         sort_by = st.selectbox(
@@ -146,6 +152,7 @@ def show_pool_questions(pool_id: str):
         if st.button("⬅️ Back to Pools"):
             del st.session_state.viewing_pool
             st.session_state.selected_questions = set()  # Clear selections
+            st.session_state.pop("pool_search_term", None)  # Clear search from reported questions
             st.rerun()
 
     # Filter questions based on search

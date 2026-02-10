@@ -11,6 +11,12 @@ except ImportError:
 
 import streamlit as st
 
+# Google Search Console verification
+st.markdown(
+    '<meta name="google-site-verification" content="DPeK9P5l3emT1DNhDBd61ynHHI6PkhEb3tupYp_jG2g" />',
+    unsafe_allow_html=True,
+)
+
 # Aggressive sidebar hiding CSS injected before anything else
 st.markdown(
     """
@@ -658,9 +664,12 @@ def main():
         st.session_state.pending_credits_checked = True
         try:
             from db import db
+
             results = run_async(db.process_pending_credits())
             if results["processed"] > 0:
-                logger.info(f"Pending credits check: {results['success']}/{results['processed']} processed successfully")
+                logger.info(
+                    f"Pending credits check: {results['success']}/{results['processed']} processed successfully"
+                )
         except Exception as e:
             logger.error(f"Error checking pending credits: {e}")
 
@@ -672,8 +681,13 @@ def main():
 
     # CRITICAL FIX: Clear stuck upload state if user navigated away from upload page
     # This prevents perpetual blue loader bug from persisting across page navigations
-    if st.session_state.get("upload_in_progress") and st.session_state.get("page") != "admin_upload":
-        logger.warning("[BUGFIX] Clearing stuck upload_in_progress state - user navigated away from upload page")
+    if (
+        st.session_state.get("upload_in_progress")
+        and st.session_state.get("page") != "admin_upload"
+    ):
+        logger.warning(
+            "[BUGFIX] Clearing stuck upload_in_progress state - user navigated away from upload page"
+        )
         st.session_state.upload_in_progress = False
         st.session_state.upload_params = None
 
@@ -806,7 +820,10 @@ def show_authentication_page(auth: AuthUtils):
             unsafe_allow_html=True,
         )
 
-    st.markdown("<p style='text-align: center; color: #666; font-size: 0.95rem; margin-top: 1.5rem;'>Trusted by finance professionals preparing for CACS & CMFAS exams.</p>", unsafe_allow_html=True)
+    st.markdown(
+        "<p style='text-align: center; color: #666; font-size: 0.95rem; margin-top: 1.5rem;'>Trusted by finance professionals preparing for CACS & CMFAS exams.</p>",
+        unsafe_allow_html=True,
+    )
 
     st.markdown("---")
 
@@ -830,7 +847,10 @@ def show_authentication_page(auth: AuthUtils):
     )
 
     # Enhanced Login/Register tabs
-    st.markdown("<p style='text-align: center; color: #666; font-size: 0.9rem; margin-bottom: 0.5rem;'>No credit card needed to start.</p>", unsafe_allow_html=True)
+    st.markdown(
+        "<p style='text-align: center; color: #666; font-size: 0.9rem; margin-bottom: 0.5rem;'>No credit card needed to start.</p>",
+        unsafe_allow_html=True,
+    )
 
     tab1, tab2 = st.tabs(["🔑 Sign In", "✨ Start Free Trial"])
 
@@ -843,7 +863,8 @@ def show_authentication_page(auth: AuthUtils):
     # FAQ Section (collapsible)
     st.markdown("---")
     with st.expander("❓ FAQ"):
-        st.markdown("""
+        st.markdown(
+            """
 **Are these real exam questions?**
 No — they are AI-generated questions designed to mirror the style and difficulty of CACS/CMFAS papers.
 
@@ -855,7 +876,8 @@ Yes. You can request new exams directly from the dashboard.
 
 **How does the free trial work?**
 New users receive 1 free credit to try a full mock paper.
-""")
+"""
+        )
 
     # Help & Support footer
     st.markdown("---")
@@ -873,12 +895,15 @@ New users receive 1 free credit to try a full mock paper.
 
     # Footer with last updated timestamp and recent updates
     st.markdown("---")
-    from datetime import datetime
     import json
+    from datetime import datetime
     from pathlib import Path
 
     current_month_year = datetime.now().strftime("%B %Y")
-    st.markdown(f"<p style='text-align: center; color: #888; font-size: 0.8rem;'>Last updated: {current_month_year}</p>", unsafe_allow_html=True)
+    st.markdown(
+        f"<p style='text-align: center; color: #888; font-size: 0.8rem;'>Last updated: {current_month_year}</p>",
+        unsafe_allow_html=True,
+    )
 
     # Load and display recent updates
     try:
@@ -1403,8 +1428,12 @@ def show_authenticated_app(auth: AuthUtils):
     # Footer with last updated timestamp
     st.markdown("---")
     from datetime import datetime
+
     current_month_year = datetime.now().strftime("%B %Y")
-    st.markdown(f"<p style='text-align: center; color: #888; font-size: 0.8rem;'>Last updated: {current_month_year}</p>", unsafe_allow_html=True)
+    st.markdown(
+        f"<p style='text-align: center; color: #888; font-size: 0.8rem;'>Last updated: {current_month_year}</p>",
+        unsafe_allow_html=True,
+    )
 
 
 async def create_password_reset_ticket(ticket_data: Dict[str, Any]) -> Optional[str]:

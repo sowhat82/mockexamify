@@ -205,6 +205,13 @@ class StripeUtils:
             # Check if payment already processed
             existing_payment = await db.get_payment_by_session_id(session_id)
             if existing_payment and existing_payment.status == 'completed':
+                # Check if credits were added - if not, retry now
+                if hasattr(existing_payment, 'credits_added') and not existing_payment.credits_added:
+                    logger.info(f"Found completed payment without credits added, retrying for session {session_id}")
+                    success = await db.add_credits_to_user(user_id, credits_to_add)
+                    if success:
+                        await db.mark_payment_credits_added(session_id)
+                        logger.info(f"✅ Retry successful: Added {credits_to_add} credits to user {user_id}")
                 return True, None  # Already processed
 
             # Record payment in database as completed (Stripe payment succeeded)
@@ -226,22 +233,23 @@ class StripeUtils:
             # Set completed_at timestamp
             await db.update_payment_status(session_id, 'completed')
 
-            # Add credits to user account
+            # Add credits to user account with multiple retry attempts
             success = await db.add_credits_to_user(user_id, credits_to_add)
 
             if success:
+                # Mark credits as successfully added
+                await db.mark_payment_credits_added(session_id)
                 logger.info(f"✅ Payment successful: Added {credits_to_add} credits to user {user_id}")
                 return True, None
             else:
-                # Credits failed to add but payment is still recorded as completed
-                # This requires MANUAL INTERVENTION to credit the user
+                # Credits failed to add - will be retried by process_pending_credits
                 logger.error(
                     f"🚨 URGENT: Payment completed but credits NOT added!\n"
                     f"   User ID: {user_id}\n"
                     f"   Session ID: {session_id}\n"
                     f"   Credits owed: {credits_to_add}\n"
                     f"   Amount paid: ${amount_paid / 100}\n"
-                    f"   ACTION REQUIRED: Manually credit user's account"
+                    f"   Will be retried automatically by process_pending_credits()"
                 )
                 # Still return True because Stripe payment succeeded
                 return True, None

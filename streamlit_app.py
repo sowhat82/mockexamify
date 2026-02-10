@@ -653,6 +653,17 @@ def main():
     logger.info(f"[MAIN] Session state: {dict(st.session_state)}")
     logger.info("=" * 80 + "\n")
 
+    # Process any pending credits on startup (once per session)
+    if "pending_credits_checked" not in st.session_state:
+        st.session_state.pending_credits_checked = True
+        try:
+            from db import db
+            results = run_async(db.process_pending_credits())
+            if results["processed"] > 0:
+                logger.info(f"Pending credits check: {results['success']}/{results['processed']} processed successfully")
+        except Exception as e:
+            logger.error(f"Error checking pending credits: {e}")
+
     # Initialize session state
     if "page" not in st.session_state:
         st.session_state.page = "login"

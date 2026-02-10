@@ -1470,6 +1470,69 @@ class DatabaseManager:
             logger.error(f"Error updating payment status: {e}")
             return False
 
+    async def mark_payment_credits_added(self, session_id: str) -> bool:
+        """Mark that credits have been successfully added for a payment"""
+        try:
+            result = (
+                self.admin_client.table("payments")
+                .update({"credits_added": True})
+                .eq("stripe_session_id", session_id)
+                .execute()
+            )
+            return len(result.data) > 0
+        except Exception as e:
+            logger.error(f"Error marking payment credits_added: {e}")
+            return False
+
+    async def get_payments_missing_credits(self) -> list:
+        """Get all completed payments where credits were not added"""
+        try:
+            result = (
+                self.admin_client.table("payments")
+                .select("*")
+                .eq("status", "completed")
+                .execute()
+            )
+            # Filter for credits_added = False or NULL (column may not exist yet)
+            if result.data:
+                return [p for p in result.data if not p.get("credits_added", False)]
+            return []
+        except Exception as e:
+            logger.error(f"Error getting payments missing credits: {e}")
+            return []
+
+    async def process_pending_credits(self) -> dict:
+        """Process any payments where credits failed to add - call this on app startup"""
+        results = {"processed": 0, "success": 0, "failed": 0}
+        try:
+            pending = await self.get_payments_missing_credits()
+            if not pending:
+                return results
+
+            logger.info(f"Found {len(pending)} payments with missing credits")
+            results["processed"] = len(pending)
+
+            for payment in pending:
+                user_id = payment.get("user_id")
+                credits = payment.get("credits_purchased", 0)
+                session_id = payment.get("stripe_session_id")
+
+                logger.info(f"Retrying credit addition for session {session_id}: {credits} credits to user {user_id}")
+
+                success = await self.add_credits_to_user(user_id, credits)
+                if success:
+                    await self.mark_payment_credits_added(session_id)
+                    results["success"] += 1
+                    logger.info(f"✅ Successfully added {credits} credits for session {session_id}")
+                else:
+                    results["failed"] += 1
+                    logger.error(f"❌ Failed to add credits for session {session_id}")
+
+            return results
+        except Exception as e:
+            logger.error(f"Error processing pending credits: {e}")
+            return results
+
     async def add_credits_to_user(self, user_id: str, credits_to_add: int) -> bool:
         """Add credits to user account with retry logic"""
         max_retries = 3

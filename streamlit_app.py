@@ -17,18 +17,26 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Google Analytics
+# Google Analytics - inject into parent page's <head> from iframe
 import streamlit.components.v1 as components
 
 components.html(
     """
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-HFE418P4CD"></script>
     <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-HFE418P4CD');
+      // Inject GA script into parent document's head
+      var parent = window.parent.document;
+      if (!parent.getElementById('ga-tag')) {
+        var s1 = parent.createElement('script');
+        s1.id = 'ga-tag';
+        s1.async = true;
+        s1.src = 'https://www.googletagmanager.com/gtag/js?id=G-HFE418P4CD';
+        parent.head.appendChild(s1);
+
+        var s2 = parent.createElement('script');
+        s2.id = 'ga-config';
+        s2.textContent = "window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-HFE418P4CD');";
+        parent.head.appendChild(s2);
+      }
     </script>
     """,
     height=0,

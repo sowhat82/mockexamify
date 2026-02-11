@@ -245,3 +245,81 @@ def send_support_ticket_notification(
         body_html=html_body,
         body_text=text_body,
     )
+
+
+def send_payment_notification(
+    user_email: str,
+    credits_purchased: int,
+    amount: float,
+    session_id: str,
+) -> bool:
+    """
+    Send notification to admin when a credit purchase is completed.
+
+    Args:
+        user_email: Email of the user who purchased credits
+        credits_purchased: Number of credits purchased
+        amount: Amount paid
+        session_id: Stripe session ID
+
+    Returns:
+        True if notification sent successfully
+    """
+    html_body = f"""
+    <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background: linear-gradient(135deg, #4caf50 0%, #2e7d32 100%);
+                            color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+                    <h2>💰 New Credit Purchase</h2>
+                    <p>A user has purchased credits on WantAMock</p>
+                </div>
+                <div style="background: #f9f9f9; padding: 20px; border-radius: 0 0 8px 8px;">
+                    <div style="margin-bottom: 15px;">
+                        <div style="font-weight: bold; color: #4caf50;">User:</div>
+                        <div style="margin-top: 5px; padding: 10px; background: white;
+                                    border-radius: 4px; border-left: 3px solid #4caf50;">{user_email}</div>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <div style="font-weight: bold; color: #4caf50;">Credits Purchased:</div>
+                        <div style="margin-top: 5px; padding: 10px; background: white;
+                                    border-radius: 4px; border-left: 3px solid #4caf50;">{credits_purchased}</div>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <div style="font-weight: bold; color: #4caf50;">Amount Paid:</div>
+                        <div style="margin-top: 5px; padding: 10px; background: white;
+                                    border-radius: 4px; border-left: 3px solid #4caf50;">S${amount:.2f}</div>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <div style="font-weight: bold; color: #4caf50;">Stripe Session:</div>
+                        <div style="margin-top: 5px; padding: 10px; background: white;
+                                    border-radius: 4px; border-left: 3px solid #4caf50; font-size: 12px;">{session_id}</div>
+                    </div>
+                    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd;
+                                font-size: 12px; color: #666;">
+                        <p>This is an automated notification from WantAMock.</p>
+                    </div>
+                </div>
+            </div>
+        </body>
+    </html>
+    """
+
+    text_body = f"""
+    New Credit Purchase on WantAMock
+
+    User: {user_email}
+    Credits Purchased: {credits_purchased}
+    Amount Paid: S${amount:.2f}
+    Stripe Session: {session_id}
+
+    ---
+    This is an automated notification from WantAMock.
+    """
+
+    return send_email(
+        to_email=ADMIN_EMAIL,
+        subject=f"💰 Credit Purchase: {user_email} bought {credits_purchased} credits (S${amount:.2f})",
+        body_html=html_body,
+        body_text=text_body,
+    )

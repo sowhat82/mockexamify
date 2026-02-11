@@ -240,6 +240,17 @@ class StripeUtils:
                 # Mark credits as successfully added
                 await db.mark_payment_credits_added(session_id)
                 logger.info(f"✅ Payment successful: Added {credits_to_add} credits to user {user_id}")
+
+                # Send email notification to admin
+                try:
+                    from email_utils import send_payment_notification
+                    # Get user email for notification
+                    user_result = db.admin_client.table("users").select("email").eq("id", user_id).execute()
+                    user_email = user_result.data[0]["email"] if user_result.data else user_id
+                    send_payment_notification(user_email, credits_to_add, amount_paid / 100, session_id)
+                except Exception as email_err:
+                    logger.error(f"Failed to send payment notification email: {email_err}")
+
                 return True, None
             else:
                 # Credits failed to add - will be retried by process_pending_credits

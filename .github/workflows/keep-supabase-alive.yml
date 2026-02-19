@@ -2,8 +2,8 @@ name: Keep Supabase Alive
 
 on:
   schedule:
-    # Run every 3 days at 8am UTC
-    - cron: '0 8 */3 * *'
+    # Run daily at 8am UTC
+    - cron: '0 8 * * *'
   workflow_dispatch: # Allow manual trigger
 
 jobs:
@@ -16,16 +16,28 @@ jobs:
             echo "ERROR: SUPABASE_URL secret is not set"
             exit 1
           fi
-          if [ -z "${{ secrets.SUPABASE_KEY }}" ]; then
-            echo "ERROR: SUPABASE_KEY secret is not set"
-            exit 1
+          if [ -z "${{ secrets.SUPABASE_SERVICE_KEY }}" ]; then
+            echo "WARNING: SUPABASE_SERVICE_KEY not set, falling back to anon key"
+            SB_KEY="${{ secrets.SUPABASE_KEY }}"
+          else
+            SB_KEY="${{ secrets.SUPABASE_SERVICE_KEY }}"
           fi
 
+          # Write operation (insert + delete) to count as real activity
+          echo "Writing keepalive record..."
+          curl -s -X POST \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/rpc/keepalive" \
+            -H "apikey: $SB_KEY" \
+            -H "Authorization: Bearer $SB_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{}' || true
+
+          # Fallback: read operation
           echo "Pinging Supabase..."
           response=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
             "${{ secrets.SUPABASE_URL }}/rest/v1/question_pools?select=id&limit=1" \
-            -H "apikey: ${{ secrets.SUPABASE_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_KEY }}")
+            -H "apikey: $SB_KEY" \
+            -H "Authorization: Bearer $SB_KEY")
 
           if [ "$response" = "200" ]; then
             echo "Supabase ping successful (HTTP $response)"

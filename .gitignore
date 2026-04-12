@@ -75,6 +75,8 @@ logs/
 
 # Demo data persistence
 .demo_tickets.json
+.demo_credits.json
+.demo_payments.json
 
 # API keys and secrets
 secrets.json

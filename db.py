@@ -51,6 +51,33 @@ def save_demo_tickets():
 DEMO_TICKETS = load_demo_tickets()
 logger.info(f"Loaded {len(DEMO_TICKETS)} demo tickets from persistent storage")
 
+# Persistent storage for demo payments (keyed by stripe_session_id)
+# This prevents double-processing test payments across server restarts
+DEMO_PAYMENTS_FILE = ".demo_payments.json"
+
+
+def load_demo_payments() -> dict:
+    """Load demo payments from persistent storage"""
+    try:
+        with open(DEMO_PAYMENTS_FILE, "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def save_demo_payments():
+    """Save demo payments to persistent storage"""
+    try:
+        with open(DEMO_PAYMENTS_FILE, "w") as f:
+            json.dump(DEMO_PAYMENTS, f, indent=2)
+    except Exception as e:
+        logger.error(f"Error saving demo payments: {e}")
+
+
+# Dict keyed by stripe_session_id for O(1) lookup
+DEMO_PAYMENTS: dict = load_demo_payments()
+logger.info(f"Loaded {len(DEMO_PAYMENTS)} demo payments from persistent storage")
+
 DEMO_USERS = {
     "admin@mockexamify.com": {
         "id": "admin-demo-id",
@@ -101,6 +128,38 @@ DEMO_USERS = {
         "created_at": datetime.now(timezone.utc).isoformat(),
     },
 }
+
+# Persistent storage for demo user credits (survives server restarts)
+DEMO_CREDITS_FILE = ".demo_credits.json"
+
+
+def load_demo_credits():
+    """Load demo user credit balances from persistent storage and apply to DEMO_USERS."""
+    try:
+        with open(DEMO_CREDITS_FILE, "r") as f:
+            saved = json.load(f)
+        for email, credits in saved.items():
+            if email in DEMO_USERS:
+                DEMO_USERS[email]["credits_balance"] = credits
+        logger.info(f"Loaded demo credits from {DEMO_CREDITS_FILE}: {saved}")
+    except FileNotFoundError:
+        pass  # First run — no saved credits yet
+    except Exception as e:
+        logger.error(f"Error loading demo credits: {e}")
+
+
+def save_demo_credits():
+    """Save current DEMO_USERS credit balances to persistent storage."""
+    try:
+        credits = {email: data["credits_balance"] for email, data in DEMO_USERS.items()}
+        with open(DEMO_CREDITS_FILE, "w") as f:
+            json.dump(credits, f, indent=2)
+    except Exception as e:
+        logger.error(f"Error saving demo credits: {e}")
+
+
+# Apply saved credits on module load so demo users retain balances across restarts
+load_demo_credits()
 
 DEMO_MOCKS = {
     "demo-mock-001": {
@@ -196,6 +255,7 @@ class DatabaseManager:
         }
 
         DEMO_USERS[email] = user_data
+        save_demo_credits()
 
         return User(
             id=user_data["id"],
@@ -1382,17 +1442,21 @@ class DatabaseManager:
             is_demo_user = user_id in ["student-demo-id", "admin-demo-id", "demo-user-id"]
 
             if self.demo_mode or is_demo_user:
-                # Demo mode or demo user - just return a mock payment
-                logger.info(f"Creating mock payment for demo user: {user_id}")
-                return {
-                    "id": f"demo-payment-{len(DEMO_ATTEMPTS)}",
+                # Demo mode or demo user — store in DEMO_PAYMENTS so we can detect duplicates
+                payment_record = {
+                    "id": f"demo-payment-{stripe_session_id}",
                     "user_id": user_id,
                     "stripe_session_id": stripe_session_id,
                     "amount": amount,
                     "credits_purchased": credits_purchased,
                     "status": status,
+                    "credits_added": False,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
+                DEMO_PAYMENTS[stripe_session_id] = payment_record
+                save_demo_payments()
+                logger.info(f"Saved demo payment for session {stripe_session_id}")
+                return payment_record
 
             # Use admin client to bypass RLS policies
             result = (
@@ -1426,8 +1490,11 @@ class DatabaseManager:
             is_demo_session = session_id.startswith("cs_test_") or self.demo_mode
 
             if is_demo_session:
-                # Demo mode or test session - return None (no existing payments)
-                logger.info(f"Demo/test session detected: {session_id}")
+                # Check persisted demo payments to prevent double-processing
+                if session_id in DEMO_PAYMENTS:
+                    logger.info(f"Found existing demo payment for session {session_id}")
+                    return DEMO_PAYMENTS[session_id]
+                logger.info(f"New demo/test session (not yet recorded): {session_id}")
                 return None
 
             # Use admin client to bypass RLS policies
@@ -1473,6 +1540,13 @@ class DatabaseManager:
     async def mark_payment_credits_added(self, session_id: str) -> bool:
         """Mark that credits have been successfully added for a payment"""
         try:
+            # Handle demo payments
+            if session_id in DEMO_PAYMENTS:
+                DEMO_PAYMENTS[session_id]["credits_added"] = True
+                DEMO_PAYMENTS[session_id]["status"] = "completed"
+                save_demo_payments()
+                return True
+
             result = (
                 self.admin_client.table("payments")
                 .update({"credits_added": True})
@@ -1544,6 +1618,7 @@ class DatabaseManager:
                 for email, user_data in DEMO_USERS.items():
                     if user_data["id"] == user_id:
                         user_data["credits_balance"] += credits_to_add
+                        save_demo_credits()
                         logger.info(
                             f"Demo user {email} credits added: +{credits_to_add}, new balance: {user_data['credits_balance']}"
                         )
@@ -1632,6 +1707,7 @@ class DatabaseManager:
                     logger.info(f"Found demo user: {email}")
                     if user_data["credits_balance"] >= credits_to_deduct:
                         user_data["credits_balance"] -= credits_to_deduct
+                        save_demo_credits()
                         logger.info(
                             f"Demo user credits deducted. New balance: {user_data['credits_balance']}"
                         )

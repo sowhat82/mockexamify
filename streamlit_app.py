@@ -1013,26 +1013,30 @@ def show_enhanced_login_form(auth: AuthUtils):
 
             with col1:
                 if st.button("👨‍💼 Login as Admin", use_container_width=True, type="secondary"):
-                    # Auto-login as admin
+                    # Auto-login as admin — read live credits from DEMO_USERS
+                    from db import DEMO_USERS
+                    admin_data = DEMO_USERS.get("admin@mockexamify.com", {})
                     st.session_state.authenticated = True
                     st.session_state.current_user = {
-                        "id": "admin-demo-id",
+                        "id": admin_data.get("id", "admin-demo-id"),
                         "email": "admin@mockexamify.com",
-                        "role": "admin",
-                        "credits_balance": 100,
+                        "role": admin_data.get("role", "admin"),
+                        "credits_balance": admin_data.get("credits_balance", 100),
                     }
                     st.session_state.page = "dashboard"
                     st.rerun()
 
             with col2:
                 if st.button("👨‍🎓 Login as Student", use_container_width=True, type="secondary"):
-                    # Auto-login as student
+                    # Auto-login as student — read live credits from DEMO_USERS
+                    from db import DEMO_USERS
+                    student_data = DEMO_USERS.get("student@test.com", {})
                     st.session_state.authenticated = True
                     st.session_state.current_user = {
-                        "id": "student-demo-id",
+                        "id": student_data.get("id", "student-demo-id"),
                         "email": "student@test.com",
-                        "role": "user",
-                        "credits_balance": 3,
+                        "role": student_data.get("role", "user"),
+                        "credits_balance": student_data.get("credits_balance", 0),
                     }
                     st.session_state.page = "dashboard"
                     st.rerun()

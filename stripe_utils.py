@@ -286,6 +286,131 @@ class StripeUtils:
             # Still return True because Stripe payment succeeded
             return True, None
     
+    async def reconcile_stripe_payments(self, days_back: int = 7) -> Dict[str, Any]:
+        """
+        Reconcile Stripe payments against database records.
+
+        Queries Stripe for recent completed checkout sessions and creates missing
+        payment records + adds credits for any sessions not yet in the database.
+        This recovers from cases where the user's browser didn't return to the app
+        after completing payment.
+
+        Returns: dict with counts of found/new/processed/failed sessions
+        """
+        from db import db
+
+        results = {
+            "sessions_checked": 0,
+            "already_recorded": 0,
+            "newly_processed": 0,
+            "failed": 0,
+            "skipped": 0,
+            "errors": [],
+        }
+
+        try:
+            from datetime import datetime, timedelta, timezone
+            cutoff_time = datetime.now(timezone.utc) - timedelta(days=days_back)
+            cutoff_unix = int(cutoff_time.timestamp())
+
+            # Fetch completed checkout sessions from Stripe
+            sessions = stripe.checkout.Session.list(
+                limit=100,
+                created={"gte": cutoff_unix},
+            )
+
+            for session in sessions.auto_paging_iter():
+                results["sessions_checked"] += 1
+
+                # Only process paid sessions
+                if session.payment_status != "paid":
+                    results["skipped"] += 1
+                    continue
+
+                session_id = session.id
+
+                # Skip test sessions in production
+                if session_id.startswith("cs_test_"):
+                    results["skipped"] += 1
+                    continue
+
+                # Check if already in our database
+                existing = await db.get_payment_by_session_id(session_id)
+                if existing:
+                    results["already_recorded"] += 1
+                    continue
+
+                # New session not in database — recover it
+                user_id = session.metadata.get("user_id") if session.metadata else None
+                package_key = session.metadata.get("package_key") if session.metadata else None
+                credits_str = session.metadata.get("credits") if session.metadata else None
+                credits_to_add = int(credits_str) if credits_str else 0
+                amount_paid = session.amount_total or 0
+                customer_email = session.customer_details.email if session.customer_details else None
+
+                # If user_id is missing from metadata, try to find user by email
+                if not user_id and customer_email:
+                    try:
+                        user_result = db.admin_client.table("users").select("id").eq("email", customer_email).execute()
+                        if user_result.data:
+                            user_id = user_result.data[0]["id"]
+                            logger.info(f"[RECONCILE] Recovered user_id {user_id} from email {customer_email} for session {session_id}")
+                    except Exception as lookup_err:
+                        logger.error(f"[RECONCILE] Failed to look up user by email {customer_email}: {lookup_err}")
+
+                if not user_id or not credits_to_add:
+                    msg = (
+                        f"Session {session_id}: cannot recover - "
+                        f"user_id={user_id}, credits={credits_to_add}, email={customer_email}"
+                    )
+                    logger.error(f"[RECONCILE] {msg}")
+                    results["errors"].append(msg)
+                    results["failed"] += 1
+                    continue
+
+                # Build session_data and process via the existing payment processor
+                session_data = {
+                    "session_id": session_id,
+                    "user_id": user_id,
+                    "package_key": package_key,
+                    "credits": credits_to_add,
+                    "amount_paid": amount_paid,
+                    "customer_email": customer_email,
+                }
+
+                logger.info(
+                    f"[RECONCILE] Processing missing payment: session={session_id}, "
+                    f"user={user_id}, credits={credits_to_add}, amount={amount_paid / 100:.2f}"
+                )
+
+                success, error = await self.process_successful_payment(session_data)
+                if success:
+                    results["newly_processed"] += 1
+                    logger.info(f"[RECONCILE] ✅ Recovered session {session_id}")
+                else:
+                    results["failed"] += 1
+                    msg = f"Session {session_id}: process_successful_payment failed - {error}"
+                    results["errors"].append(msg)
+                    logger.error(f"[RECONCILE] ❌ {msg}")
+
+        except stripe.StripeError as e:
+            msg = f"Stripe API error during reconciliation: {e}"
+            logger.error(f"[RECONCILE] {msg}")
+            results["errors"].append(msg)
+        except Exception as e:
+            msg = f"Unexpected error during reconciliation: {e}"
+            logger.error(f"[RECONCILE] {msg}", exc_info=True)
+            results["errors"].append(msg)
+
+        logger.info(
+            f"[RECONCILE] Done. checked={results['sessions_checked']}, "
+            f"recorded={results['already_recorded']}, "
+            f"new={results['newly_processed']}, "
+            f"failed={results['failed']}, "
+            f"skipped={results['skipped']}"
+        )
+        return results
+
     def get_package_by_key(self, package_key: str) -> Optional[Dict]:
         """Get package details by key"""
         return self.credit_packages.get(package_key)

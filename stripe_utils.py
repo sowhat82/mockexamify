@@ -423,26 +423,59 @@ class StripeUtils:
         self, user_email: str, user_id: str, days_back: int = 7
     ) -> int:
         """
-        Check Stripe for any completed payments for this user that were never
-        recorded in the database (e.g. browser closed before returning to app).
-        Processes them immediately so credits appear before the dashboard renders.
+        Recover any credits this user is owed but hasn't received. Covers two cases:
 
-        Returns: number of credits recovered (0 if nothing was missing)
+        Case A — payment completed in Stripe but browser never returned to the app,
+                  so no DB record exists at all.
+        Case B — browser did return, DB record was created, but add_credits_to_user()
+                  failed transiently, leaving credits_added=False.
+
+        Runs once per browser session before the dashboard renders.
+        Returns: total credits recovered (0 if nothing was missing)
         """
         from db import db
 
+        credits_recovered = 0
+
+        # ── Case B: DB record exists but credits were never added ────────────────
+        # This happens when process_successful_payment() hit a transient DB error
+        # after recording the payment but before (or during) add_credits_to_user().
+        try:
+            pending = await db.get_user_payments_missing_credits(user_id)
+            for payment in pending:
+                session_id = payment.get("stripe_session_id")
+                credits = payment.get("credits_purchased", 0)
+                if not session_id or not credits:
+                    continue
+                logger.warning(
+                    f"[USER-RECON] Case B: payment recorded but credits not added "
+                    f"for {user_email}: session={session_id}, credits={credits}"
+                )
+                success = await db.add_credits_to_user(user_id, credits)
+                if success:
+                    await db.mark_payment_credits_added(session_id)
+                    credits_recovered += credits
+                    logger.warning(
+                        f"[USER-RECON] ✅ Case B recovered {credits} credits for {user_email}"
+                    )
+                else:
+                    logger.error(
+                        f"[USER-RECON] ❌ Case B retry failed for session {session_id}"
+                    )
+        except Exception as e:
+            logger.error(f"[USER-RECON] Case B error for {user_email}: {type(e).__name__}: {e}")
+
+        # ── Case A: Stripe shows paid but no DB record at all ────────────────────
+        # This happens when the user closed the browser before returning to the app.
         try:
             from datetime import datetime, timedelta, timezone
             cutoff_unix = int((datetime.now(timezone.utc) - timedelta(days=days_back)).timestamp())
 
-            # Query only this user's sessions — fast and targeted
             sessions = stripe.checkout.Session.list(
                 customer_email=user_email,
                 limit=20,
                 created={"gte": cutoff_unix},
             )
-
-            credits_recovered = 0
 
             for session in sessions.data:
                 if session.payment_status != "paid":
@@ -450,12 +483,12 @@ class StripeUtils:
                 if session.id.startswith("cs_test_"):
                     continue
 
-                # Already in database — skip
                 existing = await db.get_payment_by_session_id(session.id)
                 if existing:
+                    # Already in DB — Case B above already handled any missing credits
                     continue
 
-                # Missing payment — recover it
+                # No DB record at all — full recovery needed
                 metadata = session.metadata or {}
                 credits_str = metadata.get("credits")
                 credits_to_add = int(credits_str) if credits_str else 0
@@ -470,6 +503,11 @@ class StripeUtils:
                     )
                     continue
 
+                logger.warning(
+                    f"[USER-RECON] Case A: no DB record for paid session "
+                    f"{session.id} ({user_email}, {credits_to_add} credits)"
+                )
+
                 session_data = {
                     "session_id": session.id,
                     "user_id": session_user_id,
@@ -479,23 +517,17 @@ class StripeUtils:
                     "customer_email": user_email,
                 }
 
-                logger.warning(
-                    f"[USER-RECON] Recovering missed payment for {user_email}: "
-                    f"session={session.id}, credits={credits_to_add}"
-                )
-
                 success, _ = await self.process_successful_payment(session_data)
                 if success:
                     credits_recovered += credits_to_add
                     logger.warning(
-                        f"[USER-RECON] ✅ Recovered {credits_to_add} credits for {user_email}"
+                        f"[USER-RECON] ✅ Case A recovered {credits_to_add} credits for {user_email}"
                     )
 
-            return credits_recovered
-
         except Exception as e:
-            logger.error(f"[USER-RECON] Error for {user_email}: {type(e).__name__}: {e}")
-            return 0
+            logger.error(f"[USER-RECON] Case A error for {user_email}: {type(e).__name__}: {e}")
+
+        return credits_recovered
 
     def get_package_by_key(self, package_key: str) -> Optional[Dict]:
         """Get package details by key"""

@@ -1573,6 +1573,23 @@ class DatabaseManager:
             return []
         except Exception as e:
             logger.error(f"Error getting payments missing credits: {e}")
+
+    async def get_user_payments_missing_credits(self, user_id: str) -> list:
+        """Get completed payments for a specific user where credits were not added"""
+        try:
+            result = (
+                self.admin_client.table("payments")
+                .select("*")
+                .eq("user_id", user_id)
+                .eq("status", "completed")
+                .execute()
+            )
+            if result.data:
+                return [p for p in result.data if not p.get("credits_added", False)]
+            return []
+        except Exception as e:
+            logger.error(f"Error getting user payments missing credits for {user_id}: {e}")
+            return []
             return []
 
     async def process_pending_credits(self) -> dict:

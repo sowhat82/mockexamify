@@ -73,8 +73,6 @@ from typing import Any, Dict, Optional
 import config
 from auth_utils import AuthUtils, run_async, validate_email, validate_password
 
-# Module-level flag: Stripe reconciliation runs once per server process startup
-_stripe_reconciliation_done = False
 
 # ...existing code...
 
@@ -700,31 +698,6 @@ def main():
                 )
         except Exception as e:
             logger.error(f"Error checking pending credits: {e}")
-
-    # Stripe reconciliation: run once per server process startup to recover any payments
-    # where the user's browser never returned to the app after completing payment.
-    global _stripe_reconciliation_done
-    if not _stripe_reconciliation_done:
-        _stripe_reconciliation_done = True
-        try:
-            from stripe_utils import init_stripe_utils
-
-            stripe_utils = init_stripe_utils()
-            if stripe_utils:
-                recon_results = run_async(stripe_utils.reconcile_stripe_payments(days_back=7))
-                if recon_results.get("newly_processed", 0) > 0:
-                    logger.warning(
-                        f"[RECONCILE] ⚠️ Recovered {recon_results['newly_processed']} unprocessed "
-                        f"Stripe payment(s) on startup!"
-                    )
-                else:
-                    logger.info(
-                        f"[RECONCILE] Startup check OK - "
-                        f"{recon_results['sessions_checked']} sessions checked, "
-                        f"0 missing."
-                    )
-        except Exception as e:
-            logger.error(f"Error during Stripe reconciliation: {e}")
 
     # Initialize session state
     if "page" not in st.session_state:

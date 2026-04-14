@@ -209,55 +209,6 @@ def show_admin_dashboard():
             """
             )
 
-        # Payment Reconciliation Tool
-        st.markdown("---")
-        st.markdown("## 💳 Payment Reconciliation")
-        st.markdown(
-            "Checks Stripe for completed payments not yet recorded in the database "
-            "(e.g. user's browser closed before returning to app after payment)."
-        )
-
-        col_btn, col_days, col_spacer = st.columns([2, 1, 3])
-        with col_days:
-            days_back = st.number_input(
-                "Days to check", min_value=1, max_value=30, value=7, key="recon_days"
-            )
-        with col_btn:
-            st.markdown("<div style='margin-top:28px'></div>", unsafe_allow_html=True)
-            if st.button("🔄 Run Reconciliation", key="run_reconciliation"):
-                try:
-                    from stripe_utils import init_stripe_utils
-
-                    stripe_utils = init_stripe_utils()
-                    if not stripe_utils:
-                        st.error("Stripe not configured")
-                    else:
-                        with st.spinner("Checking Stripe for unprocessed payments..."):
-                            recon_results = run_async(
-                                stripe_utils.reconcile_stripe_payments(days_back=int(days_back))
-                            )
-
-                        if recon_results.get("newly_processed", 0) > 0:
-                            st.success(
-                                f"✅ Recovered **{recon_results['newly_processed']}** unprocessed payment(s)!"
-                            )
-                        else:
-                            st.success("✅ All payments are up to date — nothing missing.")
-
-                        st.markdown(
-                            f"- Sessions checked: **{recon_results['sessions_checked']}**  \n"
-                            f"- Already recorded: **{recon_results['already_recorded']}**  \n"
-                            f"- Newly processed: **{recon_results['newly_processed']}**  \n"
-                            f"- Skipped (test/unpaid): **{recon_results['skipped']}**  \n"
-                            f"- Failed: **{recon_results['failed']}**"
-                        )
-
-                        if recon_results.get("errors"):
-                            with st.expander("Errors"):
-                                for err in recon_results["errors"]:
-                                    st.error(err)
-                except Exception as recon_err:
-                    st.error(f"Reconciliation failed: {recon_err}")
 
     except Exception as e:
         st.error(f"Error loading dashboard: {e}")

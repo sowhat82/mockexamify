@@ -62,6 +62,28 @@ def show_dashboard():
         st.error("User data not found")
         st.stop()
 
+    # Silently recover any missed Stripe payments for this user (once per session).
+    # This fixes the case where the user paid but their browser never returned to the app.
+    _recon_key = f"payment_recon_done_{user.get('id')}"
+    if not st.session_state.get(_recon_key):
+        st.session_state[_recon_key] = True
+        try:
+            from stripe_utils import init_stripe_utils
+            _stripe = init_stripe_utils()
+            if _stripe and user.get("email") and not user.get("id", "").startswith("student-demo") and not user.get("id", "").startswith("admin-demo") and not user.get("id", "").startswith("demo-"):
+                _recovered = run_async(
+                    _stripe.reconcile_user_payments(user["email"], user["id"])
+                )
+                if _recovered > 0:
+                    # Refresh balance from DB so the correct value shows immediately
+                    from db import db
+                    refreshed = run_async(db.get_user_by_id(user["id"]))
+                    if refreshed:
+                        st.session_state.current_user["credits_balance"] = refreshed.credits_balance
+                        user = st.session_state.current_user
+        except Exception:
+            pass  # Never block dashboard load for this
+
     # Large app name header
     #    st.markdown(
     #      '<div style="font-size:4rem; font-weight:900; color:#fff; margin-bottom:1.5rem;">🎯 WantAMock</div>',

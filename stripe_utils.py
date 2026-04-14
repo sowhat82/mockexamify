@@ -419,6 +419,84 @@ class StripeUtils:
         )
         return results
 
+    async def reconcile_user_payments(
+        self, user_email: str, user_id: str, days_back: int = 7
+    ) -> int:
+        """
+        Check Stripe for any completed payments for this user that were never
+        recorded in the database (e.g. browser closed before returning to app).
+        Processes them immediately so credits appear before the dashboard renders.
+
+        Returns: number of credits recovered (0 if nothing was missing)
+        """
+        from db import db
+
+        try:
+            from datetime import datetime, timedelta, timezone
+            cutoff_unix = int((datetime.now(timezone.utc) - timedelta(days=days_back)).timestamp())
+
+            # Query only this user's sessions — fast and targeted
+            sessions = stripe.checkout.Session.list(
+                customer_email=user_email,
+                limit=20,
+                created={"gte": cutoff_unix},
+            )
+
+            credits_recovered = 0
+
+            for session in sessions.data:
+                if session.payment_status != "paid":
+                    continue
+                if session.id.startswith("cs_test_"):
+                    continue
+
+                # Already in database — skip
+                existing = await db.get_payment_by_session_id(session.id)
+                if existing:
+                    continue
+
+                # Missing payment — recover it
+                metadata = session.metadata or {}
+                credits_str = metadata.get("credits")
+                credits_to_add = int(credits_str) if credits_str else 0
+                session_user_id = metadata.get("user_id") or user_id
+                package_key = metadata.get("package_key")
+                amount_paid = session.amount_total or 0
+
+                if not session_user_id or not credits_to_add:
+                    logger.error(
+                        f"[USER-RECON] Cannot recover session {session.id}: "
+                        f"user_id={session_user_id}, credits={credits_to_add}"
+                    )
+                    continue
+
+                session_data = {
+                    "session_id": session.id,
+                    "user_id": session_user_id,
+                    "package_key": package_key,
+                    "credits": credits_to_add,
+                    "amount_paid": amount_paid,
+                    "customer_email": user_email,
+                }
+
+                logger.warning(
+                    f"[USER-RECON] Recovering missed payment for {user_email}: "
+                    f"session={session.id}, credits={credits_to_add}"
+                )
+
+                success, _ = await self.process_successful_payment(session_data)
+                if success:
+                    credits_recovered += credits_to_add
+                    logger.warning(
+                        f"[USER-RECON] ✅ Recovered {credits_to_add} credits for {user_email}"
+                    )
+
+            return credits_recovered
+
+        except Exception as e:
+            logger.error(f"[USER-RECON] Error for {user_email}: {type(e).__name__}: {e}")
+            return 0
+
     def get_package_by_key(self, package_key: str) -> Optional[Dict]:
         """Get package details by key"""
         return self.credit_packages.get(package_key)

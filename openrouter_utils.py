@@ -238,8 +238,9 @@ class OpenRouterManager:
         Detect and fix common typos (UAT only - not production).
         Returns dict with fixed_question, fixed_choices, changes_made, has_changes.
         """
-        import config
         import re
+
+        import config
 
         # Temporarily enabled for production testing
         # TODO: Re-enable this check after UAT testing complete
@@ -250,7 +251,6 @@ class OpenRouterManager:
         #         'changes_made': {},
         #         'has_changes': False
         #     }
-
         # Common typo patterns from document_parser
         TYPO_PATTERNS = [
             (r"\bajoint\b", "a joint"),
@@ -280,11 +280,13 @@ class OpenRouterManager:
             if matches:
                 for match in matches:
                     original = match.group(0)
-                    fixed_question = re.sub(pattern, replacement, fixed_question, flags=re.IGNORECASE)
+                    fixed_question = re.sub(
+                        pattern, replacement, fixed_question, flags=re.IGNORECASE
+                    )
 
-                    if 'question' not in changes_made:
-                        changes_made['question'] = []
-                    changes_made['question'].append(f"Fixed typo: '{original}' → '{replacement}'")
+                    if "question" not in changes_made:
+                        changes_made["question"] = []
+                    changes_made["question"].append(f"Fixed typo: '{original}' → '{replacement}'")
                     has_changes = True
 
         # Fix choices
@@ -295,22 +297,26 @@ class OpenRouterManager:
                 if matches:
                     for match in matches:
                         original = match.group(0)
-                        fixed_choice = re.sub(pattern, replacement, fixed_choice, flags=re.IGNORECASE)
+                        fixed_choice = re.sub(
+                            pattern, replacement, fixed_choice, flags=re.IGNORECASE
+                        )
 
-                        if 'choices' not in changes_made:
-                            changes_made['choices'] = {}
-                        if i not in changes_made['choices']:
-                            changes_made['choices'][i] = []
-                        changes_made['choices'][i].append(f"Fixed typo: '{original}' → '{replacement}'")
+                        if "choices" not in changes_made:
+                            changes_made["choices"] = {}
+                        if i not in changes_made["choices"]:
+                            changes_made["choices"][i] = []
+                        changes_made["choices"][i].append(
+                            f"Fixed typo: '{original}' → '{replacement}'"
+                        )
                         has_changes = True
 
             fixed_choices[i] = fixed_choice
 
         return {
-            'fixed_question': fixed_question,
-            'fixed_choices': fixed_choices,
-            'changes_made': changes_made,
-            'has_changes': has_changes
+            "fixed_question": fixed_question,
+            "fixed_choices": fixed_choices,
+            "changes_made": changes_made,
+            "has_changes": has_changes,
         }
 
     async def fix_question_errors(
@@ -319,7 +325,8 @@ class OpenRouterManager:
         choices: List[str],
         correct_answer: Optional[int] = None,
         validate_answer: bool = True,
-        scenario: str = ""
+        scenario: str = "",
+        explanation: str = "",
     ) -> Dict[str, Any]:
         """
         Conservative AI fix for OCR errors, typos, grammar issues, and incorrect answers.
@@ -330,6 +337,7 @@ class OpenRouterManager:
             correct_answer: Index of claimed correct answer (for validation)
             validate_answer: Whether to validate and potentially fix the correct answer
             scenario: Optional scenario/context for answer validation
+            explanation: Existing explanation text (used to detect answer/explanation mismatches)
 
         Returns:
             Dict with keys:
@@ -363,40 +371,47 @@ class OpenRouterManager:
 
             # Step 2: Merge typo fixes with AI fixes (SIMPLIFIED)
             # Start with AI's result, then overlay typo fixes
-            final_question = fix_result.get('fixed_question', question_text)
-            final_choices = fix_result.get('fixed_choices', choices).copy()
+            final_question = fix_result.get("fixed_question", question_text)
+            final_choices = fix_result.get("fixed_choices", choices).copy()
 
             # Apply typo fixes (these will override AI fixes if both exist for same text)
-            if typo_fixes['has_changes']:
+            if typo_fixes["has_changes"]:
                 # Apply typo-fixed question
-                if typo_fixes['fixed_question'] != question_text:
-                    final_question = typo_fixes['fixed_question']
+                if typo_fixes["fixed_question"] != question_text:
+                    final_question = typo_fixes["fixed_question"]
 
                     # Add typo changes to the log
-                    if 'question' in typo_fixes['changes_made']:
-                        if 'question' not in fix_result['changes_made']:
-                            fix_result['changes_made']['question'] = []
+                    if "question" in typo_fixes["changes_made"]:
+                        if "question" not in fix_result["changes_made"]:
+                            fix_result["changes_made"]["question"] = []
                         # Prepend typo fixes so they appear first
-                        fix_result['changes_made']['question'] = typo_fixes['changes_made']['question'] + fix_result['changes_made']['question']
+                        fix_result["changes_made"]["question"] = (
+                            typo_fixes["changes_made"]["question"]
+                            + fix_result["changes_made"]["question"]
+                        )
 
                 # Apply typo-fixed choices
-                if 'choices' in typo_fixes['changes_made']:
-                    for idx, typo_changes in typo_fixes['changes_made']['choices'].items():
+                if "choices" in typo_fixes["changes_made"]:
+                    for idx, typo_changes in typo_fixes["changes_made"]["choices"].items():
                         # Apply the typo-fixed choice
-                        final_choices[idx] = typo_fixes['fixed_choices'][idx]
+                        final_choices[idx] = typo_fixes["fixed_choices"][idx]
 
                         # Add to change log
-                        if 'choices' not in fix_result['changes_made']:
-                            fix_result['changes_made']['choices'] = {}
-                        if idx not in fix_result['changes_made']['choices']:
-                            fix_result['changes_made']['choices'][idx] = []
+                        if "choices" not in fix_result["changes_made"]:
+                            fix_result["changes_made"]["choices"] = {}
+                        if idx not in fix_result["changes_made"]["choices"]:
+                            fix_result["changes_made"]["choices"][idx] = []
                         # Prepend typo fixes
-                        fix_result['changes_made']['choices'][idx] = typo_changes + fix_result['changes_made']['choices'][idx]
+                        fix_result["changes_made"]["choices"][idx] = (
+                            typo_changes + fix_result["changes_made"]["choices"][idx]
+                        )
 
             # Update result
-            fix_result['fixed_question'] = final_question
-            fix_result['fixed_choices'] = final_choices
-            fix_result['has_changes'] = typo_fixes['has_changes'] or fix_result.get('has_changes', False)
+            fix_result["fixed_question"] = final_question
+            fix_result["fixed_choices"] = final_choices
+            fix_result["has_changes"] = typo_fixes["has_changes"] or fix_result.get(
+                "has_changes", False
+            )
 
             # Step 2: Validate answer correctness if requested
             if validate_answer and correct_answer is not None:
@@ -425,13 +440,15 @@ class OpenRouterManager:
                     )
 
                     # Step 3: Regenerate explanation for the corrected answer
-                    logger.info("Answer was changed - regenerating explanation for corrected answer")
+                    logger.info(
+                        "Answer was changed - regenerating explanation for corrected answer"
+                    )
                     try:
                         new_explanation = await self.generate_explanation(
                             question=question_text,
                             choices=choices,
                             correct_index=validation_result["ai_suggested_index"],
-                            scenario=scenario
+                            scenario=scenario,
                         )
                         fix_result["new_explanation"] = new_explanation
                         fix_result["explanation_regenerated"] = True
@@ -456,6 +473,49 @@ class OpenRouterManager:
                 fix_result["new_explanation"] = None
                 fix_result["explanation_regenerated"] = False
 
+            # Check explanation consistency: if explanation says a different answer is correct,
+            # override correct_answer to match the explanation and regenerate
+            effective_correct = fix_result.get("suggested_correct_answer", correct_answer)
+            if (
+                validate_answer
+                and explanation
+                and effective_correct is not None
+                and not fix_result.get(
+                    "answer_changed"
+                )  # only run if answer wasn't already corrected
+            ):
+                consistency = await self.validate_explanation_consistency(
+                    choices, effective_correct, explanation
+                )
+                implied = consistency["explanation_implied_index"]
+                if not consistency["is_consistent"] and 0 <= implied < len(choices):
+                    logger.info(
+                        f"Explanation/answer mismatch detected: stored={chr(65+effective_correct)}, "
+                        f"explanation implies={chr(65+implied)}"
+                    )
+                    fix_result["suggested_correct_answer"] = implied
+                    fix_result["answer_changed"] = True
+                    fix_result["has_changes"] = True
+                    fix_result["answer_validation"] = fix_result.get("answer_validation") or {}
+                    fix_result["answer_validation"]["explanation_mismatch"] = True
+                    fix_result["answer_validation"]["reasoning"] = consistency["reasoning"]
+
+                    if "answer" not in fix_result["changes_made"]:
+                        fix_result["changes_made"]["answer"] = []
+                    fix_result["changes_made"]["answer"].append(
+                        f"Correct answer changed from {chr(65+effective_correct)} to {chr(65+implied)}: "
+                        f"explanation described {chr(65+implied)} as correct (explanation/answer mismatch)"
+                    )
+
+                    # Keep the existing explanation since it's the authoritative source
+                    fix_result["new_explanation"] = explanation
+                    fix_result["explanation_regenerated"] = False
+                    if "explanation" not in fix_result["changes_made"]:
+                        fix_result["changes_made"]["explanation"] = []
+                    fix_result["changes_made"]["explanation"].append(
+                        "Existing explanation retained (it was correct; stored answer index was wrong)"
+                    )
+
             return fix_result
 
         except Exception as e:
@@ -472,14 +532,11 @@ class OpenRouterManager:
                 "answer_changed": False,
                 "new_explanation": None,
                 "explanation_regenerated": False,
-                "error": str(e)
+                "error": str(e),
             }
 
     async def detect_error_patterns(
-        self,
-        fix_result: Dict[str, Any],
-        question_text: str,
-        choices: List[str]
+        self, fix_result: Dict[str, Any], question_text: str, choices: List[str]
     ) -> List[Dict[str, Any]]:
         """
         Detect error patterns from a fixed question that might appear in other questions.
@@ -499,96 +556,121 @@ class OpenRouterManager:
         patterns = []
 
         # Pattern 1: Spacing errors (both OCR and missing spaces)
-        if fix_result.get('changes_made', {}).get('question'):
-            for change in fix_result['changes_made']['question']:
+        if fix_result.get("changes_made", {}).get("question"):
+            for change in fix_result["changes_made"]["question"]:
                 # Look for patterns like "Fixed typo: 'ajoint' → 'a joint'" or "Fixed: 'word1 word2' → 'word1word2'"
-                if '→' in change:
+                if "→" in change:
                     # Extract before and after - handle both "Fixed:" and "Fixed typo:" formats
                     change_cleaned = change
-                    for prefix in ['Fixed typo:', 'Fixed:', 'Fixed spacing error:', 'Fixed OCR error:']:
+                    for prefix in [
+                        "Fixed typo:",
+                        "Fixed:",
+                        "Fixed spacing error:",
+                        "Fixed OCR error:",
+                    ]:
                         if prefix in change:
-                            change_cleaned = change.replace(prefix, '').strip()
+                            change_cleaned = change.replace(prefix, "").strip()
                             break
 
-                    before_after = change_cleaned.split('→')
+                    before_after = change_cleaned.split("→")
                     if len(before_after) == 2:
                         before = before_after[0].strip().strip("'\"")  # Remove quotes
                         after = before_after[1].strip().strip("'\"")  # Remove quotes
 
                         # Type 1: Missing spaces (ajoint → a joint)
-                        if ' ' in after and after.replace(' ', '') == before:
-                            patterns.append({
-                                'pattern_type': 'missing_space',
-                                'search_pattern': before,
-                                'fixed_pattern': after,
-                                'description': f'Missing space: "{before}" should be "{after}"',
-                                'example_fix': change
-                            })
+                        if " " in after and after.replace(" ", "") == before:
+                            patterns.append(
+                                {
+                                    "pattern_type": "missing_space",
+                                    "search_pattern": before,
+                                    "fixed_pattern": after,
+                                    "description": f'Missing space: "{before}" should be "{after}"',
+                                    "example_fix": change,
+                                }
+                            )
                         # Type 2: Extra spaces (OCR error - word1 word2 → word1word2)
-                        elif ' ' in before and before.replace(' ', '') == after:
-                            patterns.append({
-                                'pattern_type': 'ocr_space',
-                                'search_pattern': before,
-                                'fixed_pattern': after,
-                                'description': f'OCR spacing error: "{before}" should be "{after}"',
-                                'example_fix': change
-                            })
+                        elif " " in before and before.replace(" ", "") == after:
+                            patterns.append(
+                                {
+                                    "pattern_type": "ocr_space",
+                                    "search_pattern": before,
+                                    "fixed_pattern": after,
+                                    "description": f'OCR spacing error: "{before}" should be "{after}"',
+                                    "example_fix": change,
+                                }
+                            )
 
         # Also check choices for spacing patterns
-        if fix_result.get('changes_made', {}).get('choices'):
-            for choice_idx, choice_changes in fix_result['changes_made']['choices'].items():
+        if fix_result.get("changes_made", {}).get("choices"):
+            for choice_idx, choice_changes in fix_result["changes_made"]["choices"].items():
                 for change in choice_changes:
-                    if '→' in change:
+                    if "→" in change:
                         # Extract before and after
                         change_cleaned = change
-                        for prefix in ['Fixed typo:', 'Fixed:', 'Fixed spacing error:', 'Fixed OCR error:']:
+                        for prefix in [
+                            "Fixed typo:",
+                            "Fixed:",
+                            "Fixed spacing error:",
+                            "Fixed OCR error:",
+                        ]:
                             if prefix in change:
-                                change_cleaned = change.replace(prefix, '').strip()
+                                change_cleaned = change.replace(prefix, "").strip()
                                 break
 
-                        before_after = change_cleaned.split('→')
+                        before_after = change_cleaned.split("→")
                         if len(before_after) == 2:
                             before = before_after[0].strip().strip("'\"")
                             after = before_after[1].strip().strip("'\"")
 
                             # Type 1: Missing spaces (ajoint → a joint)
-                            if ' ' in after and after.replace(' ', '') == before:
-                                patterns.append({
-                                    'pattern_type': 'missing_space',
-                                    'search_pattern': before,
-                                    'fixed_pattern': after,
-                                    'description': f'Missing space in choices: "{before}" should be "{after}"',
-                                    'example_fix': change
-                                })
+                            if " " in after and after.replace(" ", "") == before:
+                                patterns.append(
+                                    {
+                                        "pattern_type": "missing_space",
+                                        "search_pattern": before,
+                                        "fixed_pattern": after,
+                                        "description": f'Missing space in choices: "{before}" should be "{after}"',
+                                        "example_fix": change,
+                                    }
+                                )
                             # Type 2: Extra spaces (OCR error)
-                            elif ' ' in before and before.replace(' ', '') == after:
-                                patterns.append({
-                                    'pattern_type': 'ocr_space',
-                                    'search_pattern': before,
-                                    'fixed_pattern': after,
-                                    'description': f'OCR spacing error in choices: "{before}" should be "{after}"',
-                                    'example_fix': change
-                                })
+                            elif " " in before and before.replace(" ", "") == after:
+                                patterns.append(
+                                    {
+                                        "pattern_type": "ocr_space",
+                                        "search_pattern": before,
+                                        "fixed_pattern": after,
+                                        "description": f'OCR spacing error in choices: "{before}" should be "{after}"',
+                                        "example_fix": change,
+                                    }
+                                )
 
         # Pattern 2: Grammar, spelling, and text errors
         # Extract ALL fixes with → arrows (grammar, spelling, word choice, etc.)
         all_changes = []
-        if fix_result.get('changes_made', {}).get('question'):
-            all_changes.extend(fix_result['changes_made']['question'])
-        if fix_result.get('changes_made', {}).get('choices'):
-            for choice_changes in fix_result['changes_made']['choices'].values():
+        if fix_result.get("changes_made", {}).get("question"):
+            all_changes.extend(fix_result["changes_made"]["question"])
+        if fix_result.get("changes_made", {}).get("choices"):
+            for choice_changes in fix_result["changes_made"]["choices"].values():
                 all_changes.extend(choice_changes)
 
         for change in all_changes:
-            if '→' in change:
+            if "→" in change:
                 # Extract before and after from ANY fix (not just spelling)
                 change_cleaned = change
-                for prefix in ['Fixed typo:', 'Fixed:', 'Fixed spelling:', 'Spelling error:', 'Fixed grammar:', 'Grammar error:']:
+                for prefix in [
+                    "Fixed typo:",
+                    "Fixed:",
+                    "Fixed spelling:",
+                    "Spelling error:",
+                    "Fixed grammar:",
+                    "Grammar error:",
+                ]:
                     if prefix in change:
-                        change_cleaned = change.replace(prefix, '').strip()
+                        change_cleaned = change.replace(prefix, "").strip()
                         break
 
-                before_after = change_cleaned.split('→')
+                before_after = change_cleaned.split("→")
                 if len(before_after) == 2:
                     before = before_after[0].strip().strip("'\"")
                     after = before_after[1].strip().strip("'\"")
@@ -598,50 +680,60 @@ class OpenRouterManager:
                         continue
 
                     # Skip if already extracted as a spacing pattern
-                    is_spacing = (' ' in after and after.replace(' ', '') == before) or (' ' in before and before.replace(' ', '') == after)
+                    is_spacing = (" " in after and after.replace(" ", "") == before) or (
+                        " " in before and before.replace(" ", "") == after
+                    )
                     if is_spacing:
                         continue
 
                     # Determine pattern type based on the error
-                    if 'spelling' in change.lower():
-                        pattern_type = 'spelling'
+                    if "spelling" in change.lower():
+                        pattern_type = "spelling"
                         description = f'Spelling error: "{before}" should be "{after}"'
-                    elif 'grammar' in change.lower() or 'verb' in change.lower() or 'tense' in change.lower():
-                        pattern_type = 'grammar'
+                    elif (
+                        "grammar" in change.lower()
+                        or "verb" in change.lower()
+                        or "tense" in change.lower()
+                    ):
+                        pattern_type = "grammar"
                         description = f'Grammar error: "{before}" should be "{after}"'
-                    elif 'word' in change.lower() or 'usage' in change.lower():
-                        pattern_type = 'word_usage'
+                    elif "word" in change.lower() or "usage" in change.lower():
+                        pattern_type = "word_usage"
                         description = f'Word usage: "{before}" should be "{after}"'
                     else:
                         # Generic text error
-                        pattern_type = 'text_error'
+                        pattern_type = "text_error"
                         description = f'Text error: "{before}" should be "{after}"'
 
-                    patterns.append({
-                        'pattern_type': pattern_type,
-                        'search_pattern': before,
-                        'fixed_pattern': after,
-                        'description': description,
-                        'example_fix': change
-                    })
+                    patterns.append(
+                        {
+                            "pattern_type": pattern_type,
+                            "search_pattern": before,
+                            "fixed_pattern": after,
+                            "description": description,
+                            "example_fix": change,
+                        }
+                    )
 
         # Pattern 3: Wrong answer pattern
-        if fix_result.get('answer_changed'):
-            validation = fix_result.get('answer_validation', {})
-            reasoning = validation.get('reasoning', '')
+        if fix_result.get("answer_changed"):
+            validation = fix_result.get("answer_validation", {})
+            reasoning = validation.get("reasoning", "")
 
             # Extract keywords from the question to identify similar questions
             keywords = self._extract_keywords(question_text)
 
-            patterns.append({
-                'pattern_type': 'wrong_answer',
-                'keywords': keywords,
-                'original_answer_index': fix_result['original_correct_answer'],
-                'correct_answer_index': fix_result['suggested_correct_answer'],
-                'description': f'Similar questions may have wrong answer (confidence: {validation.get("confidence", 0):.0%})',
-                'reasoning': reasoning,
-                'example_fix': f"Changed answer from {chr(65 + fix_result['original_correct_answer'])} to {chr(65 + fix_result['suggested_correct_answer'])}"
-            })
+            patterns.append(
+                {
+                    "pattern_type": "wrong_answer",
+                    "keywords": keywords,
+                    "original_answer_index": fix_result["original_correct_answer"],
+                    "correct_answer_index": fix_result["suggested_correct_answer"],
+                    "description": f'Similar questions may have wrong answer (confidence: {validation.get("confidence", 0):.0%})',
+                    "reasoning": reasoning,
+                    "example_fix": f"Changed answer from {chr(65 + fix_result['original_correct_answer'])} to {chr(65 + fix_result['suggested_correct_answer'])}",
+                }
+            )
 
         return patterns
 
@@ -652,13 +744,25 @@ class OpenRouterManager:
 
         # Common important phrases in financial/regulatory questions
         key_phrases = [
-            'complex.*structure', 'beneficial owner', 'suspicious transaction',
-            'customer due diligence', 'enhanced due diligence', 'know your customer',
-            'AML', 'KYC', 'STR', 'SAR', 'politically exposed person', 'PEP',
-            'risk assessment', 'money laundering', 'terrorist financing'
+            "complex.*structure",
+            "beneficial owner",
+            "suspicious transaction",
+            "customer due diligence",
+            "enhanced due diligence",
+            "know your customer",
+            "AML",
+            "KYC",
+            "STR",
+            "SAR",
+            "politically exposed person",
+            "PEP",
+            "risk assessment",
+            "money laundering",
+            "terrorist financing",
         ]
 
         import re
+
         text_lower = text.lower()
 
         for phrase in key_phrases:
@@ -707,12 +811,11 @@ Respond in JSON ONLY:
 
 Be quick but thorough."""
 
-            response = await self._generate_text_with_retry(
-                prompt, max_tokens=300, temperature=0.3
-            )
+            response = await self._generate_text_with_retry(prompt, max_tokens=300, temperature=0.3)
 
             # Parse response
             import json
+
             json_start = response.find("{")
             json_end = response.rfind("}") + 1
 
@@ -721,7 +824,7 @@ Be quick but thorough."""
                 return {
                     "is_plausible": result.get("is_plausible", True),
                     "confidence": float(result.get("confidence", 0.5)),
-                    "reasoning": result.get("reasoning", "")
+                    "reasoning": result.get("reasoning", ""),
                 }
 
         except Exception as e:
@@ -730,9 +833,73 @@ Be quick but thorough."""
         # Fallback: uncertain
         return {"is_plausible": True, "confidence": 0.5, "reasoning": "Unable to validate"}
 
+    async def validate_explanation_consistency(
+        self, choices: List[str], correct_index: int, explanation: str
+    ) -> Dict[str, Any]:
+        """
+        Check if an explanation text is consistent with the stored correct answer index.
+        Extracts which choice the explanation claims is correct and compares to correct_index.
+
+        Returns:
+            Dict with keys:
+                - is_consistent: True if explanation matches stored correct_index
+                - explanation_implied_index: Index the explanation points to (-1 if unclear)
+                - explanation_implied_choice: The choice text the explanation points to
+                - reasoning: Brief reasoning
+        """
+        try:
+            choices_text = "\n".join([f"{chr(65+i)}. {c}" for i, c in enumerate(choices)])
+            prompt = f"""You are checking whether an exam question explanation is consistent with the stored correct answer.
+
+Choices:
+{choices_text}
+
+Stored correct answer: {chr(65 + correct_index)} (index {correct_index})
+
+Explanation:
+{explanation}
+
+Does the explanation describe a DIFFERENT choice as the correct answer? If the explanation explicitly names or describes a choice other than {chr(65 + correct_index)} as correct, identify it.
+
+Reply with JSON only:
+{{
+  "is_consistent": true/false,
+  "explanation_implied_index": <0-based index the explanation points to, or -1 if unclear>,
+  "reasoning": "<one sentence>"
+}}"""
+
+            response = await self._generate_text_with_retry(prompt, max_tokens=200, temperature=0.1)
+
+            json_start = response.find("{")
+            json_end = response.rfind("}") + 1
+            if json_start >= 0 and json_end > json_start:
+                result = json.loads(response[json_start:json_end])
+                implied_index = int(result.get("explanation_implied_index", -1))
+                return {
+                    "is_consistent": bool(result.get("is_consistent", True)),
+                    "explanation_implied_index": implied_index,
+                    "explanation_implied_choice": (
+                        choices[implied_index] if 0 <= implied_index < len(choices) else ""
+                    ),
+                    "reasoning": result.get("reasoning", ""),
+                }
+        except Exception as e:
+            logger.error(f"Error validating explanation consistency: {e}")
+
+        return {
+            "is_consistent": True,
+            "explanation_implied_index": -1,
+            "explanation_implied_choice": "",
+            "reasoning": "Unable to validate",
+        }
+
     async def validate_answer_correctness(
-        self, question_text: str, choices: List[str], claimed_correct_index: int, scenario: str = "",
-        use_two_stage: bool = True
+        self,
+        question_text: str,
+        choices: List[str],
+        claimed_correct_index: int,
+        scenario: str = "",
+        use_two_stage: bool = True,
     ) -> Dict[str, Any]:
         """
         Validate if the claimed correct answer is actually correct.
@@ -761,11 +928,15 @@ Be quick but thorough."""
             # Stage 1: Quick validation (cheaper)
             if use_two_stage:
                 claimed_answer = choices[claimed_correct_index]
-                quick_result = await self.quick_validate_answer(question_text, claimed_answer, scenario)
+                quick_result = await self.quick_validate_answer(
+                    question_text, claimed_answer, scenario
+                )
 
                 # If answer is plausible with high confidence, skip Stage 2
                 if quick_result["is_plausible"] and quick_result["confidence"] >= 0.80:
-                    logger.info(f"Quick validation passed (confidence: {quick_result['confidence']:.2f}) - skipping full analysis")
+                    logger.info(
+                        f"Quick validation passed (confidence: {quick_result['confidence']:.2f}) - skipping full analysis"
+                    )
                     return {
                         "is_valid": True,
                         "confidence": quick_result["confidence"],
@@ -773,10 +944,12 @@ Be quick but thorough."""
                         "ai_suggested_choice": claimed_answer,
                         "reasoning": f"Quick validation: {quick_result['reasoning']}",
                         "should_auto_correct": False,
-                        "validation_stage": "quick"
+                        "validation_stage": "quick",
                     }
 
-                logger.info(f"Quick validation uncertain (confidence: {quick_result['confidence']:.2f}) - proceeding to full analysis")
+                logger.info(
+                    f"Quick validation uncertain (confidence: {quick_result['confidence']:.2f}) - proceeding to full analysis"
+                )
 
             # Stage 2: Full validation (analyze all choices)
             prompt = self._create_answer_validation_prompt(
@@ -801,11 +974,13 @@ Be quick but thorough."""
                 "is_valid": True,
                 "confidence": 0.0,
                 "ai_suggested_index": claimed_correct_index,
-                "ai_suggested_choice": choices[claimed_correct_index] if claimed_correct_index < len(choices) else "",
+                "ai_suggested_choice": (
+                    choices[claimed_correct_index] if claimed_correct_index < len(choices) else ""
+                ),
                 "reasoning": f"Unable to validate due to error: {str(e)}",
                 "should_auto_correct": False,
                 "validation_stage": "error",
-                "error": str(e)
+                "error": str(e),
             }
 
     async def generate_study_tips(self, topic: str, user_performance: Dict[str, Any]) -> str:
@@ -1246,7 +1421,9 @@ CRITICAL FINAL REMINDER:
         self, question_text: str, choices: List[str], claimed_correct_index: int, scenario: str = ""
     ) -> str:
         """Create prompt for validating answer correctness"""
-        choices_formatted = "\n".join([f"{chr(65 + i)}. {choice}" for i, choice in enumerate(choices)])
+        choices_formatted = "\n".join(
+            [f"{chr(65 + i)}. {choice}" for i, choice in enumerate(choices)]
+        )
         scenario_text = f"\n\nSCENARIO/CONTEXT:\n{scenario}" if scenario else ""
 
         return f"""You are an expert in finance, banking, and regulatory exams (CACS, CMFAS, Securities, MAS regulations).
@@ -1297,13 +1474,15 @@ Be thorough in your reasoning. If unsure, lower your confidence score."""
                 result = json.loads(json_str)
 
                 # Validate the response structure
-                if not all(key in result for key in ["fixed_question", "fixed_choices", "changes_made"]):
+                if not all(
+                    key in result for key in ["fixed_question", "fixed_choices", "changes_made"]
+                ):
                     logger.warning("Invalid response structure from AI, using original content")
                     return {
                         "fixed_question": original_question,
                         "fixed_choices": original_choices,
                         "changes_made": {"question": [], "choices": {}},
-                        "has_changes": False
+                        "has_changes": False,
                     }
 
                 # Normalize changes_made structure to ensure choices is always a dict
@@ -1312,7 +1491,11 @@ Be thorough in your reasoning. If unsure, lower your confidence score."""
                     # If choices is a list, convert to dict format
                     if isinstance(changes.get("choices"), list):
                         choices_list = changes["choices"]
-                        changes["choices"] = {str(i): changes_list[i] for i in range(len(choices_list)) if choices_list[i]}
+                        changes["choices"] = {
+                            str(i): changes_list[i]
+                            for i in range(len(choices_list))
+                            if choices_list[i]
+                        }
                     # If choices is missing or None, use empty dict
                     elif not isinstance(changes.get("choices"), dict):
                         changes["choices"] = {}
@@ -1321,8 +1504,8 @@ Be thorough in your reasoning. If unsure, lower your confidence score."""
                 if "has_changes" not in result:
                     # Determine if there are any changes
                     result["has_changes"] = bool(
-                        result.get("changes_made", {}).get("question", []) or
-                        result.get("changes_made", {}).get("choices", {})
+                        result.get("changes_made", {}).get("question", [])
+                        or result.get("changes_made", {}).get("choices", {})
                     )
 
                 return result
@@ -1337,7 +1520,7 @@ Be thorough in your reasoning. If unsure, lower your confidence score."""
             "fixed_question": original_question,
             "fixed_choices": original_choices,
             "changes_made": {"question": [], "choices": {}},
-            "has_changes": False
+            "has_changes": False,
         }
 
     def _parse_answer_validation_response(
@@ -1380,7 +1563,7 @@ Be thorough in your reasoning. If unsure, lower your confidence score."""
                     "ai_suggested_index": ai_index,
                     "ai_suggested_choice": choices[ai_index],
                     "reasoning": reasoning,
-                    "should_auto_correct": should_auto_correct
+                    "should_auto_correct": should_auto_correct,
                 }
 
         except json.JSONDecodeError as e:
@@ -1399,7 +1582,7 @@ Be thorough in your reasoning. If unsure, lower your confidence score."""
             "ai_suggested_index": claimed_index,
             "ai_suggested_choice": choices[claimed_index] if claimed_index < len(choices) else "",
             "reasoning": "Unable to validate - assuming claimed answer is correct",
-            "should_auto_correct": False
+            "should_auto_correct": False,
         }
 
     def _parse_mock_questions(self, response: str) -> List[Dict[str, Any]]:
@@ -1885,7 +2068,8 @@ async def fix_question_errors(
     choices: List[str],
     correct_answer: Optional[int] = None,
     validate_answer: bool = True,
-    scenario: str = ""
+    scenario: str = "",
+    explanation: str = "",
 ) -> Dict[str, Any]:
     """
     Conservative AI fix for OCR errors, typos, grammar issues, and incorrect answers.
@@ -1896,6 +2080,7 @@ async def fix_question_errors(
         correct_answer: Index of claimed correct answer (for validation)
         validate_answer: Whether to validate and potentially fix the correct answer
         scenario: Optional scenario/context for answer validation
+        explanation: Existing explanation text (used to detect answer/explanation mismatches)
 
     Returns:
         Dict with keys:
@@ -1913,15 +2098,13 @@ async def fix_question_errors(
         choices=choices,
         correct_answer=correct_answer,
         validate_answer=validate_answer,
-        scenario=scenario
+        scenario=scenario,
+        explanation=explanation,
     )
 
 
 async def validate_answer_correctness(
-    question_text: str,
-    choices: List[str],
-    claimed_correct_index: int,
-    scenario: str = ""
+    question_text: str, choices: List[str], claimed_correct_index: int, scenario: str = ""
 ) -> Dict[str, Any]:
     """
     Validate if the claimed correct answer is actually correct.

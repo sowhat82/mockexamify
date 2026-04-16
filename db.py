@@ -1151,6 +1151,7 @@ class DatabaseManager:
                 # Send email notification to admin
                 try:
                     from email_utils import send_support_ticket_notification
+
                     send_support_ticket_notification(
                         ticket_id=fake_id,
                         user_email=user_email,
@@ -1191,6 +1192,7 @@ class DatabaseManager:
                 # Send email notification to admin
                 try:
                     from email_utils import send_support_ticket_notification
+
                     send_support_ticket_notification(
                         ticket_id=ticket_id,
                         user_email=user_email_from_ticket or "Unknown",
@@ -1562,10 +1564,7 @@ class DatabaseManager:
         """Get all completed payments where credits were not added"""
         try:
             result = (
-                self.admin_client.table("payments")
-                .select("*")
-                .eq("status", "completed")
-                .execute()
+                self.admin_client.table("payments").select("*").eq("status", "completed").execute()
             )
             # Filter for credits_added = False or NULL (column may not exist yet)
             if result.data:
@@ -1608,7 +1607,9 @@ class DatabaseManager:
                 credits = payment.get("credits_purchased", 0)
                 session_id = payment.get("stripe_session_id")
 
-                logger.info(f"Retrying credit addition for session {session_id}: {credits} credits to user {user_id}")
+                logger.info(
+                    f"Retrying credit addition for session {session_id}: {credits} credits to user {user_id}"
+                )
 
                 success = await self.add_credits_to_user(user_id, credits)
                 if success:
@@ -1642,7 +1643,9 @@ class DatabaseManager:
                         return True
 
                 # Production user - update in database
-                logger.info(f"Attempting to add {credits_to_add} credits to user {user_id} (attempt {retry_count + 1}/{max_retries})")
+                logger.info(
+                    f"Attempting to add {credits_to_add} credits to user {user_id} (attempt {retry_count + 1}/{max_retries})"
+                )
 
                 # Get current user credits (use admin_client to bypass RLS)
                 result = (
@@ -1665,7 +1668,9 @@ class DatabaseManager:
 
                 new_balance = current_credits + credits_to_add
 
-                logger.info(f"User {user_email}: {current_credits} + {credits_to_add} = {new_balance}")
+                logger.info(
+                    f"User {user_email}: {current_credits} + {credits_to_add} = {new_balance}"
+                )
 
                 # Update user credits (use admin_client to bypass RLS)
                 update_result = (
@@ -1692,10 +1697,14 @@ class DatabaseManager:
                 )
 
                 if verify_result.data and verify_result.data[0]["credits_balance"] == new_balance:
-                    logger.info(f"✅ Successfully added {credits_to_add} credits to {user_email}. New balance: {new_balance}")
+                    logger.info(
+                        f"✅ Successfully added {credits_to_add} credits to {user_email}. New balance: {new_balance}"
+                    )
                     return True
                 else:
-                    logger.error(f"Verification failed: expected {new_balance}, got {verify_result.data[0]['credits_balance'] if verify_result.data else 'NO DATA'}")
+                    logger.error(
+                        f"Verification failed: expected {new_balance}, got {verify_result.data[0]['credits_balance'] if verify_result.data else 'NO DATA'}"
+                    )
                     retry_count += 1
                     if retry_count < max_retries:
                         await asyncio.sleep(1)
@@ -1703,7 +1712,10 @@ class DatabaseManager:
                     return False
 
             except Exception as e:
-                logger.error(f"Error adding credits to user {user_id} (attempt {retry_count + 1}): {e}", exc_info=True)
+                logger.error(
+                    f"Error adding credits to user {user_id} (attempt {retry_count + 1}): {e}",
+                    exc_info=True,
+                )
                 retry_count += 1
                 if retry_count < max_retries:
                     await asyncio.sleep(1)
@@ -1956,20 +1968,21 @@ class DatabaseManager:
             client = self.admin_client if self.admin_client else self.client
 
             # Check if new name already exists (for a different pool)
-            existing = client.table("question_pools").select("id").eq("pool_name", new_name).execute()
+            existing = (
+                client.table("question_pools").select("id").eq("pool_name", new_name).execute()
+            )
             if existing.data:
                 for pool in existing.data:
-                    if pool['id'] != pool_id:
+                    if pool["id"] != pool_id:
                         logger.error(f"Pool name '{new_name}' already exists")
                         return False
 
             # Update the pool name
             result = (
                 client.table("question_pools")
-                .update({
-                    "pool_name": new_name,
-                    "last_updated": datetime.now(timezone.utc).isoformat()
-                })
+                .update(
+                    {"pool_name": new_name, "last_updated": datetime.now(timezone.utc).isoformat()}
+                )
                 .eq("id", pool_id)
                 .execute()
             )
@@ -2075,7 +2088,9 @@ class DatabaseManager:
             )
 
             if not result.data:
-                logger.warning(f"No questions found for pool_id: {pool_id} (query returned 0 results)")
+                logger.warning(
+                    f"No questions found for pool_id: {pool_id} (query returned 0 results)"
+                )
                 return []
 
             # Randomly sample N questions
@@ -2091,11 +2106,26 @@ class DatabaseManager:
             # Convert to standard format for exam
             formatted_questions = []
             for q in selected:
+                # Extract scenario from topic_tags if present
+                scenario = None
+                topic_tags = q.get("topic_tags")
+                if topic_tags:
+                    try:
+                        tags = json.loads(topic_tags) if isinstance(topic_tags, str) else topic_tags
+                        if isinstance(tags, list):
+                            for tag in tags:
+                                if isinstance(tag, dict) and tag.get("scenario"):
+                                    scenario = tag["scenario"]
+                                    break
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
                 formatted_questions.append(
                     {
                         "id": q["id"],  # Include question ID for reporting
                         "pool_id": q["pool_id"],  # Include pool ID for replacements
                         "question": q["question_text"],
+                        "scenario": scenario,
                         "choices": (
                             json.loads(q["choices"])
                             if isinstance(q["choices"], str)
@@ -2109,7 +2139,10 @@ class DatabaseManager:
             return formatted_questions
 
         except Exception as e:
-            logger.error(f"Error getting random pool questions for pool_id={pool_id}, count={count}: {e}", exc_info=True)
+            logger.error(
+                f"Error getting random pool questions for pool_id={pool_id}, count={count}: {e}",
+                exc_info=True,
+            )
             return []
 
     async def create_upload_batch(
@@ -2168,7 +2201,9 @@ class DatabaseManager:
             )
 
             if rejected_questions:
-                logger.warning(f"⚠️  {len(rejected_questions)} questions rejected during validation:")
+                logger.warning(
+                    f"⚠️  {len(rejected_questions)} questions rejected during validation:"
+                )
                 for item in rejected_questions:
                     logger.warning(f"  Question #{item['index'] + 1}: {item['errors']}")
 
@@ -2275,11 +2310,17 @@ class DatabaseManager:
             return False
 
     async def report_question(
-        self, question_id: str, user_id: Optional[str] = None, mock_id: Optional[str] = None, reason: Optional[str] = None
+        self,
+        question_id: str,
+        user_id: Optional[str] = None,
+        mock_id: Optional[str] = None,
+        reason: Optional[str] = None,
     ) -> bool:
         """Report a question as corrupted or impossible to answer"""
         try:
-            logger.info(f"[REPORT] Starting report - question_id: {question_id}, user_id: {user_id}, mock_id: {mock_id}")
+            logger.info(
+                f"[REPORT] Starting report - question_id: {question_id}, user_id: {user_id}, mock_id: {mock_id}"
+            )
 
             if self.demo_mode:
                 logger.info(f"Demo mode: Would report question {question_id}")
@@ -2290,7 +2331,7 @@ class DatabaseManager:
                 "reported_by": user_id,
                 "mock_id": mock_id,
                 "report_reason": reason,
-                "status": "pending"
+                "status": "pending",
             }
 
             logger.info(f"[REPORT] Report data: {report_data}")
@@ -2312,7 +2353,9 @@ class DatabaseManager:
             logger.error(f"Error reporting question: {e}", exc_info=True)
             return False
 
-    async def get_reported_questions(self, status: Optional[str] = None, limit: int = 100) -> List[Dict]:
+    async def get_reported_questions(
+        self, status: Optional[str] = None, limit: int = 100
+    ) -> List[Dict]:
         """Get reported questions (admin only)"""
         try:
             if self.demo_mode:
@@ -2346,14 +2389,18 @@ class DatabaseManager:
                 .execute()
             )
 
-            return result.count if hasattr(result, 'count') else 0
+            return result.count if hasattr(result, "count") else 0
 
         except Exception as e:
             logger.error(f"Error getting pending reports count: {e}")
             return 0
 
     async def update_report_status(
-        self, report_id: str, status: str, admin_notes: Optional[str] = None, admin_id: Optional[str] = None
+        self,
+        report_id: str,
+        status: str,
+        admin_notes: Optional[str] = None,
+        admin_id: Optional[str] = None,
     ) -> bool:
         """Update the status of a reported question (admin only)"""
         try:

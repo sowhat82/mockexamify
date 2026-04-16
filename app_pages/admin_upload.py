@@ -48,8 +48,8 @@ Based on your knowledge, which choice is most likely correct? Respond with ONLY 
         answer_letter = response.strip().upper()
 
         # Convert letter to index
-        if answer_letter in ['A', 'B', 'C', 'D', 'E']:
-            return ord(answer_letter) - ord('A')
+        if answer_letter in ["A", "B", "C", "D", "E"]:
+            return ord(answer_letter) - ord("A")
         else:
             # Fallback to first choice if AI returns invalid
             return 0
@@ -59,7 +59,9 @@ Based on your knowledge, which choice is most likely correct? Respond with ONLY 
         return 0  # Default to first choice
 
 
-def validate_question_quality(questions: List[Dict]) -> tuple[List[Dict], List[Dict], Dict[str, int]]:
+def validate_question_quality(
+    questions: List[Dict],
+) -> tuple[List[Dict], List[Dict], Dict[str, int]]:
     """
     Validate question quality and filter out problematic questions.
 
@@ -105,7 +107,12 @@ def validate_question_quality(questions: List[Dict]) -> tuple[List[Dict], List[D
 
         # Check 5: Missing or invalid correct answer
         correct_answer = q.get("correct_answer")
-        if correct_answer is None or not isinstance(correct_answer, int) or correct_answer < 0 or correct_answer >= len(choices):
+        if (
+            correct_answer is None
+            or not isinstance(correct_answer, int)
+            or correct_answer < 0
+            or correct_answer >= len(choices)
+        ):
             issues.append("missing_correct_answer")
             quality_stats["missing_correct_answer"] += 1
 
@@ -132,16 +139,17 @@ def show_admin_upload():
     force_reset = st.query_params.get("reset") == "1"
 
     # Detect stuck state: upload_in_progress=True but no upload_params (indicates crash)
-    is_stuck = (
-        st.session_state.get("upload_in_progress")
-        and not st.session_state.get("upload_params")
+    is_stuck = st.session_state.get("upload_in_progress") and not st.session_state.get(
+        "upload_params"
     )
 
     if force_reset or is_stuck:
         if force_reset:
             logger.warning("[EMERGENCY] Manual reset triggered via ?reset=1 URL parameter")
         else:
-            logger.warning("[EMERGENCY] Detected stuck upload state (upload_in_progress=True but no params)")
+            logger.warning(
+                "[EMERGENCY] Detected stuck upload state (upload_in_progress=True but no params)"
+            )
 
         st.session_state.upload_in_progress = False
         if st.session_state.get("upload_params"):
@@ -279,11 +287,13 @@ def show_question_pool_upload(auth):
                 file_data = []
                 for uploaded_file in uploaded_files:
                     uploaded_file.seek(0)
-                    file_data.append({
-                        "name": uploaded_file.name,
-                        "bytes": uploaded_file.read(),
-                        "type": uploaded_file.type
-                    })
+                    file_data.append(
+                        {
+                            "name": uploaded_file.name,
+                            "bytes": uploaded_file.read(),
+                            "type": uploaded_file.type,
+                        }
+                    )
 
                 # Store upload parameters in session state
                 st.session_state.upload_in_progress = True
@@ -316,6 +326,7 @@ def show_question_pool_upload(auth):
 
         # Reconstruct file objects from stored bytes
         from io import BytesIO
+
         uploaded_files = []
         for file_info in params["file_data"]:
             file_obj = BytesIO(file_info["bytes"])
@@ -352,9 +363,7 @@ def show_question_pool_upload(auth):
                 col1, col2 = st.columns(2)
 
                 with col1:
-                    if st.button(
-                        "📊 Check Pool Status", use_container_width=True, type="primary"
-                    ):
+                    if st.button("📊 Check Pool Status", use_container_width=True, type="primary"):
                         st.session_state.page = "admin_manage_pools"
                         st.rerun()
 
@@ -397,7 +406,9 @@ def show_question_pool_upload(auth):
                             st.markdown("### 🤖 Automatic AI Quality Check")
 
                             # Get all questions from the uploaded source files
-                            questions_to_fix = [q for q in pool_questions if q.get('source_file') in source_files]
+                            questions_to_fix = [
+                                q for q in pool_questions if q.get("source_file") in source_files
+                            ]
 
                             if questions_to_fix:
                                 # Spawn background AI fix process
@@ -416,7 +427,7 @@ def show_question_pool_upload(auth):
                                     stdout=subprocess.DEVNULL,
                                     stderr=subprocess.DEVNULL,
                                     stdin=subprocess.DEVNULL,
-                                    start_new_session=True
+                                    start_new_session=True,
                                 )
 
                                 st.success(
@@ -435,9 +446,12 @@ def show_question_pool_upload(auth):
                             with st.expander("🔍 Error Details"):
                                 st.code(str(e))
                                 import traceback
+
                                 st.code(traceback.format_exc())
 
-                            st.info("💡 Questions were uploaded successfully. You can run AI Fix manually from Question Pools.")
+                            st.info(
+                                "💡 Questions were uploaded successfully. You can run AI Fix manually from Question Pools."
+                            )
                 else:
                     st.warning(
                         "Upload completed but couldn't verify question count. Please check Manage Pools."
@@ -673,7 +687,9 @@ def parse_uploaded_file(uploaded_file, pool_id=None, pool_name=None) -> Any:
     elif file_extension in ["pdf", "docx", "doc"]:
         # Use AI-powered document parser
         st.info("🤖 Using AI to extract questions from document...")
-        success, questions, error = document_parser.parse_document(uploaded_file, pool_id, pool_name)
+        success, questions, error = document_parser.parse_document(
+            uploaded_file, pool_id, pool_name
+        )
 
         if not success:
             raise ValueError(f"Document parsing failed: {error}")
@@ -775,10 +791,16 @@ def parse_json_file(uploaded_file) -> List[Dict[str, Any]]:
                 correct_index = item.get("correct_answer")
 
             if correct_index is None:
-                st.warning(f"Question {i}: Missing required field 'correct_index' or 'correct_answer'")
+                st.warning(
+                    f"Question {i}: Missing required field 'correct_index' or 'correct_answer'"
+                )
                 continue
 
-            if not isinstance(correct_index, int) or correct_index < 0 or correct_index >= len(choices):
+            if (
+                not isinstance(correct_index, int)
+                or correct_index < 0
+                or correct_index >= len(choices)
+            ):
                 st.warning(f"Question {i}: Invalid correct_index/correct_answer {correct_index}")
                 continue
 
@@ -1024,27 +1046,26 @@ async def process_pool_upload(
             progress_placeholder.info("🔧 Checking for text corruption and auto-fixing...")
 
             validation_result = validate_question_batch(questions_to_add)
-            questions_to_add = validation_result['questions']
-            text_stats = validation_result['stats']
+            questions_to_add = validation_result["questions"]
+            text_stats = validation_result["stats"]
 
             # Show auto-fix results if any fixes were applied
-            if text_stats.get('fixed', 0) > 0:
+            if text_stats.get("fixed", 0) > 0:
                 fixes_summary = []
-                for fix_type, count in text_stats.get('fixes_by_type', {}).items():
+                for fix_type, count in text_stats.get("fixes_by_type", {}).items():
                     fixes_summary.append(f"  • {fix_type}: {count}x")
 
                 stats_placeholder.success(
-                    f"✨ Auto-fixed {text_stats['fixed']} questions:\n" +
-                    "\n".join(fixes_summary)
+                    f"✨ Auto-fixed {text_stats['fixed']} questions:\n" + "\n".join(fixes_summary)
                 )
 
             # Show warnings if any
-            if text_stats.get('questions_with_warnings'):
-                warning_count = len(text_stats['questions_with_warnings'])
+            if text_stats.get("questions_with_warnings"):
+                warning_count = len(text_stats["questions_with_warnings"])
                 with st.expander(f"⚠️ {warning_count} questions have warnings (click to review)"):
-                    for idx, item in enumerate(text_stats['questions_with_warnings'][:10], 1):
+                    for idx, item in enumerate(text_stats["questions_with_warnings"][:10], 1):
                         st.markdown(f"**{idx}.** {item['text']}")
-                        for warning in item['warnings']:
+                        for warning in item["warnings"]:
                             st.markdown(f"  - ⚠️ {warning}")
 
             # Validate questions for critical errors (missing context, case studies, etc.)
@@ -1058,8 +1079,8 @@ async def process_pool_upload(
 
                 if not is_valid:
                     # Extract CRITICAL errors
-                    critical_errors = [e for e in errors if 'CRITICAL' in e]
-                    q['validation_errors'] = critical_errors
+                    critical_errors = [e for e in errors if "CRITICAL" in e]
+                    q["validation_errors"] = critical_errors
                     rejected_questions.append(q)
                 else:
                     validated_questions.append(q)
@@ -1074,7 +1095,7 @@ async def process_pool_upload(
                 with st.expander(f"📋 View {len(rejected_questions)} Rejected Questions"):
                     for idx, q in enumerate(rejected_questions[:20], 1):  # Show first 20
                         st.markdown(f"**{idx}.** {q['question'][:100]}...")
-                        for error in q['validation_errors']:
+                        for error in q["validation_errors"]:
                             st.markdown(f"   🚫 {error}")
                         st.markdown("---")
 
@@ -1093,14 +1114,17 @@ async def process_pool_upload(
 
         # Validate question quality before saving
         if questions_to_add:
-            valid_questions, invalid_questions, quality_stats = validate_question_quality(questions_to_add)
+            valid_questions, invalid_questions, quality_stats = validate_question_quality(
+                questions_to_add
+            )
 
             # Show validation results if issues found
             if invalid_questions:
                 # Separate questions with ONLY missing answer (can be AI-inferred) from other issues
                 missing_answer_only = [
-                    q for q in invalid_questions
-                    if q.get('validation_issues') == ['missing_correct_answer']
+                    q
+                    for q in invalid_questions
+                    if q.get("validation_issues") == ["missing_correct_answer"]
                 ]
                 other_issues = [q for q in invalid_questions if q not in missing_answer_only]
 
@@ -1116,20 +1140,24 @@ async def process_pool_upload(
 
                     ai_fixed = []
                     for idx, q in enumerate(missing_answer_only):
-                        status_text.info(f"🤖 Inferring answer for question {idx+1}/{len(missing_answer_only)}...")
+                        status_text.info(
+                            f"🤖 Inferring answer for question {idx+1}/{len(missing_answer_only)}..."
+                        )
                         progress_bar.progress((idx + 1) / len(missing_answer_only))
 
                         # Use AI to infer answer
-                        correct_index = await infer_answer_with_ai(q['question'], q['choices'])
-                        q['correct_answer'] = correct_index
-                        del q['validation_issues']  # Remove validation issues
+                        correct_index = await infer_answer_with_ai(q["question"], q["choices"])
+                        q["correct_answer"] = correct_index
+                        del q["validation_issues"]  # Remove validation issues
                         ai_fixed.append(q)
 
                         # Rate limiting
                         await asyncio.sleep(1)
 
                     progress_bar.empty()
-                    status_text.success(f"✅ AI automatically inferred answers for {len(ai_fixed)} questions!")
+                    status_text.success(
+                        f"✅ AI automatically inferred answers for {len(ai_fixed)} questions!"
+                    )
 
                     # Add AI-fixed questions to valid questions
                     valid_questions.extend(ai_fixed)
@@ -1160,7 +1188,9 @@ async def process_pool_upload(
         if questions_to_add:
             from openrouter_utils import validate_answer_correctness
 
-            progress_placeholder.info("🤖 Validating answer correctness with AI (only for questions missing answers)...")
+            progress_placeholder.info(
+                "🤖 Validating answer correctness with AI (only for questions missing answers)..."
+            )
 
             validated_questions = []
             auto_corrected = []
@@ -1175,10 +1205,10 @@ async def process_pool_upload(
                 progress_bar.progress(idx / len(questions_to_add))
 
                 # Extract question data
-                question_text = q.get('question_text') or q.get('question', '')
-                choices = q.get('choices', [])
-                correct_index = q.get('correct_answer') or q.get('correct_index', 0)
-                scenario = q.get('scenario', '')
+                question_text = q.get("question_text") or q.get("question", "")
+                choices = q.get("choices", [])
+                correct_index = q.get("correct_answer") or q.get("correct_index", 0)
+                scenario = q.get("scenario", "")
 
                 # Parse choices if JSON string
                 if isinstance(choices, str):
@@ -1189,11 +1219,11 @@ async def process_pool_upload(
 
                 # ONLY validate if question was missing correct answer or had validation issues
                 # Skip validation for questions with valid pre-provided answers
-                validation_issues = q.get('validation_issues', [])
+                validation_issues = q.get("validation_issues", [])
                 has_valid_answer = (
-                    q.get('correct_answer') is not None and
-                    isinstance(q.get('correct_answer'), int) and
-                    'missing_correct_answer' not in validation_issues
+                    q.get("correct_answer") is not None
+                    and isinstance(q.get("correct_answer"), int)
+                    and "missing_correct_answer" not in validation_issues
                 )
 
                 if has_valid_answer:
@@ -1209,30 +1239,40 @@ async def process_pool_upload(
                     )
 
                     # Auto-correct if AI is confident
-                    if validation['should_auto_correct'] and not validation['is_valid']:
+                    if validation["should_auto_correct"] and not validation["is_valid"]:
                         # Store original for report
                         original_index = correct_index
 
-                        # Update to AI's suggested answer
-                        q['correct_answer'] = validation['ai_suggested_index']
-                        q['correct_index'] = validation['ai_suggested_index']
+                        # Update to AI's suggested answer and clear stale explanation
+                        # so it gets regenerated rather than conflicting with the new correct answer
+                        q["correct_answer"] = validation["ai_suggested_index"]
+                        q["correct_index"] = validation["ai_suggested_index"]
+                        q["explanation"] = (
+                            ""  # Clear explanation; will be regenerated or use placeholder
+                        )
 
-                        auto_corrected.append({
-                            'question_text': question_text[:100] + ('...' if len(question_text) > 100 else ''),
-                            'old_answer': f"{chr(65 + original_index)} - {choices[original_index]}",
-                            'new_answer': f"{chr(65 + validation['ai_suggested_index'])} - {choices[validation['ai_suggested_index']]}",
-                            'confidence': validation['confidence'],
-                            'reasoning': validation['reasoning']
-                        })
-                    elif not validation['is_valid'] and validation['confidence'] < 0.90:
+                        auto_corrected.append(
+                            {
+                                "question_text": question_text[:100]
+                                + ("..." if len(question_text) > 100 else ""),
+                                "old_answer": f"{chr(65 + original_index)} - {choices[original_index]}",
+                                "new_answer": f"{chr(65 + validation['ai_suggested_index'])} - {choices[validation['ai_suggested_index']]}",
+                                "confidence": validation["confidence"],
+                                "reasoning": validation["reasoning"],
+                            }
+                        )
+                    elif not validation["is_valid"] and validation["confidence"] < 0.90:
                         # Low confidence warning
-                        low_confidence_warnings.append({
-                            'question_text': question_text[:100] + ('...' if len(question_text) > 100 else ''),
-                            'current_answer': f"{chr(65 + correct_index)} - {choices[correct_index]}",
-                            'suggested_answer': f"{chr(65 + validation['ai_suggested_index'])} - {choices[validation['ai_suggested_index']]}",
-                            'confidence': validation['confidence'],
-                            'reasoning': validation['reasoning']
-                        })
+                        low_confidence_warnings.append(
+                            {
+                                "question_text": question_text[:100]
+                                + ("..." if len(question_text) > 100 else ""),
+                                "current_answer": f"{chr(65 + correct_index)} - {choices[correct_index]}",
+                                "suggested_answer": f"{chr(65 + validation['ai_suggested_index'])} - {choices[validation['ai_suggested_index']]}",
+                                "confidence": validation["confidence"],
+                                "reasoning": validation["reasoning"],
+                            }
+                        )
 
                     validated_questions.append(q)
 
@@ -1255,16 +1295,18 @@ async def process_pool_upload(
                     f"{skipped_count} questions skipped (already had valid answers)"
                 )
             else:
-                progress_placeholder.success(f"✅ AI validation complete: {validated_count} questions validated")
+                progress_placeholder.success(
+                    f"✅ AI validation complete: {validated_count} questions validated"
+                )
 
             # Update questions_to_add to use validated questions
             questions_to_add = validated_questions
 
             # Store results in session state for reporting
             st.session_state.answer_validation_results = {
-                'auto_corrected': auto_corrected,
-                'low_confidence_warnings': low_confidence_warnings,
-                'skipped_count': skipped_count
+                "auto_corrected": auto_corrected,
+                "low_confidence_warnings": low_confidence_warnings,
+                "skipped_count": skipped_count,
             }
 
         # Create upload batch record
@@ -1314,6 +1356,7 @@ async def process_pool_upload(
             # Run health check to catch any incomplete explanations (including existing questions)
             try:
                 import threading
+
                 from explanation_health_check import run_health_check_sync
 
                 # Run in background thread to avoid blocking upload completion
@@ -1362,17 +1405,19 @@ async def process_pool_upload(
             st.metric("🔄 Duplicates Skipped", total_duplicates)
 
         # Show AI Answer Validation Report
-        if 'answer_validation_results' in st.session_state:
+        if "answer_validation_results" in st.session_state:
             results = st.session_state.answer_validation_results
-            auto_corrected = results.get('auto_corrected', [])
-            low_confidence_warnings = results.get('low_confidence_warnings', [])
+            auto_corrected = results.get("auto_corrected", [])
+            low_confidence_warnings = results.get("low_confidence_warnings", [])
 
             if auto_corrected or low_confidence_warnings:
                 st.markdown("---")
                 st.markdown("### 🤖 AI Answer Validation Report")
 
                 if auto_corrected:
-                    st.success(f"✅ Auto-corrected {len(auto_corrected)} answer(s) (≥90% confidence)")
+                    st.success(
+                        f"✅ Auto-corrected {len(auto_corrected)} answer(s) (≥90% confidence)"
+                    )
                     with st.expander("📋 View Auto-Corrected Answers"):
                         for idx, correction in enumerate(auto_corrected, 1):
                             st.markdown(f"**Question {idx}:** {correction['question_text']}")
@@ -1387,7 +1432,9 @@ async def process_pool_upload(
                                 st.markdown("---")
 
                 if low_confidence_warnings:
-                    st.warning(f"⚠️ {len(low_confidence_warnings)} question(s) may have incorrect answers (AI not confident enough to auto-correct)")
+                    st.warning(
+                        f"⚠️ {len(low_confidence_warnings)} question(s) may have incorrect answers (AI not confident enough to auto-correct)"
+                    )
                     with st.expander("⚠️ View Potential Issues"):
                         for idx, warning in enumerate(low_confidence_warnings, 1):
                             st.markdown(f"**Question {idx}:** {warning['question_text']}")
@@ -1395,7 +1442,9 @@ async def process_pool_upload(
                             st.markdown(f"**AI Suggests:** {warning['suggested_answer']}")
                             st.markdown(f"**Confidence:** {warning['confidence']:.0%}")
                             st.markdown(f"**Reasoning:** {warning['reasoning']}")
-                            st.info("💡 Review this question manually - AI is not confident enough to auto-correct.")
+                            st.info(
+                                "💡 Review this question manually - AI is not confident enough to auto-correct."
+                            )
                             if idx < len(low_confidence_warnings):
                                 st.markdown("---")
 
@@ -1447,7 +1496,7 @@ async def process_pool_upload(
             "pool_id": pool_id,
             "pool_name": pool_name,
             "source_files": source_files,
-            "questions_added": len(questions_to_add)
+            "questions_added": len(questions_to_add),
         }
 
     except Exception as e:

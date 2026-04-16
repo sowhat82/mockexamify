@@ -105,7 +105,9 @@ def show_admin_question_pools():
 
     # Handle rename
     if hasattr(st.session_state, "rename_pool_id") and st.session_state.rename_pool_id:
-        show_rename_pool_dialog(st.session_state.rename_pool_id, st.session_state.rename_pool_current_name)
+        show_rename_pool_dialog(
+            st.session_state.rename_pool_id, st.session_state.rename_pool_current_name
+        )
 
     # Handle delete confirmation
     if hasattr(st.session_state, "confirm_delete_pool") and st.session_state.confirm_delete_pool:
@@ -127,7 +129,7 @@ def show_pool_questions(pool_id: str):
         return
 
     # Initialize selected questions in session state
-    if 'selected_questions' not in st.session_state:
+    if "selected_questions" not in st.session_state:
         st.session_state.selected_questions = set()
 
     # Filter and search
@@ -140,7 +142,9 @@ def show_pool_questions(pool_id: str):
         st.session_state.pop("pool_search_term", None)
 
     with col1:
-        search_term = st.text_input("🔍 Search questions", value=prefilled_search, placeholder="Type to search...")
+        search_term = st.text_input(
+            "🔍 Search questions", value=prefilled_search, placeholder="Type to search..."
+        )
 
     with col2:
         sort_by = st.selectbox(
@@ -191,7 +195,7 @@ def show_pool_questions(pool_id: str):
         if st.button("☑️ Select All Visible", key="select_all_visible"):
             # Add all filtered question IDs to selection
             for idx, q in enumerate(filtered_questions, 1):
-                question_id = q['id']
+                question_id = q["id"]
                 st.session_state.selected_questions.add(question_id)
                 # Also update checkbox widget state to match
                 checkbox_key = f"select_{question_id}_{idx}"
@@ -235,7 +239,7 @@ def show_pool_questions(pool_id: str):
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     stdin=subprocess.DEVNULL,
-                    start_new_session=True
+                    start_new_session=True,
                 )
 
                 st.success(
@@ -252,8 +256,10 @@ def show_pool_questions(pool_id: str):
                 st.rerun()
 
         # Show confirmation dialog
-        if st.session_state.get('confirm_bulk_delete', False):
-            st.error(f"⚠️ Are you sure you want to delete {selected_count} question(s)? This cannot be undone!")
+        if st.session_state.get("confirm_bulk_delete", False):
+            st.error(
+                f"⚠️ Are you sure you want to delete {selected_count} question(s)? This cannot be undone!"
+            )
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("✅ Yes, Delete", key="confirm_bulk_delete_yes"):
@@ -274,7 +280,7 @@ def show_pool_questions(pool_id: str):
             st.markdown("---")
 
     # Show AI fix preview if in AI fix mode
-    if st.session_state.get('ai_fix_mode', False):
+    if st.session_state.get("ai_fix_mode", False):
         show_ai_fix_preview()
         return  # Don't show normal question list while in AI fix mode
 
@@ -300,7 +306,7 @@ def show_pool_questions(pool_id: str):
 
         with col1:
             # Checkbox for selecting this question
-            question_id = question['id']
+            question_id = question["id"]
             is_selected = question_id in st.session_state.selected_questions
             checkbox_key = f"select_{question_id}_{idx}"
 
@@ -311,6 +317,7 @@ def show_pool_questions(pool_id: str):
                         st.session_state.selected_questions.add(q_id)
                     else:
                         st.session_state.selected_questions.discard(q_id)
+
                 return callback
 
             st.checkbox(
@@ -318,7 +325,7 @@ def show_pool_questions(pool_id: str):
                 value=is_selected,
                 key=checkbox_key,
                 label_visibility="collapsed",
-                on_change=make_toggle_callback(question_id, checkbox_key)
+                on_change=make_toggle_callback(question_id, checkbox_key),
             )
 
         with col2:
@@ -513,8 +520,9 @@ def show_edit_question_form(question: Dict[str, Any]):
 def show_background_task_status():
     """Show status of running background tasks"""
     try:
-        from background_task_status import get_recent_tasks, cleanup_old_tasks
         from datetime import datetime, timezone
+
+        from background_task_status import cleanup_old_tasks, get_recent_tasks
 
         # Cleanup old tasks
         cleanup_old_tasks(max_age_hours=24)
@@ -523,39 +531,49 @@ def show_background_task_status():
         tasks = get_recent_tasks(limit=5)
 
         # Check if any are running
-        running_tasks = [t for t in tasks if t.get('status') == 'running']
-        completed_tasks = [t for t in tasks if t.get('status') == 'completed'][:3]
-        failed_tasks = [t for t in tasks if t.get('status') == 'failed'][:2]
+        running_tasks = [t for t in tasks if t.get("status") == "running"]
+        completed_tasks = [t for t in tasks if t.get("status") == "completed"][:3]
+        failed_tasks = [t for t in tasks if t.get("status") == "failed"][:2]
 
         # Always show the panel
         running_count = len(running_tasks)
-        panel_title = f"🔄 Background Tasks ({running_count} running)" if running_count > 0 else "🔄 Background Tasks"
+        panel_title = (
+            f"🔄 Background Tasks ({running_count} running)"
+            if running_count > 0
+            else "🔄 Background Tasks"
+        )
 
         with st.expander(panel_title, expanded=running_count > 0):
             if not tasks:
-                st.info("No background tasks. Tasks will appear here when you:\n"
-                        "- Upload questions (auto AI fix)\n"
-                        "- Use **🚀 AI Fix (Background)** on selected questions")
+                st.info(
+                    "No background tasks. Tasks will appear here when you:\n"
+                    "- Upload questions (auto AI fix)\n"
+                    "- Use **🚀 AI Fix (Background)** on selected questions"
+                )
             else:
                 # Running tasks
                 if running_tasks:
                     for task in running_tasks:
                         progress = 0
-                        if task.get('total_items', 0) > 0:
-                            progress = task.get('processed_items', 0) / task['total_items']
+                        if task.get("total_items", 0) > 0:
+                            progress = task.get("processed_items", 0) / task["total_items"]
 
                         col1, col2 = st.columns([3, 1])
                         with col1:
                             st.markdown(f"**🔄 {task.get('description', 'Unknown task')}**")
-                            if task.get('pool_name'):
+                            if task.get("pool_name"):
                                 st.caption(f"Pool: {task['pool_name']}")
                             st.progress(progress)
-                            st.caption(f"{task.get('current_item', 'Starting...')} | Fixed: {task.get('fixed_items', 0)} | Errors: {task.get('error_items', 0)}")
+                            st.caption(
+                                f"{task.get('current_item', 'Starting...')} | Fixed: {task.get('fixed_items', 0)} | Errors: {task.get('error_items', 0)}"
+                            )
                         with col2:
-                            started = task.get('started_at', '')
+                            started = task.get("started_at", "")
                             if started:
                                 try:
-                                    start_time = datetime.fromisoformat(started.replace('Z', '+00:00'))
+                                    start_time = datetime.fromisoformat(
+                                        started.replace("Z", "+00:00")
+                                    )
                                     elapsed = datetime.now(timezone.utc) - start_time
                                     mins = int(elapsed.total_seconds() // 60)
                                     secs = int(elapsed.total_seconds() % 60)
@@ -579,7 +597,9 @@ def show_background_task_status():
                 if failed_tasks:
                     st.markdown("---")
                     for task in failed_tasks:
-                        st.error(f"❌ {task.get('description', 'Task')} failed: {task.get('error_message', 'Unknown error')}")
+                        st.error(
+                            f"❌ {task.get('description', 'Task')} failed: {task.get('error_message', 'Unknown error')}"
+                        )
 
             # Refresh button
             if st.button("🔄 Refresh Status", key="refresh_bg_status"):
@@ -601,7 +621,7 @@ def show_rename_pool_dialog(pool_id: str, current_name: str):
             "New pool name",
             value=current_name,
             max_chars=100,
-            help="Enter a unique name for this pool"
+            help="Enter a unique name for this pool",
         )
 
         col1, col2 = st.columns(2)
@@ -761,7 +781,9 @@ def update_question(question_id: str, updated_data: Dict[str, Any]) -> bool:
         return False
 
 
-async def process_ai_fixes(question_ids: List[str], pool_id: str = None, enable_pattern_detection: bool = True) -> Dict[str, Any]:
+async def process_ai_fixes(
+    question_ids: List[str], pool_id: str = None, enable_pattern_detection: bool = True
+) -> Dict[str, Any]:
     """
     Process AI fixes for selected questions and optionally find similar errors in the pool.
 
@@ -777,9 +799,10 @@ async def process_ai_fixes(question_ids: List[str], pool_id: str = None, enable_
             - similar_questions_found: List of additional question IDs with similar errors
             - total_questions_to_fix: Total number of questions that will be fixed
     """
-    from openrouter_utils import fix_question_errors, openrouter_manager
-    from db import db
     import logging
+
+    from db import db
+    from openrouter_utils import fix_question_errors, openrouter_manager
 
     logger = logging.getLogger(__name__)
     fix_results = []
@@ -790,68 +813,77 @@ async def process_ai_fixes(question_ids: List[str], pool_id: str = None, enable_
     validation_stats = {
         "quick_pass": 0,  # Questions that passed quick validation
         "full_analysis": 0,  # Questions that needed full analysis
-        "total_validated": 0
+        "total_validated": 0,
     }
 
     # Phase 1: Fix initially selected questions
     for question_id in question_ids:
         try:
             # Load question from database
-            response = db.admin_client.table("pool_questions").select("*").eq("id", question_id).execute()
+            response = (
+                db.admin_client.table("pool_questions").select("*").eq("id", question_id).execute()
+            )
 
             if not response.data:
                 logger.warning(f"Question {question_id} not found")
                 continue
 
             question = response.data[0]
-            question_text = question['question_text']
-            choices = json.loads(question['choices']) if isinstance(question['choices'], str) else question['choices']
-            correct_answer = question.get('correct_answer')
+            question_text = question["question_text"]
+            choices = (
+                json.loads(question["choices"])
+                if isinstance(question["choices"], str)
+                else question["choices"]
+            )
+            correct_answer = question.get("correct_answer")
 
             # Track source file for pattern detection
-            source_file = question.get('source_file')
+            source_file = question.get("source_file")
             if source_file:
                 source_files.add(source_file)
 
-            # Call AI to fix (including answer validation)
+            # Call AI to fix (including answer validation and explanation consistency check)
             fix_result = await fix_question_errors(
                 question_text=question_text,
                 choices=choices,
                 correct_answer=correct_answer,
-                validate_answer=True  # Enable answer validation
+                validate_answer=True,
+                explanation=question.get("explanation", ""),
             )
 
             # Track validation stats
-            if fix_result.get('answer_validation'):
+            if fix_result.get("answer_validation"):
                 validation_stats["total_validated"] += 1
-                stage = fix_result['answer_validation'].get('validation_stage', 'unknown')
-                if stage == 'quick':
+                stage = fix_result["answer_validation"].get("validation_stage", "unknown")
+                if stage == "quick":
                     validation_stats["quick_pass"] += 1
-                elif stage == 'full':
+                elif stage == "full":
                     validation_stats["full_analysis"] += 1
 
-            fix_results.append({
-                "question_id": question_id,
-                "pool_id": question.get('pool_id'),
-                "original_question": question_text,
-                "fixed_question": fix_result['fixed_question'],
-                "original_choices": choices,
-                "fixed_choices": fix_result['fixed_choices'],
-                "changes_made": fix_result['changes_made'],
-                "has_changes": fix_result.get('has_changes', True),
-                "original_correct_answer": fix_result.get('original_correct_answer'),
-                "suggested_correct_answer": fix_result.get('suggested_correct_answer'),
-                "answer_changed": fix_result.get('answer_changed', False),
-                "answer_validation": fix_result.get('answer_validation'),
-                "new_explanation": fix_result.get('new_explanation'),
-                "explanation_regenerated": fix_result.get('explanation_regenerated', False),
-                "original_explanation": question.get('explanation'),
-                "error": fix_result.get('error'),
-                "from_pattern_match": False  # This was directly selected
-            })
+            fix_results.append(
+                {
+                    "question_id": question_id,
+                    "pool_id": question.get("pool_id"),
+                    "original_question": question_text,
+                    "fixed_question": fix_result["fixed_question"],
+                    "original_choices": choices,
+                    "fixed_choices": fix_result["fixed_choices"],
+                    "changes_made": fix_result["changes_made"],
+                    "has_changes": fix_result.get("has_changes", True),
+                    "original_correct_answer": fix_result.get("original_correct_answer"),
+                    "suggested_correct_answer": fix_result.get("suggested_correct_answer"),
+                    "answer_changed": fix_result.get("answer_changed", False),
+                    "answer_validation": fix_result.get("answer_validation"),
+                    "new_explanation": fix_result.get("new_explanation"),
+                    "explanation_regenerated": fix_result.get("explanation_regenerated", False),
+                    "original_explanation": question.get("explanation"),
+                    "error": fix_result.get("error"),
+                    "from_pattern_match": False,  # This was directly selected
+                }
+            )
 
             # Detect patterns from this fix
-            if enable_pattern_detection and fix_result.get('has_changes'):
+            if enable_pattern_detection and fix_result.get("has_changes"):
                 patterns = await openrouter_manager.detect_error_patterns(
                     fix_result, question_text, choices
                 )
@@ -859,12 +891,14 @@ async def process_ai_fixes(question_ids: List[str], pool_id: str = None, enable_
 
         except Exception as e:
             logger.error(f"Error processing fix for question {question_id}: {e}")
-            fix_results.append({
-                "question_id": question_id,
-                "has_changes": False,
-                "error": str(e),
-                "from_pattern_match": False
-            })
+            fix_results.append(
+                {
+                    "question_id": question_id,
+                    "has_changes": False,
+                    "error": str(e),
+                    "from_pattern_match": False,
+                }
+            )
 
     # Phase 2: Find similar questions with same error patterns
     similar_question_ids = []
@@ -874,10 +908,12 @@ async def process_ai_fixes(question_ids: List[str], pool_id: str = None, enable_
                 pool_id=pool_id,
                 patterns=all_patterns,
                 exclude_question_ids=question_ids,
-                source_files=list(source_files)  # Only check questions from same source files
+                source_files=list(source_files),  # Only check questions from same source files
             )
 
-            logger.info(f"Found {len(similar_question_ids)} questions with similar errors from source files: {source_files}")
+            logger.info(
+                f"Found {len(similar_question_ids)} questions with similar errors from source files: {source_files}"
+            )
 
             # Process fixes for similar questions with progress tracking
             total_to_analyze = len(similar_question_ids)
@@ -885,64 +921,84 @@ async def process_ai_fixes(question_ids: List[str], pool_id: str = None, enable_
                 # Update progress UI if available
                 try:
                     import streamlit as st
-                    if hasattr(st, 'session_state'):
-                        if '_ai_fix_progress_bar' in st.session_state:
+
+                    if hasattr(st, "session_state"):
+                        if "_ai_fix_progress_bar" in st.session_state:
                             progress = idx / total_to_analyze
                             st.session_state._ai_fix_progress_bar.progress(progress)
-                        if '_ai_fix_status_text' in st.session_state:
-                            st.session_state._ai_fix_status_text.text(f"🔍 Analyzing question {idx} of {total_to_analyze}...")
+                        if "_ai_fix_status_text" in st.session_state:
+                            st.session_state._ai_fix_status_text.text(
+                                f"🔍 Analyzing question {idx} of {total_to_analyze}..."
+                            )
                         st.session_state._ai_fix_current = idx
                 except:
                     pass  # Progress updates are optional
 
                 try:
-                    response = db.admin_client.table("pool_questions").select("*").eq("id", question_id).execute()
+                    response = (
+                        db.admin_client.table("pool_questions")
+                        .select("*")
+                        .eq("id", question_id)
+                        .execute()
+                    )
 
                     if not response.data:
                         continue
 
                     question = response.data[0]
-                    question_text = question['question_text']
-                    choices = json.loads(question['choices']) if isinstance(question['choices'], str) else question['choices']
-                    correct_answer = question.get('correct_answer')
+                    question_text = question["question_text"]
+                    choices = (
+                        json.loads(question["choices"])
+                        if isinstance(question["choices"], str)
+                        else question["choices"]
+                    )
+                    correct_answer = question.get("correct_answer")
 
                     fix_result = await fix_question_errors(
                         question_text=question_text,
                         choices=choices,
                         correct_answer=correct_answer,
-                        validate_answer=True
+                        validate_answer=True,
                     )
 
                     # Track validation stats for pattern-matched questions
-                    if fix_result.get('answer_validation'):
+                    if fix_result.get("answer_validation"):
                         validation_stats["total_validated"] += 1
-                        stage = fix_result['answer_validation'].get('validation_stage', 'unknown')
-                        if stage == 'quick':
+                        stage = fix_result["answer_validation"].get("validation_stage", "unknown")
+                        if stage == "quick":
                             validation_stats["quick_pass"] += 1
-                        elif stage == 'full':
+                        elif stage == "full":
                             validation_stats["full_analysis"] += 1
 
                     # Only add if there are actual changes
-                    if fix_result.get('has_changes'):
-                        fix_results.append({
-                            "question_id": question_id,
-                            "pool_id": question.get('pool_id'),
-                            "original_question": question_text,
-                            "fixed_question": fix_result['fixed_question'],
-                            "original_choices": choices,
-                            "fixed_choices": fix_result['fixed_choices'],
-                            "changes_made": fix_result['changes_made'],
-                            "has_changes": True,
-                            "original_correct_answer": fix_result.get('original_correct_answer'),
-                            "suggested_correct_answer": fix_result.get('suggested_correct_answer'),
-                            "answer_changed": fix_result.get('answer_changed', False),
-                            "answer_validation": fix_result.get('answer_validation'),
-                            "new_explanation": fix_result.get('new_explanation'),
-                            "explanation_regenerated": fix_result.get('explanation_regenerated', False),
-                            "original_explanation": question.get('explanation'),
-                            "error": fix_result.get('error'),
-                            "from_pattern_match": True  # This was found via pattern matching
-                        })
+                    if fix_result.get("has_changes"):
+                        fix_results.append(
+                            {
+                                "question_id": question_id,
+                                "pool_id": question.get("pool_id"),
+                                "original_question": question_text,
+                                "fixed_question": fix_result["fixed_question"],
+                                "original_choices": choices,
+                                "fixed_choices": fix_result["fixed_choices"],
+                                "changes_made": fix_result["changes_made"],
+                                "has_changes": True,
+                                "original_correct_answer": fix_result.get(
+                                    "original_correct_answer"
+                                ),
+                                "suggested_correct_answer": fix_result.get(
+                                    "suggested_correct_answer"
+                                ),
+                                "answer_changed": fix_result.get("answer_changed", False),
+                                "answer_validation": fix_result.get("answer_validation"),
+                                "new_explanation": fix_result.get("new_explanation"),
+                                "explanation_regenerated": fix_result.get(
+                                    "explanation_regenerated", False
+                                ),
+                                "original_explanation": question.get("explanation"),
+                                "error": fix_result.get("error"),
+                                "from_pattern_match": True,  # This was found via pattern matching
+                            }
+                        )
 
                 except Exception as e:
                     logger.error(f"Error processing similar question {question_id}: {e}")
@@ -953,10 +1009,10 @@ async def process_ai_fixes(question_ids: List[str], pool_id: str = None, enable_
     return {
         "fix_results": fix_results,
         "patterns_detected": all_patterns,
-        "similar_questions_found": len([f for f in fix_results if f.get('from_pattern_match')]),
-        "total_questions_to_fix": len([f for f in fix_results if f.get('has_changes')]),
+        "similar_questions_found": len([f for f in fix_results if f.get("from_pattern_match")]),
+        "total_questions_to_fix": len([f for f in fix_results if f.get("has_changes")]),
         "validation_stats": validation_stats,
-        "source_files": list(source_files)
+        "source_files": list(source_files),
     }
 
 
@@ -964,7 +1020,7 @@ async def find_similar_errors_in_pool(
     pool_id: str,
     patterns: List[Dict[str, Any]],
     exclude_question_ids: List[str] = None,
-    source_files: List[str] = None
+    source_files: List[str] = None,
 ) -> List[str]:
     """
     Find questions in the pool that match the detected error patterns.
@@ -978,10 +1034,11 @@ async def find_similar_errors_in_pool(
     Returns:
         List of question IDs that match the patterns
     """
-    from db import db
     import json
-    import re
     import logging
+    import re
+
+    from db import db
 
     logger = logging.getLogger(__name__)
 
@@ -993,61 +1050,80 @@ async def find_similar_errors_in_pool(
 
     # Filter to only questions from the same source files
     if source_files:
-        all_questions = [q for q in all_questions if q.get('source_file') in source_files]
-        logger.info(f"Filtering to {len(all_questions)} questions from source files: {source_files}")
+        all_questions = [q for q in all_questions if q.get("source_file") in source_files]
+        logger.info(
+            f"Filtering to {len(all_questions)} questions from source files: {source_files}"
+        )
 
     matching_question_ids = set()
 
     # Check if we have patterns that require full source file validation
-    has_wrong_answer_pattern = any(p.get('pattern_type') == 'wrong_answer' for p in patterns)
-    has_grammar_spelling_pattern = any(p.get('pattern_type') in ['grammar', 'spelling', 'word_usage', 'text_error'] for p in patterns)
-    has_ocr_spacing_pattern = any(p.get('pattern_type') in ['ocr_space', 'missing_space'] for p in patterns)
+    has_wrong_answer_pattern = any(p.get("pattern_type") == "wrong_answer" for p in patterns)
+    has_grammar_spelling_pattern = any(
+        p.get("pattern_type") in ["grammar", "spelling", "word_usage", "text_error"]
+        for p in patterns
+    )
+    has_ocr_spacing_pattern = any(
+        p.get("pattern_type") in ["ocr_space", "missing_space"] for p in patterns
+    )
 
     if has_wrong_answer_pattern:
-        logger.info(f"Wrong answer pattern detected - will validate questions from same source file(s)")
+        logger.info(
+            f"Wrong answer pattern detected - will validate questions from same source file(s)"
+        )
 
     if has_grammar_spelling_pattern:
-        logger.info(f"Grammar/spelling/text error pattern detected - will validate questions from same source file(s)")
+        logger.info(
+            f"Grammar/spelling/text error pattern detected - will validate questions from same source file(s)"
+        )
 
     for question in all_questions:
-        question_id = question.get('id')
+        question_id = question.get("id")
 
         # Skip excluded questions
         if question_id in exclude_question_ids:
             continue
 
-        question_text = question.get('question_text', '')
-        choices = json.loads(question.get('choices', '[]')) if isinstance(question.get('choices'), str) else question.get('choices', [])
-        correct_answer = question.get('correct_answer')
+        question_text = question.get("question_text", "")
+        choices = (
+            json.loads(question.get("choices", "[]"))
+            if isinstance(question.get("choices"), str)
+            else question.get("choices", [])
+        )
+        correct_answer = question.get("correct_answer")
 
         # Check each pattern
         for pattern in patterns:
-            pattern_type = pattern.get('pattern_type')
+            pattern_type = pattern.get("pattern_type")
 
             # OCR and spacing errors: Only check for exact text matches (these repeat exactly)
-            if pattern_type in ['ocr_space', 'missing_space']:
-                search_pattern = pattern.get('search_pattern', '')
+            if pattern_type in ["ocr_space", "missing_space"]:
+                search_pattern = pattern.get("search_pattern", "")
 
                 # Use case-insensitive search for better matching
                 if search_pattern:
                     if search_pattern.lower() in question_text.lower():
                         matching_question_ids.add(question_id)
-                        logger.info(f"Found {pattern_type} pattern '{search_pattern}' in question {question_id}")
+                        logger.info(
+                            f"Found {pattern_type} pattern '{search_pattern}' in question {question_id}"
+                        )
 
                     # Also check in choices
                     for choice in choices:
                         if search_pattern.lower() in choice.lower():
                             matching_question_ids.add(question_id)
-                            logger.info(f"Found {pattern_type} pattern '{search_pattern}' in choice of question {question_id}")
+                            logger.info(
+                                f"Found {pattern_type} pattern '{search_pattern}' in choice of question {question_id}"
+                            )
 
             # Grammar, spelling, word usage, text errors: Validate ALL questions
             # because similar types of errors could appear with different text
-            elif pattern_type in ['spelling', 'grammar', 'word_usage', 'text_error']:
+            elif pattern_type in ["spelling", "grammar", "word_usage", "text_error"]:
                 matching_question_ids.add(question_id)
                 logger.info(f"Adding question {question_id} for {pattern_type} validation")
 
             # Wrong answer: Validate all questions in pool
-            elif pattern_type == 'wrong_answer':
+            elif pattern_type == "wrong_answer":
                 # When wrong answers are detected, validate all questions in pool
                 # because wrong answers could be scattered across A, B, C, D randomly
                 # The AI will validate each one to determine if it's actually wrong
@@ -1064,7 +1140,7 @@ def apply_approved_fixes(fix_results: List[Dict[str, Any]]):
     errors = []
 
     # Get approved fixes
-    approved_fixes = [fix for fix in fix_results if fix['question_id'] in approved_ids]
+    approved_fixes = [fix for fix in fix_results if fix["question_id"] in approved_ids]
     total_fixes = len(approved_fixes)
 
     # Show progress bar if there are multiple fixes
@@ -1081,20 +1157,20 @@ def apply_approved_fixes(fix_results: List[Dict[str, Any]]):
 
         # Update question in database
         updated_data = {
-            'question_text': fix['fixed_question'],
-            'choices': json.dumps(fix['fixed_choices'])
+            "question_text": fix["fixed_question"],
+            "choices": json.dumps(fix["fixed_choices"]),
         }
 
         # Also update correct answer if it was changed
-        if fix.get('answer_changed') and fix.get('suggested_correct_answer') is not None:
-            updated_data['correct_answer'] = fix['suggested_correct_answer']
+        if fix.get("answer_changed") and fix.get("suggested_correct_answer") is not None:
+            updated_data["correct_answer"] = fix["suggested_correct_answer"]
 
         # Also update explanation if it was regenerated
-        if fix.get('explanation_regenerated') and fix.get('new_explanation'):
-            updated_data['explanation'] = fix['new_explanation']
+        if fix.get("explanation_regenerated") and fix.get("new_explanation"):
+            updated_data["explanation"] = fix["new_explanation"]
 
         try:
-            if update_question(fix['question_id'], updated_data):
+            if update_question(fix["question_id"], updated_data):
                 success_count += 1
             else:
                 error_count += 1
@@ -1122,9 +1198,12 @@ def show_ai_fix_preview():
     """Display AI fix preview with approval interface"""
 
     st.markdown("## 🤖 AI Fix Preview with Pattern Detection")
-    st.markdown("AI will detect error patterns and automatically find similar issues from the same source document.")
+    st.markdown(
+        "AI will detect error patterns and automatically find similar issues from the same source document."
+    )
 
-    st.info("""
+    st.info(
+        """
     **How Pattern Detection Works:**
     - **Scope:** Only checks questions from the same source file (PDF/DOCX) as the selected question(s)
     - **Grammar, spelling, text errors:** AI validates ALL questions from the same source for similar types of errors
@@ -1132,31 +1211,37 @@ def show_ai_fix_preview():
     - **Wrong answers:** AI validates ALL questions from the same source
 
     This targets errors that are likely to repeat from the same source document.
-    """)
+    """
+    )
 
     # Get fix results from session state (computed once)
-    if 'ai_fix_results_data' not in st.session_state:
+    if "ai_fix_results_data" not in st.session_state:
         question_ids = list(st.session_state.selected_questions)
-        pool_id = st.session_state.get('viewing_pool')
+        pool_id = st.session_state.get("viewing_pool")
 
         # Get pool size and source files to show user what to expect
         from db import db
+
         pool_questions = run_async(db.get_pool_questions(pool_id))
 
         # Get source files from selected questions
         selected_source_files = set()
         for qid in question_ids:
-            q = next((q for q in pool_questions if q['id'] == qid), None)
-            if q and q.get('source_file'):
-                selected_source_files.add(q.get('source_file'))
+            q = next((q for q in pool_questions if q["id"] == qid), None)
+            if q and q.get("source_file"):
+                selected_source_files.add(q.get("source_file"))
 
         # Count questions from the same source files
-        questions_from_same_source = [q for q in pool_questions if q.get('source_file') in selected_source_files]
+        questions_from_same_source = [
+            q for q in pool_questions if q.get("source_file") in selected_source_files
+        ]
         total_questions_to_check = len(questions_from_same_source)
 
         if selected_source_files:
-            source_file_names = ', '.join([f'"{sf}"' for sf in selected_source_files])
-            st.info(f"🔍 AI will analyze {len(question_ids)} selected question(s), then scan {total_questions_to_check} questions from the same source file(s): {source_file_names}")
+            source_file_names = ", ".join([f'"{sf}"' for sf in selected_source_files])
+            st.info(
+                f"🔍 AI will analyze {len(question_ids)} selected question(s), then scan {total_questions_to_check} questions from the same source file(s): {source_file_names}"
+            )
         else:
             st.info(f"🔍 AI will analyze {len(question_ids)} selected question(s).")
 
@@ -1171,59 +1256,66 @@ def show_ai_fix_preview():
         st.session_state._ai_fix_current = 0
 
         import logging
+
         logger = logging.getLogger(__name__)
-        logger.info(f"AI Fix Debug: pool_id={pool_id}, question_ids={question_ids}, questions_to_check={total_questions_to_check}, source_files={selected_source_files}")
+        logger.info(
+            f"AI Fix Debug: pool_id={pool_id}, question_ids={question_ids}, questions_to_check={total_questions_to_check}, source_files={selected_source_files}"
+        )
 
         # Call enhanced process_ai_fixes with pattern detection
-        fix_data = run_async(process_ai_fixes(
-            question_ids=question_ids,
-            pool_id=pool_id,
-            enable_pattern_detection=True
-        ))
+        fix_data = run_async(
+            process_ai_fixes(
+                question_ids=question_ids, pool_id=pool_id, enable_pattern_detection=True
+            )
+        )
 
         # Clear progress UI
         progress_bar.empty()
         status_text.empty()
 
         # Show completion summary
-        similar_count = fix_data.get('similar_questions_found', 0)
+        similar_count = fix_data.get("similar_questions_found", 0)
         total_analyzed = len(question_ids) + similar_count
-        total_with_fixes = len([f for f in fix_data.get('fix_results', []) if f.get('has_changes')])
-        source_files_checked = fix_data.get('source_files', [])
+        total_with_fixes = len([f for f in fix_data.get("fix_results", []) if f.get("has_changes")])
+        source_files_checked = fix_data.get("source_files", [])
 
         if source_files_checked:
-            source_file_names = ', '.join([f'"{sf}"' for sf in source_files_checked])
-            st.success(f"✅ Analysis complete! Analyzed {total_analyzed} question(s) from source file(s): {source_file_names}")
+            source_file_names = ", ".join([f'"{sf}"' for sf in source_files_checked])
+            st.success(
+                f"✅ Analysis complete! Analyzed {total_analyzed} question(s) from source file(s): {source_file_names}"
+            )
         else:
             st.success(f"✅ Analysis complete! Analyzed {total_analyzed} question(s).")
 
         st.info(f"📊 Found {total_with_fixes} question(s) with errors that need fixing.")
 
         # Clean up session state
-        if '_ai_fix_progress_bar' in st.session_state:
+        if "_ai_fix_progress_bar" in st.session_state:
             del st.session_state._ai_fix_progress_bar
-        if '_ai_fix_status_text' in st.session_state:
+        if "_ai_fix_status_text" in st.session_state:
             del st.session_state._ai_fix_status_text
-        if '_ai_fix_total' in st.session_state:
+        if "_ai_fix_total" in st.session_state:
             del st.session_state._ai_fix_total
-        if '_ai_fix_current' in st.session_state:
+        if "_ai_fix_current" in st.session_state:
             del st.session_state._ai_fix_current
 
-        logger.info(f"AI Fix Results: patterns={len(fix_data.get('patterns_detected', []))}, similar_found={fix_data.get('similar_questions_found', 0)}")
+        logger.info(
+            f"AI Fix Results: patterns={len(fix_data.get('patterns_detected', []))}, similar_found={fix_data.get('similar_questions_found', 0)}"
+        )
 
         st.session_state.ai_fix_results_data = fix_data
 
     fix_data = st.session_state.ai_fix_results_data
-    fix_results = fix_data.get('fix_results', [])
-    patterns_detected = fix_data.get('patterns_detected', [])
-    similar_questions_found = fix_data.get('similar_questions_found', 0)
-    validation_stats = fix_data.get('validation_stats', {})
+    fix_results = fix_data.get("fix_results", [])
+    patterns_detected = fix_data.get("patterns_detected", [])
+    similar_questions_found = fix_data.get("similar_questions_found", 0)
+    validation_stats = fix_data.get("validation_stats", {})
 
     # Show validation efficiency stats
-    if validation_stats.get('total_validated', 0) > 0:
-        quick_pass = validation_stats.get('quick_pass', 0)
-        full_analysis = validation_stats.get('full_analysis', 0)
-        total = validation_stats['total_validated']
+    if validation_stats.get("total_validated", 0) > 0:
+        quick_pass = validation_stats.get("quick_pass", 0)
+        full_analysis = validation_stats.get("full_analysis", 0)
+        total = validation_stats["total_validated"]
 
         savings_pct = (quick_pass / total * 100) if total > 0 else 0
 
@@ -1238,44 +1330,58 @@ def show_ai_fix_preview():
     if patterns_detected:
         st.success(f"✅ **Pattern detection found issues:**")
         st.markdown(f"- **{len(patterns_detected)}** error pattern(s) detected")
-        st.markdown(f"- **{similar_questions_found}** additional question(s) found with similar errors")
+        st.markdown(
+            f"- **{similar_questions_found}** additional question(s) found with similar errors"
+        )
 
         with st.expander("📋 View Detected Patterns", expanded=True):
             for idx, pattern in enumerate(patterns_detected, 1):
-                pattern_type = pattern.get('pattern_type', 'unknown')
-                description = pattern.get('description', 'No description')
+                pattern_type = pattern.get("pattern_type", "unknown")
+                description = pattern.get("description", "No description")
 
-                if pattern_type == 'wrong_answer':
+                if pattern_type == "wrong_answer":
                     st.warning(f"**Pattern {idx}:** Wrong answer detected - validating pool")
-                    st.markdown(f"- When wrong answers are found, AI validates a sample of questions from the pool")
+                    st.markdown(
+                        f"- When wrong answers are found, AI validates a sample of questions from the pool"
+                    )
                     st.markdown(f"- Wrong answers can be scattered across A, B, C, D options")
-                    st.markdown(f"- Each question is validated individually to confirm if answer is actually wrong")
+                    st.markdown(
+                        f"- Each question is validated individually to confirm if answer is actually wrong"
+                    )
                     st.markdown(f"- **Original issue:** {pattern.get('reasoning', 'N/A')[:200]}...")
-                elif pattern_type in ['grammar', 'spelling', 'word_usage', 'text_error']:
-                    st.warning(f"**Pattern {idx}:** {pattern_type.replace('_', ' ').title()} error detected - validating source file")
+                elif pattern_type in ["grammar", "spelling", "word_usage", "text_error"]:
+                    st.warning(
+                        f"**Pattern {idx}:** {pattern_type.replace('_', ' ').title()} error detected - validating source file"
+                    )
                     st.markdown(f"- **Specific error found:** {description}")
-                    st.markdown(f"- **Action:** AI is validating ALL questions from the same source file for similar types of errors")
+                    st.markdown(
+                        f"- **Action:** AI is validating ALL questions from the same source file for similar types of errors"
+                    )
                     st.markdown(f"- Grammar, spelling, and text errors can appear in many forms")
-                    st.markdown(f"- Each question from the same source is checked individually for {pattern_type.replace('_', ' ')} issues")
-                elif pattern_type in ['ocr_space', 'missing_space']:
+                    st.markdown(
+                        f"- Each question from the same source is checked individually for {pattern_type.replace('_', ' ')} issues"
+                    )
+                elif pattern_type in ["ocr_space", "missing_space"]:
                     st.info(f"**Pattern {idx}:** {description}")
                     st.markdown(f"- **Search method:** Looking for exact text matches only")
-                    if pattern.get('search_pattern'):
+                    if pattern.get("search_pattern"):
                         st.code(f"Looking for: '{pattern.get('search_pattern')}'")
                 else:
                     st.info(f"**Pattern {idx}:** {description}")
-                    if pattern.get('search_pattern'):
+                    if pattern.get("search_pattern"):
                         st.code(f"Looking for: '{pattern.get('search_pattern')}'")
     else:
-        st.info("ℹ️ **No error patterns detected** - Each question has unique errors or no additional similar questions found in pool")
+        st.info(
+            "ℹ️ **No error patterns detected** - Each question has unique errors or no additional similar questions found in pool"
+        )
 
     # Filter to only show questions with changes
-    questions_with_changes = [f for f in fix_results if f.get('has_changes', False)]
-    questions_with_errors = [f for f in fix_results if f.get('error')]
+    questions_with_changes = [f for f in fix_results if f.get("has_changes", False)]
+    questions_with_errors = [f for f in fix_results if f.get("error")]
 
     # Separate directly selected vs pattern-matched questions
-    directly_selected = [f for f in questions_with_changes if not f.get('from_pattern_match')]
-    pattern_matched = [f for f in questions_with_changes if f.get('from_pattern_match')]
+    directly_selected = [f for f in questions_with_changes if not f.get("from_pattern_match")]
+    pattern_matched = [f for f in questions_with_changes if f.get("from_pattern_match")]
 
     # Show errors if any
     if questions_with_errors:
@@ -1287,7 +1393,7 @@ def show_ai_fix_preview():
         st.success("✅ No errors found! All selected questions look good.")
         if st.button("⬅️ Back to Questions"):
             st.session_state.ai_fix_mode = False
-            if 'ai_fix_results_data' in st.session_state:
+            if "ai_fix_results_data" in st.session_state:
                 del st.session_state.ai_fix_results_data
             st.rerun()
         return
@@ -1299,7 +1405,7 @@ def show_ai_fix_preview():
         st.markdown(f"- {len(pattern_matched)} found by pattern detection")
 
     # Initialize approval tracking
-    if 'approved_fixes' not in st.session_state:
+    if "approved_fixes" not in st.session_state:
         st.session_state.approved_fixes = set()
 
     # Bulk approval controls
@@ -1316,16 +1422,23 @@ def show_ai_fix_preview():
         else:
             st.info(f"**{approved_count} of {total_count} fix(es) selected**")
     with col2:
-        all_selected = (approved_count == total_count)
-        if st.button("✅ Select All", key="select_all_fixes", use_container_width=True, disabled=all_selected):
+        all_selected = approved_count == total_count
+        if st.button(
+            "✅ Select All", key="select_all_fixes", use_container_width=True, disabled=all_selected
+        ):
             # Approve all questions with changes
             for fix in questions_with_changes:
-                st.session_state.approved_fixes.add(fix['question_id'])
+                st.session_state.approved_fixes.add(fix["question_id"])
             st.toast(f"✅ Selected all {len(questions_with_changes)} fixes!", icon="✅")
             st.rerun()
     with col3:
-        none_selected = (approved_count == 0)
-        if st.button("❌ Deselect All", key="deselect_all_fixes", use_container_width=True, disabled=none_selected):
+        none_selected = approved_count == 0
+        if st.button(
+            "❌ Deselect All",
+            key="deselect_all_fixes",
+            use_container_width=True,
+            disabled=none_selected,
+        ):
             st.session_state.approved_fixes = set()
             st.toast("❌ Deselected all fixes", icon="ℹ️")
             st.rerun()
@@ -1335,60 +1448,68 @@ def show_ai_fix_preview():
         st.markdown("---")
 
         # Show header with pattern match badge and approval status
-        question_id = fix['question_id']
+        question_id = fix["question_id"]
         is_approved = question_id in st.session_state.approved_fixes
         approval_badge = "✅ **SELECTED**" if is_approved else "⬜ Not selected"
 
         header_text = f"### Question {idx} of {len(questions_with_changes)}"
-        if fix.get('from_pattern_match'):
+        if fix.get("from_pattern_match"):
             st.markdown(f"{header_text} 🔍 *Found by Pattern Detection* | {approval_badge}")
         else:
             st.markdown(f"{header_text} | {approval_badge}")
 
         # Show changes summary
         changes_summary = []
-        if fix['changes_made'].get('question'):
-            changes_summary.extend(fix['changes_made']['question'])
-        if fix['changes_made'].get('choices'):
-            choices_changes = fix['changes_made']['choices']
+        if fix["changes_made"].get("question"):
+            changes_summary.extend(fix["changes_made"]["question"])
+        if fix["changes_made"].get("choices"):
+            choices_changes = fix["changes_made"]["choices"]
             # Handle both dict format {"0": [...], "1": [...]} and list format [[], [], []]
             if isinstance(choices_changes, dict):
                 for choice_idx, choice_changes in choices_changes.items():
                     if choice_changes:  # Only show if there are changes
-                        changes_summary.extend([f"Choice {choice_idx}: {c}" for c in choice_changes])
+                        changes_summary.extend(
+                            [f"Choice {choice_idx}: {c}" for c in choice_changes]
+                        )
             elif isinstance(choices_changes, list):
                 for choice_idx, choice_changes in enumerate(choices_changes):
                     if choice_changes:  # Only show if there are changes
-                        changes_summary.extend([f"Choice {choice_idx}: {c}" for c in choice_changes])
-        if fix['changes_made'].get('answer'):
-            changes_summary.extend(fix['changes_made']['answer'])
-        if fix['changes_made'].get('explanation'):
-            changes_summary.extend(fix['changes_made']['explanation'])
+                        changes_summary.extend(
+                            [f"Choice {choice_idx}: {c}" for c in choice_changes]
+                        )
+        if fix["changes_made"].get("answer"):
+            changes_summary.extend(fix["changes_made"]["answer"])
+        if fix["changes_made"].get("explanation"):
+            changes_summary.extend(fix["changes_made"]["explanation"])
 
         # Show answer change prominently if present
-        if fix.get('answer_changed'):
-            validation = fix.get('answer_validation', {})
+        if fix.get("answer_changed"):
+            validation = fix.get("answer_validation", {})
             st.error(f"⚠️ **INCORRECT ANSWER DETECTED**")
-            st.markdown(f"""
+            st.markdown(
+                f"""
 **AI detected the correct answer may be wrong:**
 - Original: **{chr(65 + fix['original_correct_answer'])}**. {fix['original_choices'][fix['original_correct_answer']]}
 - Suggested: **{chr(65 + fix['suggested_correct_answer'])}**. {fix['original_choices'][fix['suggested_correct_answer']]}
 - Confidence: **{validation.get('confidence', 0):.0%}**
 
 **Reasoning:** {validation.get('reasoning', 'No reasoning provided')}
-""")
+"""
+            )
 
             # Show explanation regeneration info
-            if fix.get('explanation_regenerated'):
-                st.success("✅ **Explanation Regenerated** - A new explanation has been generated for the corrected answer")
+            if fix.get("explanation_regenerated"):
+                st.success(
+                    "✅ **Explanation Regenerated** - A new explanation has been generated for the corrected answer"
+                )
 
                 # Show explanation preview
                 with st.expander("📖 View New Explanation"):
-                    st.markdown(fix.get('new_explanation', 'No explanation available'))
+                    st.markdown(fix.get("new_explanation", "No explanation available"))
 
-                if fix.get('original_explanation'):
+                if fix.get("original_explanation"):
                     with st.expander("📖 View Original Explanation (for comparison)"):
-                        st.markdown(fix['original_explanation'])
+                        st.markdown(fix["original_explanation"])
 
         if changes_summary:
             st.markdown("**All Changes:**")
@@ -1402,43 +1523,33 @@ def show_ai_fix_preview():
             st.markdown("#### ❌ Before")
             st.text_area(
                 "Question",
-                value=fix['original_question'],
+                value=fix["original_question"],
                 height=100,
                 key=f"before_q_{idx}",
-                disabled=True
+                disabled=True,
             )
             st.markdown("**Choices:**")
-            for i, choice in enumerate(fix['original_choices']):
+            for i, choice in enumerate(fix["original_choices"]):
                 # Mark the original correct answer
-                is_correct = (i == fix.get('original_correct_answer'))
+                is_correct = i == fix.get("original_correct_answer")
                 label = f"{'✓ ' if is_correct else ''}Choice {chr(65 + i)}"
-                st.text_input(
-                    label,
-                    value=choice,
-                    key=f"before_c_{idx}_{i}",
-                    disabled=True
-                )
+                st.text_input(label, value=choice, key=f"before_c_{idx}_{i}", disabled=True)
 
         with col2:
             st.markdown("#### ✅ After")
             st.text_area(
                 "Question",
-                value=fix['fixed_question'],
+                value=fix["fixed_question"],
                 height=100,
                 key=f"after_q_{idx}",
-                disabled=True
+                disabled=True,
             )
             st.markdown("**Choices:**")
-            for i, choice in enumerate(fix['fixed_choices']):
+            for i, choice in enumerate(fix["fixed_choices"]):
                 # Mark the suggested correct answer (may be different from original)
-                is_correct = (i == fix.get('suggested_correct_answer'))
+                is_correct = i == fix.get("suggested_correct_answer")
                 label = f"{'✓ ' if is_correct else ''}Choice {chr(65 + i)}"
-                st.text_input(
-                    label,
-                    value=choice,
-                    key=f"after_c_{idx}_{i}",
-                    disabled=True
-                )
+                st.text_input(label, value=choice, key=f"after_c_{idx}_{i}", disabled=True)
 
         # Approval buttons
         col1, col2 = st.columns(2)
@@ -1448,18 +1559,14 @@ def show_ai_fix_preview():
                 f"✅ {'Approved' if is_approved else 'Approve'} Fix {idx}",
                 key=f"approve_{idx}",
                 type="primary" if not is_approved else "secondary",
-                disabled=is_approved
+                disabled=is_approved,
             ):
                 st.session_state.approved_fixes.add(question_id)
                 st.toast(f"✅ Fix {idx} approved!", icon="✅")
                 st.rerun()
 
         with col2:
-            if st.button(
-                f"⏭️ Skip {idx}",
-                key=f"skip_{idx}",
-                disabled=not is_approved
-            ):
+            if st.button(f"⏭️ Skip {idx}", key=f"skip_{idx}", disabled=not is_approved):
                 st.session_state.approved_fixes.discard(question_id)
                 st.toast(f"⏭️ Fix {idx} unapproved", icon="ℹ️")
                 st.rerun()
@@ -1473,10 +1580,12 @@ def show_ai_fix_preview():
         if st.button(
             "💾 Apply All Approved",
             type="primary",
-            disabled=len(st.session_state.approved_fixes) == 0
+            disabled=len(st.session_state.approved_fixes) == 0,
         ):
             # Show loading spinner while applying fixes
-            with st.spinner(f"Applying {len(st.session_state.approved_fixes)} fix(es) to database..."):
+            with st.spinner(
+                f"Applying {len(st.session_state.approved_fixes)} fix(es) to database..."
+            ):
                 success_count = apply_approved_fixes(fix_results)
 
             # Show success message
@@ -1485,23 +1594,24 @@ def show_ai_fix_preview():
 
             # Wait a moment so user can see the success message
             import time
+
             time.sleep(1.5)
 
             # Cleanup
             st.session_state.ai_fix_mode = False
             st.session_state.selected_questions = set()
-            if 'ai_fix_results_data' in st.session_state:
+            if "ai_fix_results_data" in st.session_state:
                 del st.session_state.ai_fix_results_data
-            if 'approved_fixes' in st.session_state:
+            if "approved_fixes" in st.session_state:
                 del st.session_state.approved_fixes
             st.rerun()
 
     with col3:
         if st.button("❌ Cancel", key="cancel_ai_fix"):
             st.session_state.ai_fix_mode = False
-            if 'ai_fix_results_data' in st.session_state:
+            if "ai_fix_results_data" in st.session_state:
                 del st.session_state.ai_fix_results_data
-            if 'approved_fixes' in st.session_state:
+            if "approved_fixes" in st.session_state:
                 del st.session_state.approved_fixes
             st.rerun()
 

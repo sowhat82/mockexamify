@@ -476,16 +476,22 @@ class OpenRouterManager:
             # Check explanation consistency: if explanation says a different answer is correct,
             # override correct_answer to match the explanation and regenerate
             effective_correct = fix_result.get("suggested_correct_answer", correct_answer)
+            # Normalise: DB null comes back as Python None, which is falsy but not ""
+            explanation_text = explanation or ""
             if (
                 validate_answer
-                and explanation
+                and explanation_text
                 and effective_correct is not None
                 and not fix_result.get(
                     "answer_changed"
                 )  # only run if answer wasn't already corrected
             ):
+                logger.info(
+                    f"Running explanation consistency check: stored={chr(65+effective_correct)}, "
+                    f"explanation length={len(explanation_text)}"
+                )
                 consistency = await self.validate_explanation_consistency(
-                    choices, effective_correct, explanation
+                    question_text, choices, effective_correct, explanation_text
                 )
                 implied = consistency["explanation_implied_index"]
                 if not consistency["is_consistent"] and 0 <= implied < len(choices):
@@ -834,7 +840,7 @@ Be quick but thorough."""
         return {"is_plausible": True, "confidence": 0.5, "reasoning": "Unable to validate"}
 
     async def validate_explanation_consistency(
-        self, choices: List[str], correct_index: int, explanation: str
+        self, question_text: str, choices: List[str], correct_index: int, explanation: str
     ) -> Dict[str, Any]:
         """
         Check if an explanation text is consistent with the stored correct answer index.
@@ -851,15 +857,18 @@ Be quick but thorough."""
             choices_text = "\n".join([f"{chr(65+i)}. {c}" for i, c in enumerate(choices)])
             prompt = f"""You are checking whether an exam question explanation is consistent with the stored correct answer.
 
+Question:
+{question_text}
+
 Choices:
 {choices_text}
 
-Stored correct answer: {chr(65 + correct_index)} (index {correct_index})
+Stored correct answer: {chr(65 + correct_index)}. {choices[correct_index] if correct_index < len(choices) else ""}
 
 Explanation:
 {explanation}
 
-Does the explanation describe a DIFFERENT choice as the correct answer? If the explanation explicitly names or describes a choice other than {chr(65 + correct_index)} as correct, identify it.
+Does the explanation describe a DIFFERENT choice as the correct answer? Look for explicit phrases like "The correct answer is X", "X is correct", or descriptions that clearly match a different choice.
 
 Reply with JSON only:
 {{
@@ -869,14 +878,20 @@ Reply with JSON only:
 }}"""
 
             response = await self._generate_text_with_retry(prompt, max_tokens=200, temperature=0.1)
+            logger.info(f"Explanation consistency raw response: {response[:300]}")
 
             json_start = response.find("{")
             json_end = response.rfind("}") + 1
             if json_start >= 0 and json_end > json_start:
                 result = json.loads(response[json_start:json_end])
                 implied_index = int(result.get("explanation_implied_index", -1))
+                is_consistent = bool(result.get("is_consistent", True))
+                logger.info(
+                    f"Explanation consistency result: is_consistent={is_consistent}, "
+                    f"implied_index={implied_index}, reasoning={result.get('reasoning', '')}"
+                )
                 return {
-                    "is_consistent": bool(result.get("is_consistent", True)),
+                    "is_consistent": is_consistent,
                     "explanation_implied_index": implied_index,
                     "explanation_implied_choice": (
                         choices[implied_index] if 0 <= implied_index < len(choices) else ""

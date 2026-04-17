@@ -128,7 +128,8 @@ async def run_ai_fix_with_patterns(pool_id: str, question_ids: List[str], task_i
                     question_text=question_text,
                     choices=choices,
                     correct_answer=correct_answer,
-                    validate_answer=True
+                    validate_answer=True,
+                    explanation=question.get("explanation", ""),
                 )
 
                 processed += 1

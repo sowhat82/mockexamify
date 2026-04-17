@@ -113,7 +113,8 @@ async def run_ai_fix_for_questions(pool_id: str, source_files: List[str] = None,
                     question_text=question_text,
                     choices=choices,
                     correct_answer=correct_answer,
-                    validate_answer=True
+                    validate_answer=True,
+                    explanation=question.get("explanation", ""),
                 )
 
                 processed += 1

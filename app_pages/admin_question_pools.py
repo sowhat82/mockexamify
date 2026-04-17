@@ -959,6 +959,7 @@ async def process_ai_fixes(
                         choices=choices,
                         correct_answer=correct_answer,
                         validate_answer=True,
+                        explanation=question.get("explanation", ""),
                     )
 
                     # Track validation stats for pattern-matched questions
